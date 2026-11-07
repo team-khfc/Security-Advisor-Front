@@ -1,0 +1,397 @@
+// @vitest-environment node
+
+import { afterEach, expect, test, vi } from 'vitest';
+import { GET, POST } from '@/app/api/[...path]/route';
+import { ApiError, requestJson } from '@/lib/httpClient';
+import { forwardApiRequest, readLimitedBody } from '@/lib/serverProxy';
+import type { Actor, PageResponse, Session } from '@/lib/types';
+import type { BusinessCase, CaseAnalysis, SecurityRequest } from '@/features/request';
+import { createMockApi, type MockApiOptions } from '@/mocks/server';
+
+const ORIGIN = 'https://security-advisor.example';
+
+function makeClient(handler: ReturnType<typeof createMockApi>) {
+  const jar = new Map<string, string>();
+  return {
+    jar,
+    async send(path: string, method = 'GET', body?: unknown, extra: HeadersInit = {}) {
+      const headers = new Headers(extra);
+      headers.set('Cookie', [...jar].map(([name, value]) => `${name}=${value}`).join('; '));
+      headers.set('Origin', ORIGIN);
+      headers.set('X-Requested-With', 'SecurityAdvisor');
+      if (method !== 'GET') headers.set('X-XSRF-TOKEN', jar.get('XSRF-TOKEN') ?? '');
+      const form = body instanceof FormData;
+      if (body !== undefined && !form) headers.set('Content-Type', 'application/json');
+      const response = await handler(
+        new Request(ORIGIN + path, {
+          method,
+          headers,
+          body: body === undefined ? undefined : form ? body : JSON.stringify(body),
+        }),
+      );
+      for (const cookie of response.headers.getSetCookie()) {
+        const pair = cookie.split(';')[0];
+        const delimiter = pair.indexOf('=');
+        const name = pair.slice(0, delimiter);
+        const value = pair.slice(delimiter + 1);
+        if (cookie.includes('Max-Age=0')) jar.delete(name);
+        else jar.set(name, value);
+      }
+      return response;
+    },
+  };
+}
+
+async function setup(username = 'applicant', options: MockApiOptions = {}) {
+  const handler = createMockApi(options);
+  const client = makeClient(handler);
+  await client.send('/api/installation');
+  const login = await client.send('/api/demo-sessions', 'POST', { username });
+  expect(login.status).toBe(200);
+  return { handler, client, login };
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
+test('업무 API는 미인증을 거부하고 모의 세션 쿠키는 HttpOnly·Secure·SameSite를 갖는다', async () => {
+  const handler = createMockApi();
+  const anonymous = await handler(new Request(`${ORIGIN}/api/security-requests`));
+  expect(anonymous.status).toBe(401);
+  const { login } = await setup();
+  const cookie = login.headers.getSetCookie().find((value) => value.startsWith('SA_MOCK_SESSION='));
+  expect(cookie).toContain('HttpOnly');
+  expect(cookie).toContain('Secure');
+  expect(cookie).toContain('SameSite=Lax');
+  const session = (await login.json()) as Session;
+  expect(session.member.role).toBe('APPLICANT');
+  expect(session).not.toHaveProperty('password');
+});
+
+test('CSRF 토큰 또는 같은 출처 조건이 없는 상태 변경은 거부한다', async () => {
+  const handler = createMockApi();
+  const noToken = await handler(
+    new Request(`${ORIGIN}/api/demo-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'SecurityAdvisor' },
+      body: JSON.stringify({ username: 'admin' }),
+    }),
+  );
+  expect(noToken.status).toBe(403);
+  const token = crypto.randomUUID();
+  const wrongOrigin = await handler(
+    new Request(`${ORIGIN}/api/demo-sessions`, {
+      method: 'POST',
+      headers: {
+        Origin: 'https://unrelated.example',
+        Cookie: `XSRF-TOKEN=${token}`,
+        'X-XSRF-TOKEN': token,
+        'X-Requested-With': 'SecurityAdvisor',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username: 'admin' }),
+    }),
+  );
+  expect(wrongOrigin.status).toBe(403);
+});
+
+test('Next 바인딩 주소와 다른 실제 Host의 요청은 허용하고 전달 헤더로 출처 검증을 우회할 수 없다', async () => {
+  const handler = createMockApi();
+  const token = crypto.randomUUID();
+  async function login(origin: string, host: string, forwardedHost: string) {
+    return handler(
+      new Request('http://0.0.0.0:4173/api/demo-sessions', {
+        method: 'POST',
+        headers: {
+          Origin: origin,
+          Host: host,
+          'X-Forwarded-Host': forwardedHost,
+          Cookie: `XSRF-TOKEN=${token}`,
+          'X-XSRF-TOKEN': token,
+          'X-Requested-With': 'SecurityAdvisor',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username: 'applicant' }),
+      }),
+    );
+  }
+  expect((await login('http://127.0.0.1:4173', '127.0.0.1:4173', 'unrelated.example')).status).toBe(
+    200,
+  );
+  expect(
+    (await login('http://unrelated.example', '127.0.0.1:4173', 'unrelated.example')).status,
+  ).toBe(403);
+  expect((await login('https://127.0.0.1:4173', '127.0.0.1:4173', '127.0.0.1:4173')).status).toBe(
+    403,
+  );
+  expect(
+    (await login('http://127.0.0.1:4173', '127.0.0.1:4173@unrelated.example', '127.0.0.1:4173'))
+      .status,
+  ).toBe(403);
+});
+
+test('회원가입은 요청의 역할·기관을 무시하고 APPLICANT로만 생성하며 비밀번호를 반환하지 않는다', async () => {
+  const handler = createMockApi();
+  const client = makeClient(handler);
+  await client.send('/api/installation');
+  const password = crypto.randomUUID() + 'a9';
+  const signup = await client.send('/api/members', 'POST', {
+    username: 'synthetic-user',
+    password,
+    displayName: '합성 가입자',
+    department: '합성 부서',
+    role: 'ADMIN',
+    institutionId: 'untrusted',
+  });
+  expect(signup.status).toBe(201);
+  expect(signup.headers.get('Location')).toMatch(/^\/api\/members\//);
+  const actor = (await signup.json()) as Actor;
+  expect(actor.role).toBe('APPLICANT');
+  expect(actor).not.toHaveProperty('institutionId');
+  expect(actor).not.toHaveProperty('password');
+  expect(actor).not.toHaveProperty('passwordHash');
+  const login = await client.send('/api/auth/login', 'POST', {
+    username: actor.username,
+    password,
+  });
+  expect(login.status).toBe(200);
+  expect((await client.send('/api/members')).status).toBe(403);
+  const duplicate = await client.send('/api/members', 'POST', {
+    username: actor.username,
+    password,
+    displayName: '합성 가입자',
+  });
+  expect(duplicate.status).toBe(409);
+});
+
+test('로그인 실패 제한은 올바른 비밀번호에도 잠금 시간 동안 유지하고 이후 해제한다', async () => {
+  let time = Date.UTC(2026, 10, 7);
+  const password = crypto.randomUUID() + 'a9';
+  const handler = createMockApi({ password, now: () => new Date(time) });
+  const client = makeClient(handler);
+  await client.send('/api/installation');
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const response = await client.send('/api/auth/login', 'POST', {
+      username: 'applicant',
+      password: crypto.randomUUID(),
+    });
+    expect(response.status).toBe(attempt === 5 ? 429 : 401);
+  }
+  expect(
+    (await client.send('/api/auth/login', 'POST', { username: 'applicant', password })).status,
+  ).toBe(429);
+  time += 15 * 60 * 1000 + 1;
+  expect(
+    (await client.send('/api/auth/login', 'POST', { username: 'applicant', password })).status,
+  ).toBe(200);
+});
+
+test('다른 신청자의 상세·다운로드는 404이며 클라이언트 역할 헤더로 검토 권한을 얻을 수 없다', async () => {
+  const { handler, client } = await setup();
+  const list = (await (
+    await client.send('/api/security-requests?size=100')
+  ).json()) as PageResponse<SecurityRequest>;
+  expect(list.content.every((request) => request.ownerId === 'demo-applicant')).toBe(true);
+  const other = makeClient(handler);
+  await other.send('/api/installation');
+  await other.send('/api/demo-sessions', 'POST', { username: 'applicant2' });
+  expect((await other.send('/api/security-requests/demo-request-1')).status).toBe(404);
+  expect((await other.send('/api/security-requests/demo-request-1/documents')).status).toBe(404);
+  const review = list.content.find((request) => request.id === 'demo-request-1')?.reviews[0];
+  expect(review).toBeDefined();
+  const forged = await client.send(
+    `/api/reviews/${review?.id}/completion`,
+    'PUT',
+    { expectedRevision: 1 },
+    { 'X-Role': 'INFRA' },
+  );
+  expect(forged.status).toBe(403);
+});
+
+test('오래된 공통 정보 저장은 409와 최신 revision을 반환하고 먼저 저장한 값을 보존한다', async () => {
+  const { client } = await setup();
+  const original = (await (
+    await client.send('/api/business-cases/demo-case-1')
+  ).json()) as BusinessCase;
+  const first = await client.send('/api/business-cases/demo-case-1', 'PATCH', {
+    expectedRevision: original.revision,
+    answers: [
+      { key: 'purpose', value: '새로 저장한 합성 목적', confirmed: true, notApplicable: false },
+    ],
+  });
+  expect(first.status).toBe(200);
+  const stale = await client.send('/api/business-cases/demo-case-1', 'PATCH', {
+    expectedRevision: original.revision,
+    answers: [{ key: 'purpose', value: '낡은 화면의 목적', confirmed: true, notApplicable: false }],
+  });
+  expect(stale.status).toBe(409);
+  expect(await stale.json()).toHaveProperty('currentRevision', original.revision + 1);
+  const latest = (await (
+    await client.send('/api/business-cases/demo-case-1')
+  ).json()) as BusinessCase;
+  expect(latest.answers.find((answer) => answer.key === 'purpose')?.value).toBe(
+    '새로 저장한 합성 목적',
+  );
+});
+
+test('모의 분석은 미확정 출처·근거를 남기며 오래된 분석 적용과 위장 파일을 거부한다', async () => {
+  const { client } = await setup();
+  const analysis = await client.send('/api/business-cases/demo-case-1/analysis-jobs', 'POST', {
+    expectedRevision: 1,
+    text: '합성 공공자료 검색 서비스',
+  });
+  expect(analysis.status).toBe(202);
+  const job = (await analysis.json()) as CaseAnalysis;
+  expect(job.mode).toBe('EXAMPLE');
+  expect(job.provider).toContain('LLM 미사용');
+  const applied = await client.send(`/api/analysis-jobs/${job.id}/applications`, 'POST', {
+    expectedRevision: 1,
+  });
+  expect(applied.status).toBe(201);
+  const businessCase = (await applied.json()) as BusinessCase;
+  expect(businessCase.answers.find((answer) => answer.key === 'purpose')).toMatchObject({
+    source: 'AI_INFERRED',
+    confirmed: false,
+  });
+  const stale = await client.send(`/api/analysis-jobs/${job.id}/applications`, 'POST', {
+    expectedRevision: 1,
+  });
+  expect(stale.status).toBe(409);
+  const form = new FormData();
+  form.set('text', '합성 문서');
+  form.set('expectedRevision', String(businessCase.revision));
+  form.set('file', new File(['executable data'], 'synthetic.pdf', { type: 'application/pdf' }));
+  const disguised = await client.send(
+    '/api/business-cases/demo-case-1/analysis-jobs',
+    'POST',
+    form,
+  );
+  expect(disguised.status).toBe(400);
+  expect(await disguised.json()).toHaveProperty('code', 'INVALID_FILE_SIGNATURE');
+});
+
+test('로그아웃과 만료 뒤 기존 세션으로 업무 데이터를 조회할 수 없다', async () => {
+  let time = Date.UTC(2026, 10, 7);
+  const { client } = await setup('applicant', { now: () => new Date(time) });
+  expect((await client.send('/api/auth/me')).status).toBe(200);
+  time += 31 * 60 * 1000;
+  expect((await client.send('/api/auth/me')).status).toBe(401);
+  await client.send('/api/demo-sessions', 'POST', { username: 'applicant' });
+  expect((await client.send('/api/auth/logout', 'POST')).status).toBe(204);
+  expect((await client.send('/api/security-requests')).status).toBe(401);
+});
+
+test('다운로드는 실제 JSON과 불변 제출본 데이터를 제공하고 타인 세션에는 노출하지 않는다', async () => {
+  const { client } = await setup();
+  const list = (await (
+    await client.send('/api/security-requests?size=100')
+  ).json()) as PageResponse<SecurityRequest>;
+  const submitted = list.content.find((request) => request.currentSubmissionId);
+  expect(submitted).toBeDefined();
+  const response = await client.send(`/api/security-requests/${submitted?.id}/documents`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('Content-Type')).toContain('application/json');
+  expect(response.headers.get('Content-Disposition')).toMatch(/\.json"$/);
+  const document = await response.json();
+  expect(document.documentKind).toBe('SUBMISSION');
+  expect(document.commonAnswers).toEqual(submitted?.submissions[0].commonAnswers);
+});
+
+test('프록시는 고정 Back origin만 사용하고 세션·CSRF·Location을 같은 출처에 맞게 전달한다', async () => {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    Location: 'https://back.example/api/business-cases/42',
+  });
+  headers.append(
+    'Set-Cookie',
+    'JSESSIONID=synthetic; Path=/; Domain=back.example; HttpOnly; Secure; SameSite=Lax',
+  );
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response('{}', { status: 201, headers }));
+  const response = await forwardApiRequest(
+    new Request(`${ORIGIN}/api/business-cases?size=20`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'JSESSIONID=existing; XSRF-TOKEN=token',
+        'X-XSRF-TOKEN': 'token',
+        'X-Role': 'ADMIN',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: '합성 사업' }),
+    }),
+    'https://back.example',
+    fetcher,
+  );
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  const [target, init] = fetcher.mock.calls[0];
+  expect(String(target)).toBe('https://back.example/api/business-cases?size=20');
+  expect(new Headers(init?.headers).get('X-XSRF-TOKEN')).toBe('token');
+  expect(new Headers(init?.headers).get('X-Role')).toBeNull();
+  expect(init?.redirect).toBe('manual');
+  expect(response.headers.get('Location')).toBe('/api/business-cases/42');
+  expect(response.headers.get('Set-Cookie')).toContain('HttpOnly');
+  expect(response.headers.get('Set-Cookie')).not.toContain('Domain=');
+});
+
+test('프록시는 이동 응답·잘못된 서버 설정·과대 본문을 거부하고 모의 성공으로 대체하지 않는다', async () => {
+  const request = new Request(`${ORIGIN}/api/auth/me`);
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      new Response(null, { status: 302, headers: { Location: 'https://unrelated.example' } }),
+    );
+  await expect(forwardApiRequest(request, 'https://back.example', fetcher)).rejects.toMatchObject({
+    code: 'API_REDIRECT_REJECTED',
+    status: 502,
+  });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  await expect(forwardApiRequest(request, 'file:///etc/passwd', fetcher)).rejects.toMatchObject({
+    code: 'API_CONFIGURATION_INVALID',
+  });
+  await expect(
+    readLimitedBody(
+      new Request(`${ORIGIN}/api/business-cases`, {
+        method: 'POST',
+        headers: { 'Content-Length': String(13 * 1024 * 1024) },
+        body: 'small',
+      }),
+    ),
+  ).rejects.toMatchObject({ status: 413 });
+});
+
+test('실제 API 모드에는 모의 로그인 경로가 없고 연결 실패를 모의 데이터로 숨기지 않는다', async () => {
+  vi.stubEnv('API_MODE', 'api');
+  vi.stubEnv('API_BASE_URL', undefined);
+  const demo = await POST(new Request(`${ORIGIN}/api/demo-sessions`, { method: 'POST' }));
+  expect(demo.status).toBe(404);
+  const live = await GET(new Request(`${ORIGIN}/api/auth/me`));
+  expect(live.status).toBe(503);
+  expect(await live.json()).toHaveProperty('code', 'API_NOT_CONFIGURED');
+});
+
+test('HTTP 클라이언트는 실패를 ApiError로 보존하고 외부 경로를 거부한다', async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+    Response.json(
+      {
+        type: 'about:blank',
+        title: '변경 충돌',
+        status: 409,
+        detail: '최신 내용을 확인해 주세요.',
+        code: 'REVISION_CONFLICT',
+        currentRevision: 3,
+      },
+      { status: 409 },
+    ),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  await expect(requestJson('/api/security-requests/demo-request-1')).rejects.toMatchObject({
+    status: 409,
+    code: 'REVISION_CONFLICT',
+    problem: { currentRevision: 3 },
+  });
+  await expect(requestJson('https://unrelated.example/api/data')).rejects.toBeInstanceOf(ApiError);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});

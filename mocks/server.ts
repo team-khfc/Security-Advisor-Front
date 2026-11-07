@@ -1,0 +1,918 @@
+import { compare, hash } from 'bcryptjs';
+import { z } from 'zod';
+import { loginInputSchema, signupInputSchema } from '@/features/auth';
+import {
+  applyAnalysis,
+  createCase,
+  executeCommand,
+  requestForActor,
+  saveCaseAnswers,
+  type BusinessCase,
+  type CaseAnalysis,
+  type CommandAction,
+  type CommandInput,
+  type MockState,
+  type SecurityRequest,
+} from '@/features/request';
+import { DomainError } from '@/lib/problem';
+import { problemResponse, readLimitedBody } from '@/lib/serverProxy';
+import type { Actor, PageResponse, Session } from '@/lib/types';
+import { createMockState, MOCK_MEMBERS } from './seed';
+
+const SESSION_COOKIE = 'SA_MOCK_SESSION';
+const SESSION_MS = 30 * 60 * 1000;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const CSRF_COOKIE = 'XSRF-TOKEN';
+const MAX_MEMBERS = 500;
+
+const answerInputSchema = z.object({
+  key: z.string().min(1).max(100),
+  value: z.string().max(20_000),
+  confirmed: z.boolean(),
+  notApplicable: z.boolean(),
+});
+const commandSchema = z
+  .object({
+    expectedRevision: z.number().int().positive(),
+    reason: z.string().max(2_000).optional(),
+    fieldKeys: z.array(z.string().min(1).max(100)).max(100).optional(),
+    targetStage: z.number().int().min(1).max(4).optional(),
+    answers: z.array(answerInputSchema).max(100).optional(),
+    comment: z.string().max(5_000).optional(),
+    answer: z.string().max(5_000).optional(),
+    assigneeId: z.string().max(100).optional(),
+    field: z.enum(['INFRA', 'SECURITY']).optional(),
+    supplementId: z.string().max(100).optional(),
+  })
+  .strict();
+
+interface MemberRecord {
+  actor: Actor;
+  passwordHash: string | null;
+}
+interface StoredSession {
+  memberId: string;
+  expiresAt: number;
+}
+interface LoginAttempt {
+  count: number;
+  lockedUntil: number;
+}
+interface MockRuntime {
+  state: MockState;
+  members: MemberRecord[];
+  sessions: Map<string, StoredSession>;
+  attempts: Map<string, LoginAttempt>;
+  analyses: Map<string, CaseAnalysis>;
+  dummyHash: string;
+}
+export interface MockApiOptions {
+  password?: string;
+  now?: () => Date;
+  institutionName?: string;
+  institutionCode?: string;
+}
+
+function cookiesOf(request: Request): Map<string, string> {
+  const pairs = (request.headers.get('cookie') ?? '').split(';');
+  const result = new Map<string, string>();
+  for (const part of pairs) {
+    const delimiter = part.indexOf('=');
+    if (delimiter < 0) continue;
+    try {
+      result.set(part.slice(0, delimiter).trim(), decodeURIComponent(part.slice(delimiter + 1)));
+    } catch {
+      // 인코딩이 깨진 쿠키는 인증 근거가 될 수 없으므로 해당 항목만 버린다.
+    }
+  }
+  return result;
+}
+
+function json(value: unknown, status = 200, location?: string): Response {
+  return Response.json(value, {
+    status,
+    headers: { 'Cache-Control': 'no-store', ...(location ? { Location: location } : {}) },
+  });
+}
+
+function fail(status: number, code: string, detail: string): never {
+  throw new DomainError(status, code, detail);
+}
+
+function pageOf<T>(items: T[], url: URL): PageResponse<T> {
+  const page = Number(url.searchParams.get('page') ?? '0');
+  const size = Number(url.searchParams.get('size') ?? '20');
+  if (
+    !Number.isInteger(page) ||
+    page < 0 ||
+    page > 1_000_000 ||
+    !Number.isInteger(size) ||
+    size < 1 ||
+    size > 100
+  ) {
+    fail(400, 'INVALID_PAGINATION', 'page는 0 이상의 정수, size는 1~100 사이여야 합니다.');
+  }
+  return {
+    content: items.slice(page * size, (page + 1) * size),
+    page,
+    size,
+    totalElements: items.length,
+  };
+}
+
+async function bodyJson(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    return fail(400, 'INVALID_JSON', 'JSON 요청 형식을 확인해 주세요.');
+  }
+}
+
+function parse<T>(schema: z.ZodType<T>, input: unknown): T {
+  const result = schema.safeParse(input);
+  if (!result.success)
+    fail(400, 'INVALID_INPUT', result.error.issues[0]?.message ?? '입력값을 확인해 주세요.');
+  return result.data;
+}
+
+function secureSuffix(request: Request) {
+  return new URL(request.url).protocol === 'https:' ? '; Secure' : '';
+}
+
+/** Next 개발 서버의 바인딩 주소 대신 브라우저가 요청한 Host를 같은 출처 기준으로 쓴다. */
+function requestOrigin(request: Request): string {
+  const url = new URL(request.url);
+  const host = request.headers.get('host') ?? url.host;
+  if (!host || /[\\/?#@\u0000-\u0020\u007f]/.test(host)) {
+    return fail(403, 'CSRF_REJECTED', '요청 주소를 확인한 뒤 다시 시도해 주세요.');
+  }
+  try {
+    // Host는 브라우저가 임의로 바꿀 수 없는 헤더다. 프록시 전달 헤더는 신뢰하지 않는다.
+    return new URL(`${url.protocol}//${host}`).origin;
+  } catch {
+    return fail(403, 'CSRF_REJECTED', '요청 주소를 확인한 뒤 다시 시도해 주세요.');
+  }
+}
+
+function csrfCheck(request: Request, cookies: Map<string, string>) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return;
+  const origin = request.headers.get('origin');
+  if (origin && origin !== requestOrigin(request))
+    fail(403, 'CSRF_REJECTED', '같은 화면에서 다시 요청해 주세요.');
+  if (request.headers.get('sec-fetch-site') === 'cross-site')
+    fail(403, 'CSRF_REJECTED', '같은 화면에서 다시 요청해 주세요.');
+  const cookieToken = cookies.get(CSRF_COOKIE);
+  if (
+    request.headers.get('x-requested-with') !== 'SecurityAdvisor' ||
+    !cookieToken ||
+    request.headers.get('x-xsrf-token') !== cookieToken
+  ) {
+    fail(403, 'CSRF_REJECTED', '화면을 다시 불러온 뒤 요청해 주세요.');
+  }
+}
+
+function withCsrfCookie(response: Response, request: Request, cookieToken: string | undefined) {
+  if (!cookieToken) {
+    response.headers.append(
+      'Set-Cookie',
+      `${CSRF_COOKIE}=${crypto.randomUUID()}; Path=/; SameSite=Lax${secureSuffix(request)}`,
+    );
+  }
+  response.headers.set('Cache-Control', 'no-store');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  return response;
+}
+
+async function initialize(options: MockApiOptions): Promise<MockRuntime> {
+  const configured = options.password ?? process.env.DEMO_ACCOUNT_PASSWORD;
+  const passwordHash = configured ? await hash(configured, 10) : null;
+  return {
+    state: createMockState(),
+    members: MOCK_MEMBERS.map((actor) => ({ actor: structuredClone(actor), passwordHash })),
+    sessions: new Map(),
+    attempts: new Map(),
+    analyses: new Map(),
+    dummyHash: await hash(crypto.randomUUID(), 10),
+  };
+}
+
+function sessionMember(runtime: MockRuntime, request: Request, now: number): Actor {
+  const token = cookiesOf(request).get(SESSION_COOKIE);
+  const session = token ? runtime.sessions.get(token) : undefined;
+  if (!session || session.expiresAt <= now) {
+    if (token) runtime.sessions.delete(token);
+    return fail(
+      401,
+      'AUTHENTICATION_REQUIRED',
+      '로그인이 필요합니다. 다시 로그인한 뒤 이어서 진행해 주세요.',
+    );
+  }
+  const member = runtime.members.find((entry) => entry.actor.id === session.memberId)?.actor;
+  if (!member?.active)
+    return fail(
+      401,
+      'AUTHENTICATION_REQUIRED',
+      '로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.',
+    );
+  return member;
+}
+
+function currentSession(runtime: MockRuntime, request: Request, now: number): Session {
+  const member = sessionMember(runtime, request, now);
+  const token = cookiesOf(request).get(SESSION_COOKIE) ?? '';
+  const session = runtime.sessions.get(token);
+  if (!session) return fail(401, 'AUTHENTICATION_REQUIRED', '로그인이 필요합니다.');
+  return { member, expiresAt: new Date(session.expiresAt).toISOString(), mock: true };
+}
+
+function startSession(
+  runtime: MockRuntime,
+  request: Request,
+  member: Actor,
+  now: number,
+): Response {
+  const oldToken = cookiesOf(request).get(SESSION_COOKIE);
+  if (oldToken) runtime.sessions.delete(oldToken);
+  for (const [token, session] of runtime.sessions) {
+    if (session.expiresAt <= now) runtime.sessions.delete(token);
+  }
+  if (runtime.sessions.size >= 2_000)
+    fail(429, 'SESSION_CAPACITY', '모의 세션이 많습니다. 사용하지 않는 세션을 종료해 주세요.');
+  const token = crypto.randomUUID();
+  const expiresAt = now + SESSION_MS;
+  runtime.sessions.set(token, { memberId: member.id, expiresAt });
+  const response = json({ member, expiresAt: new Date(expiresAt).toISOString(), mock: true });
+  response.headers.append(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS / 1000}${secureSuffix(request)}`,
+  );
+  return response;
+}
+
+function auditMember(
+  runtime: MockRuntime,
+  actor: Actor,
+  target: Actor,
+  action: string,
+  reason: string | null,
+  now: number,
+) {
+  runtime.state.auditEvents.push({
+    id: crypto.randomUUID(),
+    actorId: actor.id,
+    actorName: actor.displayName,
+    actorRole: actor.role,
+    targetType: 'Member',
+    targetId: target.id,
+    targetRevision: 1,
+    action,
+    reason,
+    fieldKeys: [],
+    requestId: crypto.randomUUID(),
+    createdAt: new Date(now).toISOString(),
+  });
+}
+
+function visibleRequests(runtime: MockRuntime, actor: Actor): SecurityRequest[] {
+  return runtime.state.requests.flatMap((request) => {
+    try {
+      return [requestForActor(runtime.state, request, actor)];
+    } catch (error) {
+      if (error instanceof DomainError && error.status === 404) return [];
+      throw error;
+    }
+  });
+}
+
+function getRequest(runtime: MockRuntime, id: string, actor: Actor): SecurityRequest {
+  const request = runtime.state.requests.find((entry) => entry.id === id);
+  if (!request) return fail(404, 'RESOURCE_NOT_FOUND', '신청을 찾을 수 없습니다.');
+  return requestForActor(runtime.state, request, actor);
+}
+
+function getCase(runtime: MockRuntime, id: string, actor: Actor): BusinessCase {
+  const businessCase = runtime.state.cases.find((entry) => entry.id === id);
+  if (!businessCase) return fail(404, 'RESOURCE_NOT_FOUND', '사업 건을 찾을 수 없습니다.');
+  if (actor.role === 'APPLICANT' && businessCase.ownerId !== actor.id) {
+    return fail(404, 'RESOURCE_NOT_FOUND', '사업 건을 찾을 수 없습니다.');
+  }
+  if (
+    ['INFRA', 'SECURITY'].includes(actor.role) &&
+    !runtime.state.requests.some(
+      (entry) =>
+        entry.caseId === id &&
+        entry.assignments.some(
+          (assignment) => assignment.active && assignment.assigneeId === actor.id,
+        ),
+    )
+  ) {
+    return fail(404, 'RESOURCE_NOT_FOUND', '사업 건을 찾을 수 없습니다.');
+  }
+  return businessCase;
+}
+
+function caseDetail(runtime: MockRuntime, businessCase: BusinessCase, actor: Actor) {
+  return {
+    ...businessCase,
+    requests: visibleRequests(runtime, actor)
+      .filter((request) => request.caseId === businessCase.id)
+      .map(
+        ({ id, caseId, caseTitle, department, docType, stage, status, revision, updatedAt }) => ({
+          id,
+          caseId,
+          caseTitle,
+          department,
+          docType,
+          stage,
+          status,
+          revision,
+          updatedAt,
+        }),
+      ),
+  };
+}
+
+function findParent(runtime: MockRuntime, collection: string, id: string, actor: Actor) {
+  const key = collection === 'stage-returns' ? 'returns' : collection;
+  const allowed = ['reviews', 'supplements', 'returns', 'submissions', 'assignments'] as const;
+  const property = allowed.find((item) => item === key);
+  if (!property) return fail(404, 'RESOURCE_NOT_FOUND', '자원을 찾을 수 없습니다.');
+  const request = runtime.state.requests.find((entry) =>
+    entry[property].some((value) => value.id === id),
+  );
+  if (!request) return fail(404, 'RESOURCE_NOT_FOUND', '자원을 찾을 수 없습니다.');
+  const visible = getRequest(runtime, request.id, actor);
+  const resource = visible[property].find((entry) => entry.id === id);
+  return { request: visible, resource };
+}
+
+function conflictResponse(error: unknown, currentRevision: number): Response {
+  if (!(error instanceof DomainError) || error.status !== 409) throw error;
+  return json(
+    {
+      type: 'about:blank',
+      title: '변경 충돌',
+      status: 409,
+      detail: error.message,
+      code: error.code,
+      currentRevision,
+      requestId: crypto.randomUUID(),
+    },
+    409,
+  );
+}
+
+function documentResponse(request: SecurityRequest, url: URL) {
+  const submissionId = url.searchParams.get('submissionId');
+  const submission = submissionId
+    ? request.submissions.find((entry) => entry.id === submissionId)
+    : request.stage === 4
+      ? request.submissions.find((entry) => entry.id === request.currentSubmissionId)
+      : undefined;
+  if (submissionId && !submission)
+    return fail(404, 'RESOURCE_NOT_FOUND', '제출본을 찾을 수 없습니다.');
+  const content = {
+    service: 'SecurityAdvisor',
+    mode: 'MOCK',
+    notice:
+      '합성 데이터의 JSON 미리보기입니다. 정식 신청서 파일이나 실제 방화벽 적용 결과가 아닙니다.',
+    documentKind: submission
+      ? request.status === 'FINALIZED' && submission.id === request.currentSubmissionId
+        ? 'CONFIRMED'
+        : 'SUBMISSION'
+      : 'DRAFT',
+    requestId: request.id,
+    title: request.caseTitle,
+    docType: request.docType,
+    publicationVersion: submission?.publicationVersion ?? request.publicationVersion,
+    version: submission?.number ?? request.revision,
+    createdAt: submission?.createdAt ?? request.updatedAt,
+    commonAnswers: submission?.commonAnswers ?? request.commonAnswers,
+    answers: submission?.answers ?? request.answers,
+  };
+  return new Response(JSON.stringify(content, null, 2), {
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="security-advisor-${request.id}-v${content.version}.json"`,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+async function validateFile(file: File) {
+  if (file.size <= 0 || file.size > MAX_FILE_BYTES)
+    fail(400, 'INVALID_FILE_SIZE', '파일은 0바이트보다 크고 10MB 이하여야 합니다.');
+  const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
+  const types: Record<string, string[]> = {
+    pdf: ['application/pdf'],
+    hwp: ['application/x-hwp', 'application/haansofthwp', 'application/octet-stream', ''],
+    hwpx: [
+      'application/vnd.hancom.hwpx',
+      'application/haansofthwpx',
+      'application/zip',
+      'application/octet-stream',
+      '',
+    ],
+    docx: [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/zip',
+    ],
+  };
+  if (!types[extension]?.includes(file.type))
+    fail(400, 'INVALID_FILE_TYPE', 'PDF·HWP·HWPX·DOCX 문서만 선택해 주세요.');
+  const signature = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  const pdf = [0x25, 0x50, 0x44, 0x46, 0x2d];
+  const zip = [0x50, 0x4b, 0x03, 0x04];
+  const hwp = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+  const expected = extension === 'pdf' ? pdf : extension === 'hwp' ? hwp : zip;
+  if (!expected.every((value, index) => signature[index] === value))
+    fail(400, 'INVALID_FILE_SIGNATURE', '파일 내용과 확장자가 일치하지 않습니다.');
+}
+
+/** 테스트마다 독립된 모의 저장소를 만들며 외부 업무 서버와 연결하지 않는다. */
+export function createMockApi(options: MockApiOptions = {}) {
+  const initialized = initialize(options);
+  const now = () => (options.now?.() ?? new Date()).getTime();
+
+  return async function handle(requestInput: Request): Promise<Response> {
+    const cookieToken = cookiesOf(requestInput).get(CSRF_COOKIE);
+    let response: Response;
+    try {
+      csrfCheck(requestInput, cookiesOf(requestInput));
+      let request = requestInput;
+      if (!['GET', 'HEAD'].includes(request.method)) {
+        const bytes = await readLimitedBody(request);
+        request = new Request(request.url, {
+          method: request.method,
+          headers: request.headers,
+          body: bytes as Uint8Array<ArrayBuffer>,
+        });
+      }
+      const runtime = await initialized;
+      response = await dispatch(runtime, request, now(), options);
+    } catch (error) {
+      response = problemResponse(error);
+    }
+    return withCsrfCookie(response, requestInput, cookieToken);
+  };
+}
+
+async function dispatch(
+  runtime: MockRuntime,
+  request: Request,
+  now: number,
+  options: MockApiOptions,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const parts = url.pathname
+    .split('/')
+    .filter(Boolean)
+    .map((part) => decodeURIComponent(part));
+  const [prefix, resource, id, subresource] = parts;
+  const method = request.method;
+  if (prefix !== 'api' || parts.length > 4)
+    return fail(404, 'RESOURCE_NOT_FOUND', '자원을 찾을 수 없습니다.');
+
+  if (resource === 'installation' && !id && method === 'GET') {
+    return json({
+      institutionName: options.institutionName ?? process.env.INSTITUTION_NAME ?? '가상공공기관',
+      institutionCode: options.institutionCode ?? process.env.INSTITUTION_CODE ?? 'DEMO',
+      mode: 'mock',
+    });
+  }
+  if (resource === 'auth' && id === 'me' && method === 'GET')
+    return json(currentSession(runtime, request, now));
+  if (resource === 'auth' && id === 'login' && method === 'POST') {
+    const input = parse(loginInputSchema, await bodyJson(request));
+    const attempt = runtime.attempts.get(input.username);
+    if (attempt && attempt.lockedUntil > now)
+      return fail(
+        429,
+        'LOGIN_LOCKED',
+        '로그인 시도가 반복되어 15분 동안 잠겼습니다. 잠시 후 다시 시도해 주세요.',
+      );
+    const record = runtime.members.find((entry) => entry.actor.username === input.username);
+    const valid = await compare(input.password, record?.passwordHash ?? runtime.dummyHash);
+    if (!record?.actor.active || !valid) {
+      const count = attempt && attempt.lockedUntil === 0 ? attempt.count + 1 : 1;
+      if (runtime.attempts.size > 1_000) runtime.attempts.clear();
+      runtime.attempts.set(input.username, {
+        count,
+        lockedUntil: count >= 5 ? now + 15 * 60 * 1000 : 0,
+      });
+      if (record) auditMember(runtime, record.actor, record.actor, '로그인 실패', null, now);
+      return fail(
+        count >= 5 ? 429 : 401,
+        count >= 5 ? 'LOGIN_LOCKED' : 'INVALID_CREDENTIALS',
+        count >= 5
+          ? '로그인 시도가 반복되어 15분 동안 잠겼습니다.'
+          : '아이디 또는 비밀번호를 확인해 주세요. 모의 계정은 설정한 시연 비밀번호를 사용합니다.',
+      );
+    }
+    runtime.attempts.delete(input.username);
+    auditMember(runtime, record.actor, record.actor, '로그인', null, now);
+    return startSession(runtime, request, record.actor, now);
+  }
+  if (resource === 'auth' && id === 'logout' && method === 'POST') {
+    const token = cookiesOf(request).get(SESSION_COOKIE);
+    if (token) runtime.sessions.delete(token);
+    const response = new Response(null, { status: 204 });
+    response.headers.append(
+      'Set-Cookie',
+      `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureSuffix(request)}`,
+    );
+    return response;
+  }
+  if (resource === 'demo-sessions' && !id && method === 'POST') {
+    const input = parse(
+      z.object({ username: z.string().max(50) }).strict(),
+      await bodyJson(request),
+    );
+    const seed = MOCK_MEMBERS.find((entry) => entry.username === input.username);
+    const member = seed && runtime.members.find((entry) => entry.actor.id === seed.id)?.actor;
+    if (!member?.active) return fail(404, 'RESOURCE_NOT_FOUND', '모의 계정을 찾을 수 없습니다.');
+    return startSession(runtime, request, member, now);
+  }
+  if (resource === 'members' && !id && method === 'POST') {
+    const input = parse(signupInputSchema, await bodyJson(request));
+    if (runtime.members.length >= MAX_MEMBERS)
+      return fail(
+        429,
+        'MEMBER_CAPACITY',
+        '모의 계정 등록 한도에 도달했습니다. 개발 서버를 다시 시작해 주세요.',
+      );
+    const passwordHash = await hash(input.password, 10);
+    if (runtime.members.some((entry) => entry.actor.username === input.username))
+      return fail(
+        409,
+        'USERNAME_DUPLICATE',
+        '이미 사용 중인 아이디입니다. 다른 아이디를 입력해 주세요.',
+      );
+    const actor: Actor = {
+      id: crypto.randomUUID(),
+      username: input.username,
+      displayName: input.displayName,
+      department: input.department,
+      role: 'APPLICANT',
+      active: true,
+    };
+    runtime.members.push({ actor, passwordHash });
+    auditMember(runtime, actor, actor, '회원가입', null, now);
+    return json(actor, 201, `/api/members/${actor.id}`);
+  }
+
+  const actor = sessionMember(runtime, request, now);
+  const members = runtime.members.map((entry) => entry.actor);
+  if (
+    resource === 'sessions' &&
+    id === 'current' &&
+    subresource === 'renewals' &&
+    method === 'POST'
+  ) {
+    const token = cookiesOf(request).get(SESSION_COOKIE) ?? '';
+    const session = runtime.sessions.get(token);
+    if (!session) return fail(401, 'AUTHENTICATION_REQUIRED', '로그인이 필요합니다.');
+    session.expiresAt = now + SESSION_MS;
+    const response = json(currentSession(runtime, request, now));
+    response.headers.append(
+      'Set-Cookie',
+      `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS / 1000}${secureSuffix(request)}`,
+    );
+    return response;
+  }
+  if (resource === 'members' && method === 'GET') {
+    if (id === actor.id && !subresource) return json(actor);
+    if (actor.role !== 'ADMIN')
+      return fail(403, 'FORBIDDEN', '기관 관리자만 계정 목록을 확인할 수 있습니다.');
+    if (!id) return json(pageOf(members, url));
+    const member = members.find((entry) => entry.id === id);
+    if (!member) return fail(404, 'RESOURCE_NOT_FOUND', '계정을 찾을 수 없습니다.');
+    return json(member);
+  }
+  if (resource === 'members' && id && subresource === 'role-assignments' && method === 'POST') {
+    if (actor.role !== 'ADMIN')
+      return fail(403, 'FORBIDDEN', '기관 관리자만 역할을 변경할 수 있습니다.');
+    const input = parse(
+      z
+        .object({
+          role: z.enum(['APPLICANT', 'INFRA', 'SECURITY', 'ADMIN']),
+          active: z.boolean(),
+          reason: z.string().trim().min(1, '변경 사유를 입력해 주세요.').max(2_000),
+        })
+        .strict(),
+      await bodyJson(request),
+    );
+    const member = runtime.members.find((entry) => entry.actor.id === id);
+    if (!member) return fail(404, 'RESOURCE_NOT_FOUND', '계정을 찾을 수 없습니다.');
+    if (
+      member.actor.role === 'ADMIN' &&
+      (!input.active || input.role !== 'ADMIN') &&
+      members.filter((entry) => entry.role === 'ADMIN' && entry.active).length <= 1
+    )
+      return fail(422, 'LAST_ADMIN', '마지막 활성 관리자의 권한은 해제할 수 없습니다.');
+    const updated = { ...member.actor, role: input.role, active: input.active };
+    auditMember(runtime, actor, updated, '계정 역할·활성 변경', input.reason, now);
+    member.actor = updated;
+    return json(updated, 201, `/api/audit-events/${runtime.state.auditEvents.at(-1)?.id}`);
+  }
+  if (resource === 'audit-events' && method === 'GET') {
+    const allowedIds = new Set(visibleRequests(runtime, actor).map((entry) => entry.id));
+    const events = runtime.state.auditEvents
+      .filter(
+        (event) =>
+          actor.role === 'ADMIN' || allowedIds.has(event.targetId) || event.actorId === actor.id,
+      )
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+    if (id) {
+      const event = events.find((entry) => entry.id === id);
+      if (!event) return fail(404, 'RESOURCE_NOT_FOUND', '이력을 찾을 수 없습니다.');
+      return json(event);
+    }
+    return json(pageOf(events, url));
+  }
+  if (resource === 'business-cases' && !id && method === 'GET') {
+    const cases = runtime.state.cases.flatMap((entry) => {
+      try {
+        return [caseDetail(runtime, getCase(runtime, entry.id, actor), actor)];
+      } catch (error) {
+        if (error instanceof DomainError && error.status === 404) return [];
+        throw error;
+      }
+    });
+    return json(pageOf(cases, url));
+  }
+  if (resource === 'business-cases' && !id && method === 'POST') {
+    const input = parse(
+      z
+        .object({
+          title: z.string().trim().min(1).max(200),
+          department: z.string().trim().min(1).max(100),
+          description: z.string().max(20_000),
+          docTypes: z
+            .array(z.enum(['FIREWALL', 'SECURITY_REVIEW']))
+            .min(1)
+            .max(2),
+        })
+        .strict(),
+      await bodyJson(request),
+    );
+    const result = createCase(runtime.state, actor, input);
+    runtime.state = result.state;
+    return json(
+      caseDetail(runtime, getCase(runtime, result.caseId, actor), actor),
+      201,
+      `/api/business-cases/${result.caseId}`,
+    );
+  }
+  if (resource === 'business-cases' && id && !subresource && method === 'GET')
+    return json(caseDetail(runtime, getCase(runtime, id, actor), actor));
+  if (
+    resource === 'business-cases' &&
+    id &&
+    subresource === 'security-requests' &&
+    method === 'GET'
+  ) {
+    getCase(runtime, id, actor);
+    return json(
+      pageOf(
+        visibleRequests(runtime, actor).filter((entry) => entry.caseId === id),
+        url,
+      ),
+    );
+  }
+  if (resource === 'business-cases' && id && !subresource && method === 'PATCH') {
+    const current = getCase(runtime, id, actor);
+    const input = parse(
+      z
+        .object({
+          expectedRevision: z.number().int().positive(),
+          answers: z.array(answerInputSchema).max(100),
+        })
+        .strict(),
+      await bodyJson(request),
+    );
+    try {
+      runtime.state = saveCaseAnswers(
+        runtime.state,
+        actor,
+        id,
+        input.expectedRevision,
+        input.answers,
+      );
+    } catch (error) {
+      return conflictResponse(error, current.revision);
+    }
+    return json(caseDetail(runtime, getCase(runtime, id, actor), actor));
+  }
+  if (resource === 'business-cases' && id && subresource === 'analysis-jobs' && method === 'POST') {
+    const businessCase = getCase(runtime, id, actor);
+    if (actor.role !== 'APPLICANT' || businessCase.ownerId !== actor.id)
+      return fail(403, 'FORBIDDEN', '신청자만 분석을 요청할 수 있습니다.');
+    let text = '';
+    let expectedRevision = 0;
+    if (request.headers.get('content-type')?.includes('multipart/form-data')) {
+      const form = await request.formData();
+      text = String(form.get('text') ?? '');
+      expectedRevision = Number(form.get('expectedRevision'));
+      const file = form.get('file');
+      if (file instanceof File) await validateFile(file);
+      if (!(file instanceof File) && !text.trim())
+        return fail(400, 'ANALYSIS_INPUT_REQUIRED', '분석할 개요나 파일을 선택해 주세요.');
+    } else {
+      const input = parse(
+        z
+          .object({ text: z.string().max(20_000), expectedRevision: z.number().int().positive() })
+          .strict(),
+        await bodyJson(request),
+      );
+      text = input.text;
+      expectedRevision = input.expectedRevision;
+    }
+    if (text.length > 20_000)
+      return fail(400, 'ANALYSIS_TEXT_TOO_LONG', '개요는 20,000자 이하로 입력해 주세요.');
+    if (businessCase.revision !== expectedRevision)
+      return conflictResponse(
+        new DomainError(
+          409,
+          'REVISION_CONFLICT',
+          '입력한 내용을 보존한 채 최신 사업 정보를 확인해 주세요.',
+        ),
+        businessCase.revision,
+      );
+    if (runtime.analyses.size >= 500)
+      return fail(
+        429,
+        'ANALYSIS_CAPACITY',
+        '모의 분석 한도에 도달했습니다. 개발 서버를 다시 시작해 주세요.',
+      );
+    const analysis: CaseAnalysis = {
+      id: crypto.randomUUID(),
+      caseId: id,
+      revision: expectedRevision,
+      status: 'SUCCEEDED',
+      mode: 'EXAMPLE',
+      provider: '모의 분석 — 실제 문서 해석·LLM 미사용',
+      model: 'synthetic-fixture-v1',
+      error: null,
+      suggestions: [
+        {
+          key: 'purpose',
+          value: text.trim().slice(0, 500) || '공개 자료를 검색하고 안내하는 합성 서비스입니다.',
+          evidence:
+            '화면 검증용 합성 제안입니다. 실제 파일 내용을 해석하지 않았으며 기관 내부 사실을 추정하지 않습니다.',
+        },
+      ],
+      createdAt: new Date(now).toISOString(),
+    };
+    runtime.analyses.set(analysis.id, analysis);
+    return json(analysis, 202, `/api/analysis-jobs/${analysis.id}`);
+  }
+  if (resource === 'analysis-jobs' && id) {
+    const analysis = runtime.analyses.get(id);
+    if (!analysis) return fail(404, 'RESOURCE_NOT_FOUND', '분석 작업을 찾을 수 없습니다.');
+    const businessCase = getCase(runtime, analysis.caseId, actor);
+    if (actor.role !== 'APPLICANT' || businessCase.ownerId !== actor.id)
+      return fail(404, 'RESOURCE_NOT_FOUND', '분석 작업을 찾을 수 없습니다.');
+    if (!subresource && method === 'GET') return json(analysis);
+    if (subresource === 'applications' && method === 'POST') {
+      const input = parse(
+        z.object({ expectedRevision: z.number().int().positive() }).strict(),
+        await bodyJson(request),
+      );
+      if (analysis.revision !== input.expectedRevision)
+        return fail(
+          409,
+          'STALE_ANALYSIS',
+          '이전 입력 기준 분석입니다. 최신 내용으로 다시 분석해 주세요.',
+        );
+      try {
+        runtime.state = applyAnalysis(
+          runtime.state,
+          actor,
+          analysis.caseId,
+          input.expectedRevision,
+          analysis.suggestions,
+        );
+      } catch (error) {
+        return conflictResponse(error, businessCase.revision);
+      }
+      return json(
+        caseDetail(runtime, getCase(runtime, analysis.caseId, actor), actor),
+        201,
+        `/api/business-cases/${analysis.caseId}`,
+      );
+    }
+  }
+  if (resource === 'security-requests' && !id && method === 'GET') {
+    let requests = visibleRequests(runtime, actor);
+    for (const field of ['caseId', 'status', 'docType'] as const) {
+      const filter = url.searchParams.get(field);
+      if (filter) requests = requests.filter((entry) => entry[field] === filter);
+    }
+    return json(pageOf(requests, url));
+  }
+  if (resource === 'security-requests' && id && !subresource && method === 'GET')
+    return json(getRequest(runtime, id, actor));
+  if (resource === 'security-requests' && id && subresource === 'documents' && method === 'GET')
+    return documentResponse(getRequest(runtime, id, actor), url);
+  if (
+    id &&
+    !subresource &&
+    method === 'GET' &&
+    ['reviews', 'supplements', 'stage-returns', 'submissions', 'assignments'].includes(resource)
+  ) {
+    const found = findParent(runtime, resource, id, actor);
+    return json({ ...found.resource, requestId: found.request.id });
+  }
+
+  let target: SecurityRequest | undefined;
+  let action: CommandAction | undefined;
+  let extra: Partial<CommandInput> = {};
+  if (resource === 'security-requests' && id && subresource) {
+    const routes: Record<string, { method: string; action: CommandAction }> = {
+      reviews: { method: 'POST', action: 'REQUEST_REVIEW' },
+      supplements: { method: 'POST', action: 'REQUEST_SUPPLEMENT' },
+      'stage-returns': { method: 'POST', action: 'RETURN' },
+      submissions: { method: 'POST', action: 'SUBMIT' },
+      assignments: { method: 'POST', action: 'REASSIGN' },
+      'draft-generations': { method: 'POST', action: 'GENERATE_DRAFT' },
+      closure: { method: 'PUT', action: 'CLOSE' },
+      withdrawal: { method: 'PUT', action: 'WITHDRAW' },
+      answers: { method: 'PATCH', action: 'SAVE_ANSWERS' },
+    };
+    const route = routes[subresource];
+    if (route?.method === method) {
+      target = getRequest(runtime, id, actor);
+      action = route.action;
+    }
+  } else if (resource === 'reviews' && id && subresource && method === 'PUT') {
+    const found = findParent(runtime, resource, id, actor);
+    const review = found.request.reviews.find((entry) => entry.id === id);
+    if (review?.field !== actor.role)
+      return fail(403, 'FORBIDDEN', '배정된 분야의 담당자만 검토할 수 있습니다.');
+    if (subresource === 'allocation-completion' || subresource === 'completion') {
+      target = found.request;
+      action = subresource === 'allocation-completion' ? 'COMPLETE_ALLOCATION' : 'COMPLETE_REVIEW';
+      extra = { field: review.field };
+    }
+  } else if (
+    resource === 'supplements' &&
+    id &&
+    ((subresource === 'answers' && method === 'POST') ||
+      (subresource === 'resolution' && method === 'PUT'))
+  ) {
+    target = findParent(runtime, resource, id, actor).request;
+    action = subresource === 'answers' ? 'ANSWER_SUPPLEMENT' : 'RESOLVE_SUPPLEMENT';
+    extra = { supplementId: id };
+  } else if (
+    resource === 'submissions' &&
+    id &&
+    ((subresource === 'final-confirmations' && method === 'POST') ||
+      (subresource === 'confirmation' && method === 'PUT'))
+  ) {
+    target = findParent(runtime, resource, id, actor).request;
+    if (target.currentSubmissionId !== id)
+      return fail(422, 'NOT_CURRENT_SUBMISSION', '현재 제출본에 대해서만 확인·확정할 수 있습니다.');
+    action = subresource === 'final-confirmations' ? 'FINAL_CONFIRM' : 'FINALIZE';
+  }
+  if (target && action) {
+    const input = parse(commandSchema, await bodyJson(request));
+    const idempotencyKey = request.headers.get('idempotency-key') ?? undefined;
+    if (action === 'SUBMIT' && (!idempotencyKey || idempotencyKey.length > 200))
+      return fail(400, 'IDEMPOTENCY_KEY_REQUIRED', '중복 제출 방지 키가 필요합니다.');
+    try {
+      runtime.state = executeCommand(
+        runtime.state,
+        actor,
+        target.id,
+        { ...input, ...extra, action, idempotencyKey },
+        members,
+      );
+    } catch (error) {
+      return conflictResponse(error, target.revision);
+    }
+    const updated = getRequest(runtime, target.id, actor);
+    const created = method === 'POST';
+    const locations: Partial<Record<CommandAction, string>> = {
+      REQUEST_REVIEW: `/api/reviews/${updated.reviews[0]?.id}`,
+      REQUEST_SUPPLEMENT: `/api/supplements/${updated.supplements.at(-1)?.id}`,
+      RETURN: `/api/stage-returns/${updated.returns.at(-1)?.id}`,
+      SUBMIT: `/api/submissions/${updated.currentSubmissionId}`,
+      REASSIGN: `/api/assignments/${updated.assignments.at(-1)?.id}`,
+    };
+    return json(
+      updated,
+      created ? 201 : 200,
+      created ? (locations[action] ?? `/api/security-requests/${updated.id}`) : undefined,
+    );
+  }
+  return fail(404, 'RESOURCE_NOT_FOUND', '요청한 자원을 찾을 수 없습니다.');
+}
+
+let defaultHandler: ReturnType<typeof createMockApi> | undefined;
+
+/** 기본 모의 모드의 상태는 서버 프로세스 메모리에만 남고 재시작하면 초기화된다. */
+export async function handleMockRequest(request: Request): Promise<Response> {
+  defaultHandler ??= createMockApi();
+  return defaultHandler(request);
+}
