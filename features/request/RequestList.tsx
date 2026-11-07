@@ -497,7 +497,9 @@ function RequestListView({ options }: { options: ListOptions }) {
               role="region"
               aria-label="신청 내역 표, 가로 스크롤 가능"
             >
-              <table className="tbl rows-link request-table">
+              <table
+                className={`tbl rows-link request-table${isApplicant ? ' request-table-applicant' : ''}`}
+              >
                 <caption className="sr-only">
                   신청 내역. 사업명 링크를 선택하면 신청 상세로 이동합니다.
                 </caption>
