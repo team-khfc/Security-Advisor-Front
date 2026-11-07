@@ -149,17 +149,12 @@
   margin-bottom: 1.6rem;
 }
 
-.request-table .asg li {
-  grid-template-columns: 6.4rem minmax(0, 1fr);
-  gap: 0.2rem 0.8rem;
-}
-
-.request-table .asg-s {
-  grid-column: 2;
+.request-table.request-table-applicant {
+  table-layout: auto;
 }
 
 .request-table .asg-n {
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .request-table .bars {

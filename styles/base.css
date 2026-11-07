@@ -990,8 +990,15 @@ a.plain:hover {
   display: flex;
   align-items: center;
 }
+.gsearch > form {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
 .gsearch .gs-ic {
   position: absolute;
+  display: flex;
   left: 1.2rem;
   color: var(--sf-muted);
   pointer-events: none;
