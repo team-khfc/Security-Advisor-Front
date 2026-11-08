@@ -109,7 +109,7 @@ export function DocumentList() {
   return (
     <>
       <PageHeading title="문서함" />
-      <form className="filter-box" onSubmit={searchDocuments}>
+      <form className="filter-box document-filter" onSubmit={searchDocuments}>
         <div className="field">
           <label htmlFor="document-search">사업명·신청번호</label>
           <input
@@ -137,7 +137,6 @@ export function DocumentList() {
         </div>
         <div className="btn-row">
           <button type="submit" className="btn">
-            <Icon name="search" size={18} />
             검색
           </button>
           <button
@@ -187,15 +186,27 @@ export function DocumentList() {
                   <span className="p-id">{request.id}</span>
                 </div>
                 <h2 className="doc-t">{request.caseTitle}</h2>
-                <p className="help">{DOCUMENT_LABELS[request.docType]}</p>
+                <p className="help">
+                  {DOCUMENT_LABELS[request.docType]} · {STATUS_LABELS[request.status]}
+                </p>
                 <dl className="doc-dl">
-                  <div>
-                    <dt>신청 상태</dt>
-                    <dd>{STATUS_LABELS[request.status]}</dd>
-                  </div>
                   <div>
                     <dt>적용 설정</dt>
                     <dd>게시본 v{submitted?.publicationVersion ?? request.publicationVersion}</dd>
+                  </div>
+                  <div>
+                    <dt>확인 상태</dt>
+                    <dd>
+                      {unconfirmed || missing ? (
+                        <span className="need-txt">
+                          {unconfirmed > 0 ? `AI 추론 미확인 ${unconfirmed}개` : ''}
+                          {unconfirmed && missing ? ' · ' : ''}
+                          {missing > 0 ? `필수 미입력 ${missing}개` : ''}
+                        </span>
+                      ) : (
+                        '미입력·미확인 없음'
+                      )}
+                    </dd>
                   </div>
                   <div>
                     <dt>{submitted ? '제출 시각' : '마지막 저장'}</dt>
@@ -213,20 +224,6 @@ export function DocumentList() {
                     </dd>
                   </div>
                 </dl>
-                <div className="document-state">
-                  {unconfirmed || missing ? (
-                    <span className="need-txt">
-                      <Icon name="alert" size={16} />{' '}
-                      {unconfirmed > 0 ? `AI 추론 미확인 ${unconfirmed}개` : ''}
-                      {unconfirmed && missing ? ' · ' : ''}
-                      {missing > 0 ? `필수 미입력 ${missing}개` : ''}
-                    </span>
-                  ) : (
-                    <span className="help">
-                      미입력·미확인 AI 항목이 없습니다. 제출 조건은 신청 상세에서 확인해 주세요.
-                    </span>
-                  )}
-                </div>
                 {request.submissions.length > 0 && !submitted && (
                   <p className="meta">
                     이전 제출본 {request.submissions.length}개가 보존되어 있습니다.

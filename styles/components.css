@@ -469,3 +469,34 @@
   color: var(--sf-warning-text);
   font-weight: 700;
 }
+
+/* UI 통합 Stage 4-A (prototype-soo 563dd7e supplements·documents·network·history 기준) */
+.sec-head.sec-head-first {
+  margin-top: 0;
+}
+.card-h .p-id {
+  display: block;
+}
+.card-h .h-panel {
+  margin: 0;
+}
+.card > .supp:last-of-type {
+  margin-bottom: 1.6rem;
+}
+.supp p {
+  margin: 0.6rem 0 0;
+}
+.document-filter .field > label {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--sf-muted);
+}
+.network-table td > div + div {
+  margin-top: 0.4rem;
+}
+.network-table .turn {
+  display: block;
+}
+.audit-actor {
+  white-space: nowrap;
+}

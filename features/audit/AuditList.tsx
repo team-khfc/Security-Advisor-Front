@@ -139,21 +139,12 @@ export function AuditList() {
                 return (
                   <tr key={event.id}>
                     <td>
-                      <time dateTime={event.createdAt}>
-                        {new Intl.DateTimeFormat('ko-KR', {
-                          timeZone: 'Asia/Seoul',
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        }).format(new Date(event.createdAt))}
-                      </time>
+                      <time dateTime={event.createdAt}>{auditTime(event.createdAt)}</time>
                     </td>
                     <td>
                       <div className="p-id">
-                        {isRequest ? '신청' : isCase ? '사업 건' : '계정·시스템'}
+                        {isRequest ? '신청' : isCase ? '사업 건' : '계정·시스템'} · 기록 버전{' '}
+                        {event.targetRevision}
                       </div>
                       {isRequest ? (
                         <Link href={`/requests/${encodeURIComponent(event.targetId)}`}>
@@ -166,7 +157,6 @@ export function AuditList() {
                       ) : (
                         <span>{event.targetId}</span>
                       )}
-                      <div className="table-subtitle">기록 버전 {event.targetRevision}</div>
                     </td>
                     <td>
                       <strong>{auditActionLabel(event.action)}</strong>
@@ -176,8 +166,7 @@ export function AuditList() {
                       )}
                     </td>
                     <td className="audit-actor">
-                      <div>{event.actorName}</div>
-                      <div className="p-meta">{ROLE_LABELS[event.actorRole]}</div>
+                      {event.actorName} ({ROLE_LABELS[event.actorRole]})
                     </td>
                   </tr>
                 );
@@ -216,4 +205,22 @@ export function AuditList() {
       )}
     </>
   );
+}
+
+/** 시안과 같은 `YYYY-MM-DD HH:mm`(한국표준시) 표기. */
+function auditTime(value: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(value))
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
