@@ -37,7 +37,7 @@
 | 공통 셸 | 전체 | `partials/shell.html`, `assets/css/base.css` | `components/ServiceShell.tsx`, `styles/globals.css` | Stage 1 완료(배지 보류) |
 | 신청 현황 | `/requests` | `requests.html`, `screens/requests.js·css` | `features/request/RequestList.tsx`, `styles/requests.css` | Stage 1 완료 |
 | 신청 상세 | `/requests/[id]` | `request-detail.html`, `submitted.html` | `features/request/RequestDetail.tsx`, `styles/requestDetail.css` | Stage 2 완료 |
-| 새 신청 | `/requests/new`, `/cases/[id]` | `new-request.html` | `features/request/NewRequest.tsx`, `CaseInterview.tsx` | Stage 3 예정 |
+| 새 신청 | `/requests/new` | `new-request.html`(시작 화면) | `features/request/NewRequest.tsx`, `styles/newRequest.css` | Stage 3 완료(`/cases/[id]` 인터뷰 작업 영역은 미대상) |
 | 보완·통신 | `/supplements`, `/network` | `supplements.html`, `network.html` | `features/request/SupportingPages.tsx` | Stage 4 예정 |
 | 문서함 | `/documents` | `documents.html` | `features/document/DocumentList.tsx` | Stage 4 예정 |
 | 처리 이력 | `/history` | `history.html` | `features/audit/AuditList.tsx` | Stage 4 예정 |
@@ -89,6 +89,27 @@
 | 남은 차이 | 값이 없을 때 `담당자 확인 필요` 글자와 같은 이름의 배지가 한 줄에 함께 보임(기존 `AnswerView` 동작, 2열 배치로 더 눈에 띔). 우측 패널이 화면보다 길면 하단 버튼은 페이지 끝까지 스크롤해야 보임(변경 전과 같은 sticky 동작, 시안과 같음). 1279px 이하에서 패널이 본문 아래로 내려가는 것은 시안과 같음 |
 | Stage 1 공통 CSS 영향 | 신청 상세에는 `.tbl`·`.stats`가 없어 표·카드 여백 변경의 영향 없음. 본문 여백·`.page-head` 여백은 시안 밀도와 맞음. 화면별 충돌 없음 |
 
+### Stage 3 — 새 신청
+
+비교 기준: 시안 `new-request.html` 시작 화면(`renderLanding`, 563dd7e), Front `/requests/new` 모의 모드, 신청자 역할 1440×900.
+
+| 영역 | 시안 | 변경 전 Front | 변경 후 Front |
+| --- | --- | --- | --- |
+| 제목·설명 | 제목 `새 신청`만 | 제목 + 설명 한 줄 | 제목만(시안과 같음) |
+| 사업 정보 입력 | 없음 | 사업명·담당 부서·서류 선택 카드 | 그대로 유지(D3, 업무 필수 입력) |
+| 파일 영역 | `.intake > .dropzone`: 점선 테두리, 원형 아이콘, `h-panel` 제목, 도움말, `파일 선택`, 형식 안내(`aria-describedby`), 영역 안 오류(`role=alert`), 분석 전 파일 목록 | 독자 클래스 `.upload-zone`, `h-sec` 제목, 형식 오류는 폼 위 알림 | 시안 구조와 클래스(`.intake`·`.dropzone`·`.dz-ic`·`.pend`·`.iedit-btn`). 파일 오류는 영역 안 `role=alert`. 선택 파일은 `파일명 / 형식, 크기 / 분석 전 / 선택 취소(×)` 한 줄 |
+| 드래그 상태 | `.drag`(주색 테두리·옅은 주색 배경), 영역을 벗어날 때만 해제 | 자식 요소 위로 이동하면 상태가 깜박이며 해제 | 시안처럼 영역을 벗어날 때만 해제. 생성 중에는 드래그·놓기·파일 선택 무시 |
+| 하단 행동 | 오른쪽 아래 `기획서 없이 대화로 시작`(보조) + 파일이 있으면 `선택한 파일 분석 시작`(주) | 왼쪽 안내 + 오른쪽 주 버튼 | `.intake-actions` 오른쪽 정렬 주 버튼 1개(기존 이름 유지: 파일 없으면 `기획서 없이 대화로 시작`, 있으면 `기획서와 함께 작성 시작`), 왼쪽 안내 문구 |
+| 높이 | 작업 영역 전체(`--work-h`) | 36rem | 36rem(위에 입력 카드가 있어 작업 영역 전체 높이는 쓰지 않음) |
+
+| 구분 | 내용 |
+| --- | --- |
+| 변경 파일 | `features/request/NewRequest.tsx`(파일 영역 마크업, 파일 오류 상태 분리, 드래그 해제 조건, 생성 중 파일 조작 차단, 선택 취소 후 초점), `styles/newRequest.css`(Stage 3 블록), `styles/application.css`(사용하지 않게 된 `.upload-zone`·`.upload-icon`·`.selected-file`·`.new-request-actions` 삭제, `CaseInterview`가 쓰는 `.file-name`은 유지), `tests/new-request.test.tsx`(신규 4개) |
+| 보존한 업무 기능 | 사업명 필수(브라우저 필수 검사), 담당 부서 필수(공백만 입력 시 오류), 서류 0개 선택 시 오류, 서류 복수 선택, `useCreateCase` 요청 내용, 형식(PDF·HWP·HWPX·DOCX)·크기(10MB)·1개 제한, 선택 파일은 전송하지 않고 `rememberUpload`로 사업 건 화면에 전달, 입력 초안 복원, 실패 시 입력 유지, 성공 시 `/cases/{id}` 이동, 사업 개요 직접 입력 |
+| 추가·변경한 UI 인터랙션 | 파일 오류를 파일 영역 안에 표시(검사 규칙·문구는 같음). 드래그 상태 해제 조건. 생성 중 파일 선택·놓기 비활성. 선택 취소 버튼을 `×` 아이콘으로 바꾸고 접근 이름 `<파일명> 선택 취소`, 취소 뒤 `파일 선택`으로 초점 이동 |
+| 의도적으로 유지한 차이 | 시안에 없는 사업 정보 입력 카드(D3). 시안의 여러 파일(최대 5개)·XLSX·TXT·파일당 20MB는 Front가 지원하지 않아 Front 기준(1개, PDF·HWP·HWPX·DOCX, 10MB) 표시. 시안의 `선택한 파일 분석 시작`·브라우저 안 문서 분석은 시연 기능이라 가져오지 않음(분석은 사업 건 화면에서 명시적으로 요청). 버튼 1개 구조와 기존 이름 유지(기존 테스트·흐름) |
+| 디자이너 결정 필요 | ① 사업 정보 입력 카드를 파일 영역 위에 둘지, 파일 선택 뒤 단계·대화상자로 받을지(D3). ② 위 카드가 있을 때 파일 영역 높이. ③ 하단 행동을 시안처럼 보조·주 버튼 2개로 나눌지(Front는 생성 1회로 두 흐름을 처리) |
+
 ## C. 기능 보존
 
 ### 기준선 (Stage 0, 코드 변경 전)
@@ -129,6 +150,22 @@
 | 390px | 수동 | 가로 넘침 없음. 값 목록 1열, 단계 4칸 유지(시안과 같음) |
 | 미검증 | – | 종결(반려) 상태 화면(시드 없음, 철회와 같은 분기), 3단계로의 반환 후 화면, 제출·확정 성공 경로(시드 데이터가 blocker를 가져 미실행), 화면 낭독기 |
 
+### Stage 3 검증
+
+| 검증 | 실행 | 결과 |
+| --- | --- | --- |
+| `npm run check` | 실행 | 통과. 8개 파일 79개(Stage 2의 75개 유지 + 신규 4개) |
+| `npm run build` | 실행 | 통과 |
+| 정상 생성: 방화벽만 / 보안성검토만 / 둘 다 + 파일 | 수동(모의) | 각각 `/cases/{id}`로 이동, 생성된 사업 건의 신청 서류가 `[FIREWALL]` / `[SECURITY_REVIEW]` / `[SECURITY_REVIEW, FIREWALL]`. 파일은 사업 건 화면의 기획서 영역에 `선택됨, 분석 요청 전에는 전송하지 않습니다`로 표시 |
+| 필수값 누락 | 수동 | 사업명 빈칸 → 브라우저 필수 검사로 제출 안 됨. 담당 부서 공백 → `담당 부서를 입력해 주세요.` 서류 0개 → `신청할 서류를 한 가지 이상 선택해 주세요.` 모두 입력값 유지 |
+| 파일 미선택·선택 | 수동 | 미선택 시 버튼 `기획서 없이 대화로 시작`, 선택 시 분석 전 목록과 `기획서와 함께 작성 시작` |
+| 지원하지 않는 형식(.exe) / 10MB 초과 | 수동 + 테스트 | 영역 안 `role=alert` 오류, 파일 선택 안 됨 |
+| 드래그 오버·놓기·선택 취소 | 수동 + 테스트 | `.drag` 상태 표시(라이트·다크), 놓은 파일 표시, 취소 뒤 목록 제거·`파일 선택` 초점 |
+| 생성 실패 후 입력 보존 | 테스트(모의 API로는 실패 유도 불가) | 오류 문구 표시, 이동 안 함, 사업명·부서·서류 선택·파일 유지 |
+| 1440 라이트·다크 / 1024 / 390 | 수동 | 가로 넘침 없음. 390px에서 하단 버튼 전체 폭, 긴 파일명 줄바꿈 |
+| 키보드 | 수동 | 사업명 → 부서 → 서류 2개 → 파일 선택 → 사업 개요 → 시작 버튼 순서. 숨은 파일 입력은 탭 순서에서 제외, 형식 안내는 버튼 설명으로 연결 |
+| 미검증 | – | 운영체제 파일 선택 창에서의 실제 선택(브라우저 자동화 한계로 `change`·`drop` 이벤트로 검증), 화면 낭독기, 실제 Back의 생성 오류 응답 |
+
 ## D. API 영향
 
 | Stage | API 경로·요청·응답 | 조회 방식 | 비고 |
@@ -136,6 +173,7 @@
 | 0 | 변경 없음 | 변경 없음 | – |
 | 1 | 변경 없음 | 변경 없음(목록은 기존 `GET /api/security-requests?size=100` 결과만 사용) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
 | 2 | 변경 없음 | 변경 없음(상세·명령 훅 그대로) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
+| 3 | 변경 없음 | 변경 없음(`useCreateCase` 요청 본문 title·department·description·docTypes 그대로, 파일은 이 화면에서 전송하지 않음) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
 
 ## E. 후속 담당자 인계
 
@@ -147,6 +185,9 @@
 - 우측 패널 버튼은 응답의 `allowedActions` 코드(`REQUEST_REVIEW`, `COMPLETE_ALLOCATION`, `COMPLETE_REVIEW`, `REQUEST_SUPPLEMENT`, `RETURN`, `SUBMIT`, `GENERATE_DRAFT`, `FINAL_CONFIRM`, `FINALIZE`, `CLOSE`, `WITHDRAW`, `REASSIGN`, `ANSWER_SUPPLEMENT`, `RESOLVE_SUPPLEMENT`)가 그대로 와야 표시된다. Back 계약에서 코드 이름이 바뀌면 버튼이 사라진다.
 - 분야별 협의 상자는 `reviews[].status`(`COMPLETE`·`ALLOCATED`·`RECHECK`·`SUPPLEMENT_REQUESTED`)와 `allocationCompleted`, `assignments[].assigneeName`을 사용한다.
 
+- 새 신청 화면은 파일을 서버로 보내지 않는다. 파일은 탭 메모리(`rememberUpload`)로 사업 건 화면에 넘어가고, 분석 요청 시 전송된다. 실제 Back 연동 시 업로드 크기·형식 검사를 서버에서도 같은 기준(PDF·HWP·HWPX·DOCX, 10MB)으로 하는지 확인한다.
+- 생성 실패 메시지는 `useCreateCase`가 던지는 오류의 `message`를 그대로 보여 준다. 실제 Back의 ProblemDetail `detail`이 사용자에게 보일 문구로 적절한지 확인한다.
+
 ## F. 커밋 이력
 
 | 단계 | 커밋 | 변경 요약 | 검증 |
@@ -155,4 +196,6 @@
 | Stage 1 | `3283fa2` | 셸·신청 현황 밀도 정렬, 담당자 열 크기, 사업명 칸 3줄, 담당자 화면 진행 안내 | check(66/66)·build 통과, 수동 점검 |
 | Stage 1 | `70709ec` | 문서에 Stage 1 커밋 기록 | – |
 | Stage 2 | `d70fbfc` | 신청 상세 단계 표시·라벨·값 표·우측 단일 패널, 사용 안 하는 CSS 정리, `waitingLine` 테스트 | check(75/75)·build 통과, 4개 역할 수동 점검 |
-| Stage 2 | (이 커밋) | Stage 2 변경 명세 기록 | – |
+| Stage 2 | `c848bdf` | Stage 2 변경 명세 기록 | – |
+| Stage 3 | `deb29cc` | 새 신청 파일 영역 시안 구조 적용, 파일 오류 영역 내 표시, 드래그·생성 중 상태 정리, 옛 CSS 정리, 테스트 4개 | check(79/79)·build 통과, 수동 시나리오 점검 |
+| Stage 3 | (이 커밋) | Stage 3 변경 명세 기록 | – |
