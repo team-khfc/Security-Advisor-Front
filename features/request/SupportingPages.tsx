@@ -152,6 +152,14 @@ const NETWORK_FIELDS = [
 ] as const;
 type NetworkFieldKey = (typeof NETWORK_FIELDS)[number]['key'];
 
+/**
+ * 표시 전용 미입력 판정. domain.ts의 답변 완료 기준(미해당이거나 `value.trim()`이 있음)과 같다.
+ * 저장값은 바꾸지 않으며, 확인(confirmed) 여부는 미입력과 별개라 여기서 보지 않는다.
+ */
+function isMissing(answer: { value: string; notApplicable: boolean } | undefined): boolean {
+  return !answer || (!answer.notApplicable && !answer.value.trim());
+}
+
 /** 기재된 통신 사실만 보여 주며 변경은 배정된 신청 상세에서 처리한다. */
 export function NetworkList() {
   const query = useRequests();
@@ -213,13 +221,16 @@ export function NetworkList() {
             </thead>
             <tbody>
               {rows.map((request) => {
-                const value = (key: string) =>
-                  request.commonAnswers.find((item) => item.key === key)?.value || '';
-                const missingCount = NETWORK_FIELDS.filter((field) => !value(field.key)).length;
+                const answerOf = (key: string) =>
+                  request.commonAnswers.find((item) => item.key === key);
+                const missingCount = NETWORK_FIELDS.filter((field) =>
+                  isMissing(answerOf(field.key)),
+                ).length;
                 const cell = (key: NetworkFieldKey) => {
                   const field = NETWORK_FIELDS.find((item) => item.key === key)!;
-                  const current = value(key);
-                  if (current) return <div>{current}</div>;
+                  const answer = answerOf(key);
+                  if (answer && !isMissing(answer))
+                    return <div>{answer.notApplicable ? '미해당' : answer.value}</div>;
                   return (
                     <div>
                       <Badge tone="warning">
