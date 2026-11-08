@@ -78,7 +78,11 @@
   flex-shrink: 0;
 }
 .form-two,
-.settings-two,
+.settings-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2.4rem;
+}
 .crumb {
   display: flex;
   flex-wrap: wrap;
