@@ -654,6 +654,16 @@ form.interview-question {
 .interview-question .btn-row {
   margin-top: 1.6rem;
 }
+.interview-complete-actions {
+  align-items: stretch;
+}
+.interview-complete-actions > .btn {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.8rem 1.6rem;
+  white-space: normal;
+  text-align: center;
+}
 .interview-question textarea {
   height: clamp(20rem, 24dvh, 32rem);
   min-height: 20rem;

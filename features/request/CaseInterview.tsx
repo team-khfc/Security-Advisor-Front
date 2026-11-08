@@ -445,7 +445,7 @@ function InterviewWorkspace({
             <div className="interview-question">
               <h3 className="h-panel">공통 정보를 정리했습니다</h3>
               <p>서류별 상세 화면에서 추가 항목을 확인하고 담당자에게 협의를 요청해 주세요.</p>
-              <div className="btn-row">
+              <div className="btn-row interview-complete-actions">
                 {requests.map((request, index) => (
                   <Link
                     className={`btn ${index === 0 ? 'btn-primary' : ''}`}
@@ -456,16 +456,16 @@ function InterviewWorkspace({
                     <Icon name="arrowRight" />
                   </Link>
                 ))}
+                <button
+                  type="button"
+                  className="btn btn-tertiary"
+                  onClick={() => {
+                    goToQuestion(0);
+                  }}
+                >
+                  공통 질문 다시 보기
+                </button>
               </div>
-              <button
-                type="button"
-                className="btn btn-tertiary"
-                onClick={() => {
-                  goToQuestion(0);
-                }}
-              >
-                공통 질문 다시 보기
-              </button>
             </div>
           )}
         </section>
