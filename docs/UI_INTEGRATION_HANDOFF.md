@@ -9,9 +9,9 @@
 | 목표 | prototype-soo 시안을 기준으로 Security-Advisor-Front의 화면 모양을 맞추고, 기존 기능·업무 규칙·API 계약은 그대로 둔다. 실제 Back 연동은 후속 담당 |
 | 범위 | 공통 셸, 신청 현황, 신청 상세, 새 신청, 사업 건·인터뷰, 보완 요청, 문서함, 통신 정보, 처리 이력, 기관 설정, 정책 수명주기(11개 화면 영역) |
 | 최종 판정 | **인계 가능** — 9개 완료 조건 충족. 미검증 항목(제출·확정 성공 경로, 화면 낭독기, 실제 Back)은 차단 사유가 아닌 후속 검증 항목으로 분리. 근거는 [UI_INTEGRATION_FINAL_VERIFICATION.md](UI_INTEGRATION_FINAL_VERIFICATION.md) |
-| 검증 | `npm run check` 92/92, `npm run build` 통과(Stage 5 최종 실행). 모의 API 모드 수동 점검. 실제 Back 미검증 |
+| 검증 | `npm run check` 100/100, `npm run build` 통과(최종 결함 수정 후 실행). 모의 API 모드 수동 점검. 실제 Back 미검증 |
 | API·계약 | 변경 없음. `lib/*`, `mocks/*`, `app/api/*`, `features/*/use*.ts`, `features/request/domain.ts`·`types.ts`, `features/auth/*` 변경 0건 |
-| Stage 5 수정 | Stage 4-A(`4e76d5b`)의 CSS 정리 중 생긴 회귀(새 신청 사업명·부서 칸과 기관 설정 CASE/REQUEST 2열 격자 소실)를 `8e32cdd`로 복구 |
+| Stage 5 수정 | Stage 4-A(`4e76d5b`)의 CSS 정리 중 생긴 회귀(새 신청 사업명·부서 칸과 기관 설정 CASE/REQUEST 2열 격자 소실)를 `8e32cdd`로 복구. 잔여 결함(빈 값의 `담당자 확인 필요` 글자·배지 중복)을 `48c85d8`로 수정 |
 | 임시 결정 | D1~D5는 Phase 0 결정안을 작업용으로 적용한 것이며 **팀이 확정한 정책이 아니다** |
 
 ## A. 기준 정보
@@ -21,7 +21,7 @@
 | UI 기준 저장소 | https://github.com/team-khfc/prototype-soo · `main` `563dd7e76aeeb4fe63f010bec9cd1f9bac16d5dc` (2026-11-07). 읽기 전용, 수정 없음 |
 | 이전 반영 기준 | 같은 저장소 `1af32fb` ([DESIGN_PARITY.md](DESIGN_PARITY.md)). 이후 변경은 `20de97d` 1건(신청 현황 담당자 열 글자 크기) |
 | 개발 저장소 | https://github.com/team-khfc/Security-Advisor-Front · 기준 `origin/main` `869678eef72ddd6c678c781a3c3f0da795705a77` |
-| 작업 브랜치 | `feat/prototype-soo-ui-parity` (로컬 전용, upstream 미설정, push·PR 없음). 작업 경로는 기존 클론의 git worktree `Security-Advisor-Front-ui` |
+| 작업 브랜치 | `feat/prototype-soo-ui-parity`. 작업 경로는 기존 클론의 git worktree `Security-Advisor-Front-ui`. 사용자 승인에 따라 이 문서 커밋 뒤 `git push -u origin feat/prototype-soo-ui-parity`로 원격 브랜치를 만든다(PR·merge는 하지 않음) |
 | 업무 참고 저장소 | https://github.com/team-khfc/prototype `test/application-flow-e2e` `49f7e00`. 읽기 전용, 수정 없음 |
 | 규칙 문서 | AGENTS v1.16, FUNCTIONAL_SPEC v1.11, design.md v3.1, PROJECT_RULES v1.14 |
 
@@ -289,6 +289,18 @@
 - **정책 수명주기:** 정책(FirewallRule) 목록·요약 건수·처리 API(`PUT /api/firewall-rules/{id}/application`, `.../revocation` 제안)가 생기면 요약 카드를 버튼(거르기)으로, 빈 상자를 시안의 9열 표와 처리 버튼으로 바꾼다. 현재 비활성 마크업은 그 자리 표시다.
 - 정책 메뉴는 ICT인프라·정보보안에만 있고 라우트 자체는 역할 확인을 하지 않는다(기존과 같음). 실제 정책 데이터가 생기면 서버 권한과 화면 접근 조건을 함께 정한다.
 
+## G-0. 최종 결함 수정 — 빈 값의 상태 중복 표시 (`48c85d8`)
+
+| 항목 | 내용 |
+| --- | --- |
+| 증상 | 신청 상세(통신 정보·서류 정보 등)와 사업 건 작업 영역의 수집 정보에서, 값이 비어 있는 항목에 `담당자 확인 필요` 글자와 같은 문구의 경고 배지가 한 줄에 나란히 표시됨 |
+| 원인 | CSS 겹침이 아니라 **의미 중복**. `AnswerView`는 값이 없으면 자리 글자로 `담당자 확인 필요`를 쓰고, `SourceBadge`는 출처가 없으면 같은 문구의 배지를 따로 그림. Stage 2의 라벨·값 2열 배치로 두 요소가 한 줄에 놓이면서 눈에 띄게 됨 |
+| 수정 | `features/request/AnswerEditor.tsx`의 `AnswerView` 한 곳: **값·미해당·출처가 모두 없을 때만** 자리 글자를 생략하고 배지 하나로 알린다. 그 밖의 상태는 그대로 |
+| 보존 | 사용자 답변·AI 추론(미확정/사용자 확인)·담당자 입력·담당자 확인(확인자 이름) 배지, AI 근거 펼침, 보완 필요 강조, 미해당 표시, 출처는 있으나 값이 빈 경우의 글자+출처 배지. 데이터·상태 판단·확인 여부·권한·API 변경 없음. 배지 글자가 그대로 남아 화면 낭독기에도 `담당자 확인 필요`가 한 번 읽힘 |
+| 영향 범위 | `AnswerView`를 쓰는 신청 상세(사업·통신·서류 정보, 제출본 펼침)와 사업 건 수집 정보. `AnswerEditor`의 입력 화면·문서함 미리보기 텍스트(`DocumentList`의 별도 문자열)는 변경 없음 |
+| 테스트 | 신규 `tests/answer-view-status.test.tsx` 8개: 값·출처 없음(배지 1회), 보완 강조와 함께, 사용자 답변·AI 미확정·담당자 입력·담당자 확인(값+배지 유지, 확인 필요 없음), 출처 있는 빈 값(글자+출처 배지), 미해당. 기존 `answers.test.tsx`의 `출처가 없는 값은 담당자 확인 필요로 표시한다`는 기대값 변경 없이 통과 |
+| 화면 확인 | 수정 전: Stage 2 캡처(통신 정보 각 행에 글자+배지). 수정 후: ICT인프라 demo-request-1 통신 정보 7행이 배지 1개씩(1440 라이트·다크, 390px 1열, 1024px 2열 140px+530px), 서류 정보의 사용자 답변 행은 값+배지 유지, 사업 건 수집 정보도 같은 결과, 우측 행위 패널 버튼(`자원 할당 완료·보완 요청하기·이전 단계로 반환·종결(반려)`) 변화 없음 |
+
 ## G. Git·병합 유의사항 (Stage 5 확인)
 
 | 항목 | 결과 |
@@ -323,7 +335,7 @@
 | 4 | D4 상세 행위 패널 | 업무 행위·권한 유지, 버튼 세로 배치. 시안의 체크리스트·단일 협의 완료 버튼 미적용 | 디자이너·기획 |
 | 5 | D5 설정·정책 | 시안 배치 + 비활성·사유. 편집 UI·정책 표 없음 | 팀장 |
 | 6 | 사이드바 건수 배지 | 미적용(셸이 목록을 조회해야 하고 기존 셸 테스트 계약과 충돌) | 팀장·개발 |
-| 7 | 신청 상세 | 빈 값에서 `담당자 확인 필요` 글자와 같은 배지가 한 줄에 겹쳐 보임. 시안의 데이터 흐름도·방화벽 규칙 표·자동 점검 카드 없음 | 디자이너·개발 |
+| 7 | 신청 상세 | 빈 값의 글자·배지 중복은 `48c85d8`로 해결. 시안의 데이터 흐름도·방화벽 규칙 표·자동 점검 카드 없음 | 디자이너·개발 |
 | 8 | 통신 정보 | 시안은 방화벽 규칙 단위 표·필터 칩·CSV, Front는 신청 단위 표·검색 | Back 규칙 자원 설계 후 |
 | 9 | 처리 이력·통신 정보 CSV | 시안의 CSV 다운로드 없음 | 기획 |
 
@@ -344,4 +356,6 @@
 | Stage 4-B | `cfd11d0` | 기관 설정·정책 수명주기 시안 배치, 미구현 동작 비활성·사유, 테스트 5개 | check(92/92)·build 통과, 역할별 수동 점검 |
 | Stage 4-B | `17764e9` | Stage 4-B 변경 명세 기록 | – |
 | Stage 5 | `8e32cdd` | Stage 4-A CSS 정리로 사라진 `.form-two`·`.settings-two` 2열 격자 복구 | check(92/92)·build 통과, 화면 확인 |
-| Stage 5 | (이 커밋) | 최종 인계 명세·최종 검증 문서 | – |
+| Stage 5 | `4727d06` | 최종 인계 명세·최종 검증 문서 | check(92/92) |
+| 최종 수정 | `48c85d8` | 빈 값의 `담당자 확인 필요` 글자·배지 중복 해결, 표시 상태 테스트 8개 | check(100/100)·build 통과, 화면 확인 |
+| 최종 수정 | (이 커밋) | 최종 결함 수정 내용 반영, 인계 문서 마무리 | – |
