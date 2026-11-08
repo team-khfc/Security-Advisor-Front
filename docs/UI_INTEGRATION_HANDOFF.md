@@ -2,6 +2,18 @@
 
 기록 시작: 2026-11-08. 이 문서는 `feat/prototype-soo-ui-parity` 브랜치에서 진행하는 prototype-soo 시안 일치 작업의 기준, 화면별 변경, 기능 보존과 검증 결과, 후속 인계 사항을 단계별로 기록한다. 실행하지 않은 검증을 통과로 적지 않는다. 디자인 반영의 일반 원칙과 이전 차이 기록은 [DESIGN_PARITY.md](DESIGN_PARITY.md)를 따른다.
 
+## 0. 최종 요약 (Stage 5, 2026-11-08)
+
+| 항목 | 내용 |
+| --- | --- |
+| 목표 | prototype-soo 시안을 기준으로 Security-Advisor-Front의 화면 모양을 맞추고, 기존 기능·업무 규칙·API 계약은 그대로 둔다. 실제 Back 연동은 후속 담당 |
+| 범위 | 공통 셸, 신청 현황, 신청 상세, 새 신청, 사업 건·인터뷰, 보완 요청, 문서함, 통신 정보, 처리 이력, 기관 설정, 정책 수명주기(11개 화면 영역) |
+| 최종 판정 | **인계 가능** — 9개 완료 조건 충족. 미검증 항목(제출·확정 성공 경로, 화면 낭독기, 실제 Back)은 차단 사유가 아닌 후속 검증 항목으로 분리. 근거는 [UI_INTEGRATION_FINAL_VERIFICATION.md](UI_INTEGRATION_FINAL_VERIFICATION.md) |
+| 검증 | `npm run check` 92/92, `npm run build` 통과(Stage 5 최종 실행). 모의 API 모드 수동 점검. 실제 Back 미검증 |
+| API·계약 | 변경 없음. `lib/*`, `mocks/*`, `app/api/*`, `features/*/use*.ts`, `features/request/domain.ts`·`types.ts`, `features/auth/*` 변경 0건 |
+| Stage 5 수정 | Stage 4-A(`4e76d5b`)의 CSS 정리 중 생긴 회귀(새 신청 사업명·부서 칸과 기관 설정 CASE/REQUEST 2열 격자 소실)를 `8e32cdd`로 복구 |
+| 임시 결정 | D1~D5는 Phase 0 결정안을 작업용으로 적용한 것이며 **팀이 확정한 정책이 아니다** |
+
 ## A. 기준 정보
 
 | 항목 | 값 |
@@ -9,7 +21,7 @@
 | UI 기준 저장소 | https://github.com/team-khfc/prototype-soo · `main` `563dd7e76aeeb4fe63f010bec9cd1f9bac16d5dc` (2026-11-07). 읽기 전용, 수정 없음 |
 | 이전 반영 기준 | 같은 저장소 `1af32fb` ([DESIGN_PARITY.md](DESIGN_PARITY.md)). 이후 변경은 `20de97d` 1건(신청 현황 담당자 열 글자 크기) |
 | 개발 저장소 | https://github.com/team-khfc/Security-Advisor-Front · 기준 `origin/main` `869678eef72ddd6c678c781a3c3f0da795705a77` |
-| 작업 브랜치 | `feat/prototype-soo-ui-parity` (로컬 전용, upstream 미설정, push·PR 없음) |
+| 작업 브랜치 | `feat/prototype-soo-ui-parity` (로컬 전용, upstream 미설정, push·PR 없음). 작업 경로는 기존 클론의 git worktree `Security-Advisor-Front-ui` |
 | 업무 참고 저장소 | https://github.com/team-khfc/prototype `test/application-flow-e2e` `49f7e00`. 읽기 전용, 수정 없음 |
 | 규칙 문서 | AGENTS v1.16, FUNCTIONAL_SPEC v1.11, design.md v3.1, PROJECT_RULES v1.14 |
 
@@ -125,6 +137,8 @@
 | 질문 카드 | 대화 영역 하단 주색 테두리 `.qcard`, `.qnum`·`.qtitle`·`.qhelp` | 상단 주색 선 + 독자 구조 | 시안 카드. 진행 `공통 질문 n / N`, 입력란·저장·나중에 입력·충돌 안내 유지 |
 | 수집 정보 | 제목과 `필수정보 n / N` 한 줄, 얇은 진행 막대, 회색 그룹 머리(`.grp`), 라벨 9.6rem·값 한 줄(`.irow`) | 세로 목록 | 시안 배치. 값 목록은 `AnswerView`를 그대로 쓰고 CSS로 9.6rem 라벨·값·출처 배지 한 줄 |
 | 문서 분석 | 작업 영역 위 문서 막대(`.docbar`) | 대화 영역 안 펼침 | 작업 영역 위 `.docbar` 펼침으로 이동(`AnalysisPanel` 그대로) |
+
+> Stage 5 확인: 이 단계의 커밋 `4e76d5b`에서 `.supplement-grid`를 지울 때 묶음 선택자 `.form-two, .settings-two`가 `.crumb` 규칙에 붙어 2열 격자가 사라졌다. Stage 5에서 `8e32cdd`로 복구했다.
 
 #### 업무 지원 화면
 
@@ -275,6 +289,44 @@
 - **정책 수명주기:** 정책(FirewallRule) 목록·요약 건수·처리 API(`PUT /api/firewall-rules/{id}/application`, `.../revocation` 제안)가 생기면 요약 카드를 버튼(거르기)으로, 빈 상자를 시안의 9열 표와 처리 버튼으로 바꾼다. 현재 비활성 마크업은 그 자리 표시다.
 - 정책 메뉴는 ICT인프라·정보보안에만 있고 라우트 자체는 역할 확인을 하지 않는다(기존과 같음). 실제 정책 데이터가 생기면 서버 권한과 화면 접근 조건을 함께 정한다.
 
+## G. Git·병합 유의사항 (Stage 5 확인)
+
+| 항목 | 결과 |
+| --- | --- |
+| HEAD | `feat/prototype-soo-ui-parity`, 작업 트리 깨끗함(문서 커밋 전 기준) |
+| `origin/main` | `869678e`(작업 시작 기준과 같음). `git fetch` 후 원격 main에 새 커밋 없음 → 브랜치는 main보다 앞서기만 하고 뒤처지지 않음 |
+| prototype-soo | `origin/main` `563dd7e` 그대로(기준 이후 시안 변경 없음) |
+| 변경 파일 | 25개(추가 9: `docs/UI_INTEGRATION_HANDOFF.md`, `features/policy/*` 2, `features/request/turns.ts`, 테스트 5 / 수정 16: 화면 컴포넌트 9, CSS 7). 삭제된 파일 없음. Stage 5 문서 커밋에서 `docs/UI_INTEGRATION_FINAL_VERIFICATION.md` 추가 |
+| 비밀정보·생성 파일 | `.env*`, `.next`, `node_modules`, `next-env.d.ts` 커밋 없음. `git diff --check` 통과 |
+| 열린 팀 브랜치 | `origin/fix/6-instant-request-search`(`737b4bd`, 미병합)가 같은 파일 `features/request/RequestList.tsx`를 수정함. 임시 worktree에서 이 브랜치를 병합해 보니 **충돌 없이 자동 병합**, 병합 결과 테스트 97/97 통과(우리 92 + 그 브랜치 5), 타입 검사 통과. 실제 병합 순서는 팀이 정한다 |
+| 병합된 원격 브랜치 | `feat/1-fresh-front-v112`, `feat/2-front-v113`, `fix/4-applicant-alignment`는 main에 포함되어 겹치는 변경 없음 |
+| 실행하지 않은 것 | merge·rebase·reset·push·PR 생성 없음 |
+
+## H. 위험 점검 (Stage 5-D)
+
+| ID | 위험 | 확인 결과 | 후속 조치 |
+| --- | --- | --- | --- |
+| R-UI-01 | 업로드 계약 불일치 | Front: 새 신청에서 1개, PDF·HWP·HWPX·DOCX, 10MB(클라이언트 검사) → 사업 건 화면의 분석 요청 때 `POST /api/business-cases/{id}/analysis-jobs`(모의 계약). 시안: 최대 5개, XLSX·TXT 포함, 20MB, 브라우저 안 파싱. Back 확정 OpenAPI 없음 | Back 분석 작업 API의 형식·크기·개수·202 비동기 계약 확정 후 Front 검사와 문구를 맞춘다. 서버 측 형식·크기 검사 필수 |
+| R-UI-02 | 미구현 AI 기능 | 사업 건 대화 영역 문구는 정해진 안내(자연어 AI 아님, 아바타도 `AI` 글자 대신 아이콘). 분석 결과는 `모의 AI 제안 · 미확정`, 적용해도 `confirmed=false`로 저장되어 사람 확인이 필요함(Stage 5 브라우저 확인). 신청 상세 `AI 최종 초안 제안`은 모의 동작 | 대화형 인터뷰·RAG·실제 파싱·LLM·최종 초안은 미구현. 연동 시 미확정 표시와 확인 절차 유지 |
+| R-UI-03 | 정책 화면 직접 접근 | 정책 메뉴는 ICT인프라·정보보안에만 있으나, 메뉴가 없는 관리자도 `/policies` 직접 주소로 P2 안내 화면이 열림(Stage 5 브라우저 확인, 신청자도 같은 라우트 구조). 화면은 데이터·API 호출이 없어 정보 노출은 없음 | 실제 정책 API 연결 시 서버 권한 검사(403/404)와 화면 접근 조건을 함께 구현 |
+| R-UI-04 | 모의 게시 정보 | 기관 설정의 `게시본 v1`·게시 이력 1행은 코드에 고정된 합성 값. 화면에 `모의 seed 게시본 · 읽기 전용`, `모의 seed`, `실제 게시 이력 API 연결 전`, 하단 버튼 비활성 사유를 함께 표시해 실제 승인·게시 이력으로 오인되지 않게 함 | 설정 게시본·게시 이력 API가 생기면 응답 값으로 교체 |
+| R-UI-05 | 시안과 남은 차이 | 아래 "남은 디자인 결정 사항" 참조 | 디자이너·기획 결정 필요 |
+| R-UI-06 | 원격 브랜치 변경 | G절 참조. main 변경 없음, 열린 브랜치 1개와 자동 병합 가능 | 병합 전 그 브랜치의 검색 동작과 Stage 1 목록 변경을 함께 수동 확인 권장 |
+
+### 남은 디자인 결정 사항 (R-UI-05)
+
+| # | 항목 | 현재 상태 | 결정 주체 |
+| --- | --- | --- | --- |
+| 1 | D1 글자 배율 | 본문 17px 유지, 간격만 시안 실효값. 행·카드 높이가 시안보다 큼 | 디자이너·팀장 |
+| 2 | D2 상태 이름 | FUNCTIONAL_SPEC 이름(협의 중·최종 검토 중·확정 등). 시안의 `사전 협의 중`·`제출 준비`·`처리 완료` 미사용 | 기획·디자이너 |
+| 3 | D3 새 신청 입력 카드 | 사업명·부서·서류 선택 카드를 파일 영역 위에 유지, 파일 영역 높이 36rem, 하단 버튼 1개 | 디자이너 |
+| 4 | D4 상세 행위 패널 | 업무 행위·권한 유지, 버튼 세로 배치. 시안의 체크리스트·단일 협의 완료 버튼 미적용 | 디자이너·기획 |
+| 5 | D5 설정·정책 | 시안 배치 + 비활성·사유. 편집 UI·정책 표 없음 | 팀장 |
+| 6 | 사이드바 건수 배지 | 미적용(셸이 목록을 조회해야 하고 기존 셸 테스트 계약과 충돌) | 팀장·개발 |
+| 7 | 신청 상세 | 빈 값에서 `담당자 확인 필요` 글자와 같은 배지가 한 줄에 겹쳐 보임. 시안의 데이터 흐름도·방화벽 규칙 표·자동 점검 카드 없음 | 디자이너·개발 |
+| 8 | 통신 정보 | 시안은 방화벽 규칙 단위 표·필터 칩·CSV, Front는 신청 단위 표·검색 | Back 규칙 자원 설계 후 |
+| 9 | 처리 이력·통신 정보 CSV | 시안의 CSV 다운로드 없음 | 기획 |
+
 ## F. 커밋 이력
 
 | 단계 | 커밋 | 변경 요약 | 검증 |
@@ -290,4 +342,6 @@
 | Stage 4-A | `4e76d5b` | 보완 요청·문서함·통신 정보·처리 이력 시안 정렬, 옛 CSS 정리, 테스트 5개 | check(87/87)·build 통과, 수동 점검 |
 | Stage 4-A | `ae340e8` | Stage 4-A 변경 명세 기록 | – |
 | Stage 4-B | `cfd11d0` | 기관 설정·정책 수명주기 시안 배치, 미구현 동작 비활성·사유, 테스트 5개 | check(92/92)·build 통과, 역할별 수동 점검 |
-| Stage 4-B | (이 커밋) | Stage 4-B 변경 명세 기록 | – |
+| Stage 4-B | `17764e9` | Stage 4-B 변경 명세 기록 | – |
+| Stage 5 | `8e32cdd` | Stage 4-A CSS 정리로 사라진 `.form-two`·`.settings-two` 2열 격자 복구 | check(92/92)·build 통과, 화면 확인 |
+| Stage 5 | (이 커밋) | 최종 인계 명세·최종 검증 문서 | – |
