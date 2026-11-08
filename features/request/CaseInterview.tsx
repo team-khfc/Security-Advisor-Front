@@ -376,7 +376,7 @@ function InterviewWorkspace({
               <textarea
                 className="input"
                 id="interview-answer"
-                rows={3}
+                rows={8}
                 maxLength={4000}
                 value={answerText}
                 disabled={save.isPending}

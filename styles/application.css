@@ -609,7 +609,7 @@
 }
 .conversation-body {
   flex: 0 0 auto;
-  height: clamp(36rem, 50dvh, 76rem);
+  height: clamp(48rem, 65dvh, 100rem);
   padding: 2.4rem;
   overflow-y: auto;
 }
@@ -645,6 +645,9 @@
   border-top: 2px solid var(--sf-primary);
   background: var(--sf-surface);
 }
+form.interview-question {
+  min-height: clamp(40rem, 42dvh, 56rem);
+}
 .interview-question label {
   display: block;
 }
@@ -652,8 +655,9 @@
   margin-top: 1.6rem;
 }
 .interview-question textarea {
-  min-height: 9rem;
-  max-height: 20rem;
+  height: clamp(20rem, 24dvh, 32rem);
+  min-height: 20rem;
+  max-height: 52rem;
 }
 .question-progress {
   display: flex;
@@ -1002,6 +1006,16 @@
   .collected-head,
   .collected-body {
     padding: 1.6rem;
+  }
+  .conversation-body {
+    height: clamp(40rem, 58dvh, 64rem);
+  }
+  form.interview-question {
+    min-height: auto;
+  }
+  .interview-question textarea {
+    height: 20rem;
+    max-height: 40rem;
   }
   .conversation-heading .help {
     font-size: 1.3rem;
