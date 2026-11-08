@@ -42,7 +42,7 @@
 | 보완·통신 | `/supplements`, `/network` | `supplements.html`, `network.html` | `features/request/SupportingPages.tsx`, `styles/components.css` | Stage 4-A 완료 |
 | 문서함 | `/documents` | `documents.html` | `features/document/DocumentList.tsx`, `styles/components.css` | Stage 4-A 완료 |
 | 처리 이력 | `/history` | `history.html` | `features/audit/AuditList.tsx`, `styles/components.css` | Stage 4-A 완료 |
-| 기관 설정·정책 | `/settings`, `/policies` | `settings.html`, `policies.html` | `features/configuration/ConfigurationPage.tsx`, `components/PlannedPage.tsx` | Stage 4-B 예정 |
+| 기관 설정·정책 | `/settings`, `/policies` | `settings.html`, `policies.html` | `features/configuration/ConfigurationPage.tsx`, `features/policy/PolicyLifecycle.tsx`, `styles/settings.css` | Stage 4-B 완료(편집·게시·정책 기능은 P2, 비활성) |
 | 로그인·가입·회원 | `/login`, `/signup`, `/members` | 시안 없음 | `features/auth/*`, `features/assignment/*` | 대상 외(공통 토큰만 공유) |
 
 화면별 상세는 각 Stage 완료 시 아래에 추가한다.
@@ -141,6 +141,23 @@
 | 업무 로직 | 훅(`useCase`, `useSaveCase`, `useAnalysis`, `useApplyAnalysis`, `useRequests`, `useAudit`), 저장 요청 본문, 입력 초안, revision 충돌 처리, 편집 가능 조건, 역할 제한(통신 정보는 ICT인프라만), 필터·검색 동작은 그대로 |
 | 미구현 AI 기능 표시 | 대화 영역의 문구는 정해진 안내이며 자연어 대화 AI가 아니다. 분석 결과는 기존처럼 `모의 AI 제안 · 미확정`과 "실제 파일 파싱·LLM 호출은 Back 연동 후 지원" 문구를 유지한다. 시안의 AI 아바타 글자 `AI`는 쓰지 않았다 |
 
+### Stage 4-B — 기관 설정·정책 수명주기
+
+비교 기준: 시안 563dd7e `settings.html`(관리자), `policies.html`(ICT인프라), Front 모의 모드 1440×900. 시안의 편집·게시·정책 처리 동작은 브라우저 저장소 시연 로직이라 가져오지 않았다(임시 기준 D5).
+
+| 화면 | 시안 | 변경 전 Front | 변경 후 Front |
+| --- | --- | --- | --- |
+| 기관 설정 `/settings` | 제목만, 게시본·초안 배지 막대(`.org-bar`/`.verbar`), 탭 5개, 탭 패널 카드, 하단 `초안 변경 취소 / 설정 초안 저장 / 변경 검토·게시`(변경 없으면 비활성+사유), 설정 버전 탭은 게시 이력 표 | 제목+설명, 안내 상자, 탭, 카드 안 큰 제목 | 제목만, 배지 막대(`게시본 v1`, `모의 seed 게시본 · 읽기 전용`)와 기준 정보 안내 한 줄, 탭 패널 카드(`.h-panel` 제목), 검토 절차는 시안 흐름 칩(`.flow`), 설정 버전은 게시 이력 표(v1·현재 게시본·모의 seed), 하단 행동 막대의 세 버튼은 항상 비활성이며 `P2 구현 예정이라 사용할 수 없습니다` 사유를 `aria-describedby`로 연결. 설정 버전 탭에서는 막대를 숨김(시안과 같음) |
+| 정책 수명주기 `/policies` | 요약 카드 4개(건수·필터 버튼), 정책 목록 제목, 거르기 알약 3개, 9열 정책 표와 처리 버튼(연장 문의·회수 예정·회수 완료) | 구현 예정 안내 카드 한 장(`PlannedPage`) | 시안 배치(요약 카드 4개, `정책 목록`, 거르기 알약 3개, 빈 목록 상자)를 쓰되 데이터가 없으므로 건수는 `–`(`데이터 연결 전`), 카드는 버튼이 아닌 비활성 표시, 알약 3개는 `disabled`와 사유 연결, 표 대신 `연결된 정책이 없습니다` 빈 상자. 상단에 P2 구현 예정·서류 확정≠방화벽 적용 안내 |
+
+| 구분 | 내용 |
+| --- | --- |
+| 변경 파일 | `features/configuration/ConfigurationPage.tsx`, `features/policy/PolicyLifecycle.tsx`(신규), `features/policy/index.ts`(신규), `app/(service)/policies/page.tsx`(라우트가 새 화면을 사용), `styles/settings.css`·`styles/components.css`(Stage 4-B 블록), `styles/application.css`(사용하지 않게 된 `.settings-steps` 선택자 제거), `tests/administration.test.tsx`(5) |
+| 보존한 기존 기능 | 기관 설정의 관리자 전용 표시(다른 역할은 안내만), 탭 키보드 이동(←/→/Home/End), 설치 정보(`useInstallation`)의 기관명 표시, 기준 정보 내용. 메뉴 구성(정책 수명주기는 ICT인프라·정보보안 메뉴, 관리자·신청자 메뉴에는 없음)과 라우트 접근 방식은 그대로 |
+| 미구현·비활성 | 설정 질문·절차·양식·기준 편집, 초안 저장, 변경 검토·게시, 게시 이력 조회, LLM 구성 관리. 정책 생성·적용 기록·연장 문의·회수 예정 표시·회수 완료 기록·만료 관리·트래픽 표시·거르기 |
+| 남은 디자인 차이 | 시안의 질문 목록·편집 폼·라디오·체크 등 편집 UI는 기능이 없어 넣지 않고 기존 기준 정보 설명을 유지. 탭 이름 `점검 기준·기한`(시안 `점검 기준·알림`)은 Front 내용(기한·감사 기준)에 맞춰 유지. 질문 개수 배지(`tcount`) 없음. 정책 표의 열(정책·신청자·출발지·목적지·포트·만료일·트래픽·상태·처리)은 데이터가 없어 표시하지 않음 |
+| `components/PlannedPage.tsx` | 정책 라우트가 더 이상 쓰지 않지만 파일 삭제는 사람 확인 사항이라 남겨 둠(현재 사용처 없음) |
+
 ## C. 기능 보존
 
 ### 기준선 (Stage 0, 코드 변경 전)
@@ -212,6 +229,19 @@
 | 공통 화면 회귀 | 수동 | 390px(다크): 신청 현황·신청 상세·새 신청·보완·문서함·사업 건·통신 정보·처리 이력 가로 넘침 없음(표는 표 영역 안 스크롤). 1024px(라이트): 통신 정보·처리 이력·문서함·신청 현황 넘침 없음, 사업 건 2열 유지 |
 | 미검증 | – | 정보보안·관리자 역할의 처리 이력 화면, 사업 건 화면의 실제 파일 첨부 분석(운영체제 파일 창), 화면 낭독기, 실제 Back 연동 |
 
+### Stage 4-B 검증
+
+| 검증 | 실행 | 결과 |
+| --- | --- | --- |
+| `npm run check` | 실행 | 통과. 11개 파일 92개(Stage 4-A의 87개 유지 + 신규 5개). 실패 0 |
+| `npm run build` | 실행 | 통과(`/policies` 정적 생성) |
+| 관리자 | 수동 + 테스트 | 기관 설정 배지 막대·탭 5개·탭 패널·흐름 칩·게시 이력 표, 하단 세 버튼 비활성과 사유, 설정 버전 탭에서 막대 숨김, 탭 키보드 이동(→, End). 관리자 메뉴에는 정책 수명주기 없음(직접 주소 접근 시 같은 P2 화면) |
+| 정보보안 | 수동 + 테스트 | 메뉴 `정책 수명주기` 선택 상태로 P2 화면 표시, `/settings`는 `기관 관리자만 설정을 확인할 수 있습니다.`만 표시 |
+| ICT인프라·신청자 | 테스트 | `/settings` 관리자 전용 안내만(탭 없음) |
+| 정책 화면 비활성 | 테스트 | 거르기 3개 `disabled`, 건수 `–` 4개, 숫자 건수 없음, 빈 상자와 `신청 현황으로` 링크 |
+| 1440 라이트 / 390 다크 / 1024 | 수동 | 가로 넘침 없음. 390px에서 탭 줄은 자체 가로 스크롤(기존 동작), 하단 버튼 줄바꿈, 정책 요약 카드 2열 |
+| 미검증 | – | ICT인프라 역할의 정책 화면 브라우저 확인(정보보안으로 같은 화면 확인), 화면 낭독기, 실제 Back 연동 |
+
 ## D. API 영향
 
 | Stage | API 경로·요청·응답 | 조회 방식 | 비고 |
@@ -221,6 +251,7 @@
 | 2 | 변경 없음 | 변경 없음(상세·명령 훅 그대로) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
 | 3 | 변경 없음 | 변경 없음(`useCreateCase` 요청 본문 title·department·description·docTypes 그대로, 파일은 이 화면에서 전송하지 않음) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
 | 4-A | 변경 없음 | 변경 없음(사업 건 저장·분석·적용, 신청 목록, 감사 이력 조회 그대로) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
+| 4-B | 변경 없음 | 변경 없음(기관 설정은 `GET /api/installation`만 사용, 정책 화면은 API 호출 없음) | 설치 정보는 모의 계약. 실제 Back의 `GET /api/installation`·설정 게시본·정책 API 미검증 |
 
 ## E. 후속 담당자 인계
 
@@ -240,6 +271,10 @@
 - **통신 정보 데이터 단위:** 시안은 방화벽 규칙 단위 표다. 실제 Back에 규칙(FirewallRule) 자원이 생기면 행 단위·`업무 표현`·`방향` 열·`입력 필요` 필터를 다시 검토한다.
 - **처리 이력 대상 표시:** 감사 이력 응답에 사업명이 없어 대상 칸은 신청번호 링크로 표시한다. Back이 대상 제목을 내려주면 시안처럼 사업명 링크로 바꿀 수 있다.
 
+- **기관 설정:** 현재 화면의 게시본 표시(`게시본 v1`, 모의 seed)와 기준 정보는 코드에 적힌 고정 문구다. Back에 설정 게시본 조회 API(`GET /api/configurations/...`, 게시 이력)와 게시 API(`POST /api/configurations/{id}/publications`, AGENTS 5장 제안)가 생기면 배지·게시 이력 표를 응답으로 바꾸고, 하단 버튼은 관리자 권한과 변경 여부에 따라 활성화한다.
+- **정책 수명주기:** 정책(FirewallRule) 목록·요약 건수·처리 API(`PUT /api/firewall-rules/{id}/application`, `.../revocation` 제안)가 생기면 요약 카드를 버튼(거르기)으로, 빈 상자를 시안의 9열 표와 처리 버튼으로 바꾼다. 현재 비활성 마크업은 그 자리 표시다.
+- 정책 메뉴는 ICT인프라·정보보안에만 있고 라우트 자체는 역할 확인을 하지 않는다(기존과 같음). 실제 정책 데이터가 생기면 서버 권한과 화면 접근 조건을 함께 정한다.
+
 ## F. 커밋 이력
 
 | 단계 | 커밋 | 변경 요약 | 검증 |
@@ -253,4 +288,6 @@
 | Stage 3 | `c7a9eef` | Stage 3 변경 명세 기록 | – |
 | Stage 4-A | `5832d78` | 사업 건·인터뷰 작업 영역 시안 구조 적용, 문서 분석 막대 위치, 옛 CSS 정리, 테스트 3개 | check(82/82)·build 통과, 수동 점검 |
 | Stage 4-A | `4e76d5b` | 보완 요청·문서함·통신 정보·처리 이력 시안 정렬, 옛 CSS 정리, 테스트 5개 | check(87/87)·build 통과, 수동 점검 |
-| Stage 4-A | (이 커밋) | Stage 4-A 변경 명세 기록 | – |
+| Stage 4-A | `ae340e8` | Stage 4-A 변경 명세 기록 | – |
+| Stage 4-B | `cfd11d0` | 기관 설정·정책 수명주기 시안 배치, 미구현 동작 비활성·사유, 테스트 5개 | check(92/92)·build 통과, 역할별 수동 점검 |
+| Stage 4-B | (이 커밋) | Stage 4-B 변경 명세 기록 | – |
