@@ -165,24 +165,33 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
           ))}
         </div>
       )}
-      <ol className={`stage-stepper ${terminal ? 'is-terminal' : ''}`} aria-label="신청 진행 단계">
-        {STAGE_LABELS.map((label, index) => (
-          <li
-            key={label}
-            aria-current={request.stage === index + 1 ? 'step' : undefined}
-            className={
-              request.stage === index + 1 ? 'current' : request.stage > index + 1 ? 'done' : ''
-            }
-          >
-            <span className={`step-number stage-${index + 1}`}>
-              {request.stage > index + 1 ? <Icon name="check" size={18} /> : index + 1}
-            </span>
-            <span>{label}</span>
-            {request.stage === index + 1 && latestReturn && !terminal && (
-              <Badge tone="warning">반환 이력 있음</Badge>
-            )}
-          </li>
-        ))}
+      <ol className={`stepper${terminal ? ' is-terminal' : ''}`} aria-label="신청 진행 단계">
+        {STAGE_LABELS.map((label, index) => {
+          const step = index + 1;
+          const finalized = request.status === 'FINALIZED';
+          const done = step < request.stage || (finalized && step === request.stage);
+          const current = step === request.stage && !finalized;
+          return (
+            <li
+              key={label}
+              aria-current={current ? 'step' : undefined}
+              className={done ? 'done' : current ? 'current' : undefined}
+            >
+              <span className="n">
+                {step}단계
+                {done
+                  ? ' 완료'
+                  : current
+                    ? terminal
+                      ? ` ${STATUS_LABELS[request.status]}`
+                      : ' 진행 중'
+                    : ''}
+              </span>
+              {label}
+              {current && latestReturn && !terminal && <Badge tone="warning">반환 이력 있음</Badge>}
+            </li>
+          );
+        })}
       </ol>
       {terminal && (
         <Notice tone={request.status === 'FINALIZED' ? 'success' : 'warning'}>
@@ -232,7 +241,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
         <div className="detail-content">
           <section className="card">
             <div className="section-heading">
-              <h2 className="h-sec">사업 정보</h2>
+              <h2 className="h-panel">사업 정보</h2>
               {canViewCase && (
                 <Link className="btn btn-tertiary btn-sm" href={`/cases/${request.caseId}`}>
                   공통 인터뷰 보기
@@ -240,6 +249,10 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                 </Link>
               )}
             </div>
+            <p className="help src-help">
+              값 옆 꼬리표는 출처입니다: 사용자 답변, AI 추론(근거 포함), 담당자 입력, 담당자 확인.
+              AI 추론은 사람이 확인하기 전까지 확정값이 아닙니다.
+            </p>
             <AnswerView
               answers={request.commonAnswers.filter((answer) => answer.ownerRole === 'APPLICANT')}
               highlighted={request.highlightedFields}
@@ -273,7 +286,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
           </section>
           {request.supplements.length > 0 && (
             <section className="card" id="supplements">
-              <h2 className="h-sec">보완 요청과 답변</h2>
+              <h2 className="h-panel">보완 요청과 답변</h2>
               {request.supplements.map((supplement) => (
                 <article className="supplement-card" key={supplement.id}>
                   <div className="section-heading">
@@ -323,7 +336,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
           )}
           <section className="card" id="documents">
             <div className="section-heading">
-              <h2 className="h-sec">신청 문서</h2>
+              <h2 className="h-panel">신청 문서</h2>
               <Badge tone={request.currentSubmissionId ? 'info' : 'neutral'}>
                 {request.status === 'FINALIZED'
                   ? '확정본'
@@ -369,7 +382,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
             )}
           </section>
           <section className="card">
-            <h2 className="h-sec">통신 정보</h2>
+            <h2 className="h-panel">통신 정보</h2>
             <p className="help">
               ICT인프라 담당자가 확인한 사실만 표시합니다. AI가 내부 주소를 추측하지 않습니다.
             </p>
@@ -397,7 +410,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
             />
           </section>
           <section className="card">
-            <h2 className="h-sec">
+            <h2 className="h-panel">
               {request.docType === 'FIREWALL' ? '방화벽 신청 정보' : '보안성검토 사항'}
             </h2>
             <AnswerView answers={request.answers} highlighted={request.highlightedFields} />
@@ -419,10 +432,10 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
           </section>
           <RequestHistory requestId={request.id} />
         </div>
-        <aside className="review-panel">
-          <section className="card">
-            <h2 className="h-panel">담당자 협의 현황</h2>
-            <div className="review-status-grid">
+        <aside className="review" aria-labelledby="review-heading">
+          <div className="card">
+            <h2 className="sr-only">담당자 협의 현황</h2>
+            <div className="consult">
               {(['INFRA', 'SECURITY'] as const).map((field) => {
                 const review = request.reviews.find((item) => item.field === field);
                 const assignment = request.assignments.find(
@@ -439,9 +452,9 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                           ? '보완 요청'
                           : '검토 대기';
                 return (
-                  <div className="review-person" key={field}>
-                    <strong>{FIELD_LABELS[field]}</strong>
-                    <span>
+                  <div key={field}>
+                    <span>{FIELD_LABELS[field]}</span>
+                    <span className="consult-name">
                       {assignment?.assigneeName ??
                         (request.stage === 1 ? '협의 요청 후 배정' : '미배정')}
                     </span>
@@ -449,9 +462,12 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                       tone={
                         review?.status === 'COMPLETE'
                           ? 'success'
-                          : review?.allocationCompleted
-                            ? 'info'
-                            : 'neutral'
+                          : review?.status === 'SUPPLEMENT_REQUESTED' ||
+                              review?.status === 'RECHECK'
+                            ? 'warning'
+                            : review?.allocationCompleted
+                              ? 'info'
+                              : 'neutral'
                       }
                     >
                       {status}
@@ -490,183 +506,199 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                 })}
               </div>
             )}
-          </section>
-          {!terminal && (
-            <section className="card review-actions">
-              <h2 className="h-panel">
-                {actor.role === 'APPLICANT'
-                  ? '다음 할 일'
-                  : actor.role === 'ADMIN'
-                    ? '담당자 배정 관리'
-                    : '담당 분야 검토'}
-              </h2>
-              <p className="help">
-                현재 {request.stage}단계 · {STATUS_LABELS[request.status]}
-              </p>
-              {actor.role === 'APPLICANT' && request.stage === 2 && (
-                <Notice>담당자가 정보를 확인하고 있습니다. 보완 요청이 오면 답변해 주세요.</Notice>
-              )}
-              {request.blockers.length > 0 && (
-                <Notice tone="warning">
-                  <strong>제출 전 확인할 사항</strong>
-                  <ul>
-                    {request.blockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
-                </Notice>
-              )}
-              {(has('COMPLETE_ALLOCATION') || has('COMPLETE_REVIEW') || has('FINAL_CONFIRM')) && (
-                <div className="field">
-                  <label htmlFor="review-comment">검토 의견</label>
-                  <textarea
-                    id="review-comment"
-                    className="input"
-                    rows={3}
-                    value={comment}
-                    maxLength={2000}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="확인한 내용을 기록해 주세요."
-                  />
-                </div>
-              )}
-              {has('REQUEST_REVIEW') && (
-                <button
-                  className="btn btn-primary full-width"
-                  disabled={command.isPending}
-                  onClick={() => setDialogAction('REQUEST_REVIEW')}
-                >
-                  담당자 협의 요청
-                  <Icon name="arrowRight" />
-                </button>
-              )}
-              {has('COMPLETE_ALLOCATION') && (
-                <button
-                  className="btn btn-primary full-width"
-                  disabled={command.isPending}
-                  onClick={() => {
-                    void invoke('COMPLETE_ALLOCATION');
-                  }}
-                >
-                  자원 할당 완료
-                </button>
-              )}
-              {has('COMPLETE_REVIEW') && (
-                <button
-                  className={`btn full-width ${!has('COMPLETE_ALLOCATION') ? 'btn-primary' : ''}`}
-                  disabled={command.isPending}
-                  onClick={() => {
-                    void invoke('COMPLETE_REVIEW');
-                  }}
-                >
-                  담당 분야 협의 완료
-                </button>
-              )}
-              {has('GENERATE_DRAFT') && (
-                <button
-                  className="btn full-width"
-                  disabled={command.isPending}
-                  onClick={() => {
-                    void invoke('GENERATE_DRAFT');
-                  }}
-                >
-                  <Icon name="sparkles" />
-                  AI 최종 초안 제안
-                </button>
-              )}
-              {has('SUBMIT') && (
-                <>
+            {terminal && (
+              <div className="review-actions">
+                <h2 className="h-panel" id="review-heading">
+                  현재 처리 상황
+                </h2>
+                <p>처리할 작업이 없습니다. 기록과 제출본은 보존됩니다.</p>
+              </div>
+            )}
+            {!terminal && (
+              <div className="review-actions">
+                <h2 className="h-panel" id="review-heading">
+                  {actor.role === 'APPLICANT'
+                    ? '다음 할 일'
+                    : actor.role === 'ADMIN'
+                      ? '담당자 배정 관리'
+                      : '담당 분야 검토'}
+                </h2>
+                <p className="help">
+                  현재 {request.stage}단계 · {STATUS_LABELS[request.status]}
+                </p>
+                {actor.role === 'APPLICANT' && request.stage === 2 && (
+                  <Notice>
+                    담당자가 정보를 확인하고 있습니다. 보완 요청이 오면 답변해 주세요.
+                  </Notice>
+                )}
+                {request.blockers.length > 0 && (
+                  <Notice tone="warning">
+                    <strong>제출 전 확인할 사항</strong>
+                    <ul>
+                      {request.blockers.map((blocker) => (
+                        <li key={blocker}>{blocker}</li>
+                      ))}
+                    </ul>
+                  </Notice>
+                )}
+                {(has('COMPLETE_ALLOCATION') || has('COMPLETE_REVIEW') || has('FINAL_CONFIRM')) && (
+                  <div className="field">
+                    <label htmlFor="review-comment">검토 의견</label>
+                    <textarea
+                      id="review-comment"
+                      className="input"
+                      rows={3}
+                      value={comment}
+                      maxLength={2000}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="확인한 내용을 기록해 주세요."
+                    />
+                  </div>
+                )}
+                {has('REQUEST_REVIEW') && (
                   <button
                     className="btn btn-primary full-width"
-                    disabled={command.isPending || request.blockers.length > 0}
-                    onClick={() => setDialogAction('SUBMIT')}
+                    disabled={command.isPending}
+                    onClick={() => setDialogAction('REQUEST_REVIEW')}
                   >
-                    최종 제출
+                    담당자 협의 요청
                     <Icon name="arrowRight" />
                   </button>
-                  {request.blockers.length > 0 && (
-                    <p className="help">위 확인 사항을 해결하면 최종 제출할 수 있습니다.</p>
-                  )}
-                </>
-              )}
-              {has('FINAL_CONFIRM') && (
-                <button
-                  className="btn btn-primary full-width"
-                  disabled={command.isPending}
-                  onClick={() => {
-                    void invoke('FINAL_CONFIRM');
-                  }}
-                >
-                  제출본 최종 확인
-                </button>
-              )}
-              {has('FINALIZE') && (
-                <button
-                  className="btn btn-primary full-width"
-                  disabled={command.isPending}
-                  onClick={() => setDialogAction('FINALIZE')}
-                >
-                  서류 확정
-                </button>
-              )}
-              {has('REASSIGN') && (
-                <button className="btn full-width" onClick={() => setDialogAction('REASSIGN')}>
-                  담당자 재배정
-                </button>
-              )}
-              {request.supplements
-                .filter((item) => item.status === 'OPEN' && has('ANSWER_SUPPLEMENT'))
-                .map((supplement) => (
-                  <SupplementAnswer
-                    key={supplement.id}
-                    id={supplement.id}
-                    reason={supplement.reason}
-                    pending={command.isPending}
-                    onSave={(answer) =>
-                      invoke('ANSWER_SUPPLEMENT', { supplementId: supplement.id, answer })
-                    }
-                  />
-                ))}
-              {(has('REQUEST_SUPPLEMENT') || has('RETURN') || has('CLOSE') || has('WITHDRAW')) && (
-                <div className="review-secondary-actions">
-                  {has('REQUEST_SUPPLEMENT') && (
+                )}
+                {has('COMPLETE_ALLOCATION') && (
+                  <button
+                    className="btn btn-primary full-width"
+                    disabled={command.isPending}
+                    onClick={() => {
+                      void invoke('COMPLETE_ALLOCATION');
+                    }}
+                  >
+                    자원 할당 완료
+                  </button>
+                )}
+                {has('COMPLETE_REVIEW') && (
+                  <button
+                    className={`btn full-width ${!has('COMPLETE_ALLOCATION') ? 'btn-primary' : ''}`}
+                    disabled={command.isPending}
+                    onClick={() => {
+                      void invoke('COMPLETE_REVIEW');
+                    }}
+                  >
+                    담당 분야 협의 완료
+                  </button>
+                )}
+                {has('GENERATE_DRAFT') && (
+                  <button
+                    className="btn full-width"
+                    disabled={command.isPending}
+                    onClick={() => {
+                      void invoke('GENERATE_DRAFT');
+                    }}
+                  >
+                    <Icon name="sparkles" />
+                    AI 최종 초안 제안
+                  </button>
+                )}
+                {has('SUBMIT') && (
+                  <>
                     <button
-                      className="btn btn-tertiary"
-                      onClick={() => setDialogAction('REQUEST_SUPPLEMENT')}
+                      className="btn btn-primary full-width"
+                      disabled={command.isPending || request.blockers.length > 0}
+                      onClick={() => setDialogAction('SUBMIT')}
                     >
-                      보완 요청하기
+                      최종 제출
+                      <Icon name="arrowRight" />
                     </button>
-                  )}
-                  {has('RETURN') && (
-                    <button className="btn btn-tertiary" onClick={() => setDialogAction('RETURN')}>
-                      이전 단계로 반환
-                    </button>
-                  )}
-                  {has('CLOSE') && (
-                    <button
-                      className="btn btn-tertiary danger-text"
-                      onClick={() => setDialogAction('CLOSE')}
-                    >
-                      종결(반려)
-                    </button>
-                  )}
-                  {has('WITHDRAW') && (
-                    <button
-                      className="btn btn-tertiary danger-text"
-                      onClick={() => setDialogAction('WITHDRAW')}
-                    >
-                      신청 철회
-                    </button>
-                  )}
-                </div>
-              )}
-              {command.isPending && <p role="status">처리 중입니다. 잠시 기다려 주세요.</p>}
-              {['INFRA', 'SECURITY'].includes(actor.role) &&
-                !request.assignments.some(
-                  (item) => item.active && item.assigneeId === actor.id,
-                ) && <Notice>배정된 담당자만 검토할 수 있습니다. 현재 조회만 가능합니다.</Notice>}
-            </section>
-          )}
+                    {request.blockers.length > 0 && (
+                      <p className="help">위 확인 사항을 해결하면 최종 제출할 수 있습니다.</p>
+                    )}
+                  </>
+                )}
+                {has('FINAL_CONFIRM') && (
+                  <button
+                    className="btn btn-primary full-width"
+                    disabled={command.isPending}
+                    onClick={() => {
+                      void invoke('FINAL_CONFIRM');
+                    }}
+                  >
+                    제출본 최종 확인
+                  </button>
+                )}
+                {has('FINALIZE') && (
+                  <button
+                    className="btn btn-primary full-width"
+                    disabled={command.isPending}
+                    onClick={() => setDialogAction('FINALIZE')}
+                  >
+                    서류 확정
+                  </button>
+                )}
+                {has('REASSIGN') && (
+                  <button className="btn full-width" onClick={() => setDialogAction('REASSIGN')}>
+                    담당자 재배정
+                  </button>
+                )}
+                {request.supplements
+                  .filter((item) => item.status === 'OPEN' && has('ANSWER_SUPPLEMENT'))
+                  .map((supplement) => (
+                    <SupplementAnswer
+                      key={supplement.id}
+                      id={supplement.id}
+                      reason={supplement.reason}
+                      pending={command.isPending}
+                      onSave={(answer) =>
+                        invoke('ANSWER_SUPPLEMENT', { supplementId: supplement.id, answer })
+                      }
+                    />
+                  ))}
+                {(has('REQUEST_SUPPLEMENT') ||
+                  has('RETURN') ||
+                  has('CLOSE') ||
+                  has('WITHDRAW')) && (
+                  <div className="review-secondary-actions">
+                    {has('REQUEST_SUPPLEMENT') && (
+                      <button
+                        className="btn btn-tertiary"
+                        onClick={() => setDialogAction('REQUEST_SUPPLEMENT')}
+                      >
+                        보완 요청하기
+                      </button>
+                    )}
+                    {has('RETURN') && (
+                      <button
+                        className="btn btn-tertiary"
+                        onClick={() => setDialogAction('RETURN')}
+                      >
+                        이전 단계로 반환
+                      </button>
+                    )}
+                    {has('CLOSE') && (
+                      <button
+                        className="btn btn-tertiary danger-text"
+                        onClick={() => setDialogAction('CLOSE')}
+                      >
+                        종결(반려)
+                      </button>
+                    )}
+                    {has('WITHDRAW') && (
+                      <button
+                        className="btn btn-tertiary danger-text"
+                        onClick={() => setDialogAction('WITHDRAW')}
+                      >
+                        신청 철회
+                      </button>
+                    )}
+                  </div>
+                )}
+                {command.isPending && <p role="status">처리 중입니다. 잠시 기다려 주세요.</p>}
+                {['INFRA', 'SECURITY'].includes(actor.role) &&
+                  !request.assignments.some(
+                    (item) => item.active && item.assigneeId === actor.id,
+                  ) && <Notice>배정된 담당자만 검토할 수 있습니다. 현재 조회만 가능합니다.</Notice>}
+              </div>
+            )}
+          </div>
         </aside>
       </div>
       <CommandDialog
@@ -985,7 +1017,7 @@ function RequestHistory({ requestId }: { requestId: string }) {
   const events = (audit.data ?? []).filter((event) => event.targetId === requestId);
   return (
     <section className="card">
-      <h2 className="h-sec">처리 이력</h2>
+      <h2 className="h-panel">처리 이력</h2>
       {audit.isPending ? (
         <LoadingState />
       ) : audit.error ? (

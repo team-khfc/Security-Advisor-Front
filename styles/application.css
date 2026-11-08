@@ -121,66 +121,6 @@
   color: var(--sf-primary-text);
   text-decoration: underline;
 }
-.stage-stepper {
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 1px solid var(--sf-border);
-  background: var(--sf-surface);
-  padding: 2rem 2.4rem;
-  margin: 0 0 2.4rem;
-  border-radius: var(--r-card);
-  gap: 1.2rem;
-}
-.stage-stepper li {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  color: var(--sf-muted);
-  font-size: 1.5rem;
-  flex-wrap: wrap;
-}
-.stage-stepper .current {
-  color: var(--sf-text);
-  font-weight: 700;
-}
-.step-number {
-  display: inline-grid;
-  place-items: center;
-  width: 3.2rem;
-  height: 3.2rem;
-  border-radius: 50%;
-  background: var(--sf-background);
-  color: var(--sf-muted);
-  border: 1px solid var(--sf-border);
-  flex-shrink: 0;
-}
-.current .step-number {
-  color: var(--sf-on-primary);
-  border-color: transparent;
-}
-.current .stage-1 {
-  background: var(--st1);
-}
-.current .stage-2 {
-  background: var(--st2);
-}
-.current .stage-3 {
-  background: var(--st3);
-}
-.current .stage-4 {
-  background: var(--st4);
-}
-.done .step-number {
-  color: var(--sf-primary-text);
-  background: var(--sf-primary-soft);
-  border-color: var(--sf-primary);
-}
-.is-terminal .step-number {
-  background: var(--sf-background);
-  color: var(--sf-muted);
-  border-color: var(--sf-border);
-}
 .detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(34rem, 40rem);
@@ -189,30 +129,6 @@
 }
 .detail-content {
   min-width: 0;
-}
-.review-panel {
-  position: sticky;
-  top: 2.4rem;
-  min-width: 0;
-}
-.review-panel .card {
-  padding: 2.4rem;
-}
-.review-status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-  margin: 1.6rem 0;
-}
-.review-person {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.8rem;
-  background: var(--sf-background);
-  border-radius: var(--r-ctl);
-  padding: 1.2rem;
-  font-size: 1.5rem;
 }
 .deadline-line {
   display: flex;
@@ -908,13 +824,6 @@
   .detail-layout {
     grid-template-columns: minmax(0, 1fr);
   }
-  .review-panel {
-    position: static;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2.4rem;
-    align-items: start;
-  }
   .auth-layout {
     gap: 2.4rem;
   }
@@ -939,12 +848,6 @@
   .collected-panel {
     height: max(50rem, 60dvh);
   }
-  .stage-stepper {
-    padding: 1.6rem;
-  }
-  .stage-stepper li {
-    font-size: 1.3rem;
-  }
   .auth-layout {
     grid-template-columns: minmax(0, 1fr);
     max-width: 60rem;
@@ -959,20 +862,8 @@
 @media (max-width: 767px) {
   .form-two,
   .settings-two,
-  .supplement-grid,
-  .review-panel {
+  .supplement-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .stage-stepper {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.6rem;
-  }
-  .stage-stepper li {
-    font-size: 1.5rem;
-  }
-  .step-number {
-    width: 2.8rem;
-    height: 2.8rem;
   }
   .new-request-actions {
     align-items: stretch;
