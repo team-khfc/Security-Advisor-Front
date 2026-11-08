@@ -46,6 +46,16 @@ function searchParams() {
   return new URLSearchParams(window.location.search);
 }
 
+function composeInput(input: HTMLInputElement, value: string) {
+  fireEvent.compositionUpdate(input, { data: value });
+  fireEvent.input(input, {
+    target: { value },
+    data: value,
+    inputType: 'insertCompositionText',
+    isComposing: true,
+  });
+}
+
 beforeEach(() => {
   const applicant = MOCK_MEMBERS[0];
   controls.session = { member: applicant, mock: true, expiresAt: null };
@@ -111,7 +121,37 @@ test('검색 결과가 두 페이지 이상이어도 새 검색어를 입력하�
   expect(document.activeElement).toBe(input);
 });
 
-test('한글 조합 중에는 결과와 URL 및 제출을 보류하고 조합 완료 직후 검색한다', async () => {
+test('한글 조합 중인 마지막 글자와 삭제를 공백 없이 검색 조건에 즉시 반영한다', async () => {
+  window.history.replaceState(null, '', '/requests?page=2');
+  const user = userEvent.setup();
+  render(<RequestList />);
+  const input = searchInput();
+  await user.click(input);
+
+  fireEvent.compositionStart(input);
+  for (const value of ['ㅅ', '시', '신', '신ㅊ', '신처', '신청', '신', '시', 'ㅅ']) {
+    composeInput(input, value);
+    expect(input.value).toBe(value);
+    expect(searchParams().get('q')).toBe(value);
+    expect(screen.getByRole('status').textContent).toContain(`검색어 “${value}”`);
+    expect(searchParams().has('page')).toBe(false);
+    expect(searchInput()).toBe(input);
+    expect(document.activeElement).toBe(input);
+  }
+
+  composeInput(input, '');
+  expect(input.value).toBe('');
+  expect(searchParams().has('q')).toBe(false);
+  expect(screen.getByRole('status').textContent).toContain('결과 6건');
+  expect(screen.getByRole('status').textContent).not.toContain('검색어');
+  fireEvent.compositionEnd(input, { data: '' });
+  expect(searchParams().has('q')).toBe(false);
+  expect(searchInput()).toBe(input);
+  expect(document.activeElement).toBe(input);
+  expect(controls.replace).not.toHaveBeenCalled();
+});
+
+test('한글 조합 중에도 결과를 좁혀 검색하되 확정용 Enter는 폼을 제출하지 않는다', async () => {
   window.history.replaceState(null, '', '/requests?q=%EA%B3%B5%EA%B3%B5');
   const user = userEvent.setup();
   render(<RequestList />);
@@ -120,24 +160,33 @@ test('한글 조합 중에는 결과와 URL 및 제출을 보류하고 조합 �
   expect(screen.getByRole('status').textContent).toContain('결과 3건');
 
   fireEvent.compositionStart(input);
-  fireEvent.change(input, { target: { value: '교' } });
+  composeInput(input, '교');
   expect(input.value).toBe('교');
-  expect(screen.getByRole('status').textContent).toContain('결과 3건');
-  expect(searchParams().get('q')).toBe('공공');
-
-  fireEvent.change(input, { target: { value: '교육' } });
-  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', isComposing: true, keyCode: 229 });
-  fireEvent.submit(input.form!);
-  expect(input.value).toBe('교육');
-  expect(screen.getByRole('status').textContent).toContain('결과 3건');
-  expect(searchParams().get('q')).toBe('공공');
-  expect(controls.replace).not.toHaveBeenCalled();
-
-  fireEvent.compositionEnd(input, { data: '교육' });
   expect(screen.getByRole('status').textContent).toContain('결과 2건');
-  expect(searchParams().get('q')).toBe('교육');
+  expect(searchParams().get('q')).toBe('교');
   expect(screen.getByRole('link', { name: '교육지원 포털 개선' })).toBeTruthy();
   expect(screen.getByRole('link', { name: '합성 교육 통계 연계' })).toBeTruthy();
+
+  composeInput(input, '교육');
+  expect(searchParams().get('q')).toBe('교육');
+  expect(screen.getByRole('status').textContent).toContain('결과 2건');
+  expect(
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', isComposing: true, keyCode: 229 }),
+  ).toBe(false);
+  fireEvent.submit(input.form!);
+  expect(input.value).toBe('교육');
+  expect(searchParams().get('q')).toBe('교육');
+  expect(controls.replace).not.toHaveBeenCalled();
+
+  composeInput(input, '교육지원');
+  expect(screen.getByRole('status').textContent).toContain('결과 1건');
+  expect(searchParams().get('q')).toBe('교육지원');
+  expect(screen.getByRole('link', { name: '교육지원 포털 개선' })).toBeTruthy();
+  expect(screen.queryByRole('link', { name: '합성 교육 통계 연계' })).toBeNull();
+
+  fireEvent.compositionEnd(input, { data: '교육지원' });
+  expect(screen.getByRole('status').textContent).toContain('결과 1건');
+  expect(searchParams().get('q')).toBe('교육지원');
   expect(searchInput()).toBe(input);
   expect(document.activeElement).toBe(input);
 });
