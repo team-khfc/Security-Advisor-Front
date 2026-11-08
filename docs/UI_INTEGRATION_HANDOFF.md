@@ -37,11 +37,12 @@
 | 공통 셸 | 전체 | `partials/shell.html`, `assets/css/base.css` | `components/ServiceShell.tsx`, `styles/globals.css` | Stage 1 완료(배지 보류) |
 | 신청 현황 | `/requests` | `requests.html`, `screens/requests.js·css` | `features/request/RequestList.tsx`, `styles/requests.css` | Stage 1 완료 |
 | 신청 상세 | `/requests/[id]` | `request-detail.html`, `submitted.html` | `features/request/RequestDetail.tsx`, `styles/requestDetail.css` | Stage 2 완료 |
-| 새 신청 | `/requests/new` | `new-request.html`(시작 화면) | `features/request/NewRequest.tsx`, `styles/newRequest.css` | Stage 3 완료(`/cases/[id]` 인터뷰 작업 영역은 미대상) |
-| 보완·통신 | `/supplements`, `/network` | `supplements.html`, `network.html` | `features/request/SupportingPages.tsx` | Stage 4 예정 |
-| 문서함 | `/documents` | `documents.html` | `features/document/DocumentList.tsx` | Stage 4 예정 |
-| 처리 이력 | `/history` | `history.html` | `features/audit/AuditList.tsx` | Stage 4 예정 |
-| 기관 설정·정책 | `/settings`, `/policies` | `settings.html`, `policies.html` | `features/configuration/ConfigurationPage.tsx`, `components/PlannedPage.tsx` | Stage 4 예정 |
+| 새 신청 | `/requests/new` | `new-request.html`(시작 화면) | `features/request/NewRequest.tsx`, `styles/newRequest.css` | Stage 3 완료 |
+| 사업 건·인터뷰 작업 영역 | `/cases/[id]` | `new-request.html`(대화 작업 영역 `renderChat`) | `features/request/CaseInterview.tsx`, `styles/newRequest.css` | Stage 4-A 완료 |
+| 보완·통신 | `/supplements`, `/network` | `supplements.html`, `network.html` | `features/request/SupportingPages.tsx`, `styles/components.css` | Stage 4-A 완료 |
+| 문서함 | `/documents` | `documents.html` | `features/document/DocumentList.tsx`, `styles/components.css` | Stage 4-A 완료 |
+| 처리 이력 | `/history` | `history.html` | `features/audit/AuditList.tsx`, `styles/components.css` | Stage 4-A 완료 |
+| 기관 설정·정책 | `/settings`, `/policies` | `settings.html`, `policies.html` | `features/configuration/ConfigurationPage.tsx`, `components/PlannedPage.tsx` | Stage 4-B 예정 |
 | 로그인·가입·회원 | `/login`, `/signup`, `/members` | 시안 없음 | `features/auth/*`, `features/assignment/*` | 대상 외(공통 토큰만 공유) |
 
 화면별 상세는 각 Stage 완료 시 아래에 추가한다.
@@ -110,6 +111,36 @@
 | 의도적으로 유지한 차이 | 시안에 없는 사업 정보 입력 카드(D3). 시안의 여러 파일(최대 5개)·XLSX·TXT·파일당 20MB는 Front가 지원하지 않아 Front 기준(1개, PDF·HWP·HWPX·DOCX, 10MB) 표시. 시안의 `선택한 파일 분석 시작`·브라우저 안 문서 분석은 시연 기능이라 가져오지 않음(분석은 사업 건 화면에서 명시적으로 요청). 버튼 1개 구조와 기존 이름 유지(기존 테스트·흐름) |
 | 디자이너 결정 필요 | ① 사업 정보 입력 카드를 파일 영역 위에 둘지, 파일 선택 뒤 단계·대화상자로 받을지(D3). ② 위 카드가 있을 때 파일 영역 높이. ③ 하단 행동을 시안처럼 보조·주 버튼 2개로 나눌지(Front는 생성 1회로 두 흐름을 처리) |
 
+### Stage 4-A — 사업 건·인터뷰 작업 영역과 업무 지원 화면
+
+비교 기준: 시안 563dd7e(`new-request.html` 대화 작업 영역, `supplements.html`, `documents.html`, `network.html`, `history.html`), Front 모의 모드 1440×900. 시안의 라우트와 Front 라우트는 위 대응표와 같다. Front에 없는 시안 기능(CSV 다운로드, 규칙 단위 통신 정보, 브라우저 안 문서 분석, 사용자 전환)은 만들지 않았다.
+
+#### 사업 건·인터뷰 작업 영역 (`/cases/[id]`)
+
+| 영역 | 시안 | 변경 전 Front | 변경 후 Front |
+| --- | --- | --- | --- |
+| 구조 | `.work` 3열(대화 `.chatp` / 너비 조절 `.splitter` / 수집 정보 `.infop`), 높이 `--work-h` | 독자 클래스(`.interview-workspace`, `.conversation-*`, `.collected-*`) | 시안 클래스 그대로 사용. 너비 조절(키보드 ←/→, 두 번 눌러 기본값)은 기존 동작 유지 |
+| 대화 머리 | 원형 아바타 + 제목 왼쪽, 안내 문구 오른쪽 | 큰 아이콘 + 제목·설명 세로 | 시안 배치. 아바타는 글자 `AI` 대신 기존 아이콘(정적 안내이므로 AI 응답처럼 보이지 않게) |
+| 메시지 | `.m-ai` 말풍선(아바타 포함), 내 답변 `.m-me` | 회색 상자, 질문·답변 쌍 | 시안 말풍선. 저장한 답변은 질문 말풍선 + 내 답변 말풍선으로 쌓임(기존 데이터 그대로) |
+| 질문 카드 | 대화 영역 하단 주색 테두리 `.qcard`, `.qnum`·`.qtitle`·`.qhelp` | 상단 주색 선 + 독자 구조 | 시안 카드. 진행 `공통 질문 n / N`, 입력란·저장·나중에 입력·충돌 안내 유지 |
+| 수집 정보 | 제목과 `필수정보 n / N` 한 줄, 얇은 진행 막대, 회색 그룹 머리(`.grp`), 라벨 9.6rem·값 한 줄(`.irow`) | 세로 목록 | 시안 배치. 값 목록은 `AnswerView`를 그대로 쓰고 CSS로 9.6rem 라벨·값·출처 배지 한 줄 |
+| 문서 분석 | 작업 영역 위 문서 막대(`.docbar`) | 대화 영역 안 펼침 | 작업 영역 위 `.docbar` 펼침으로 이동(`AnalysisPanel` 그대로) |
+
+#### 업무 지원 화면
+
+| 화면 | 시안과 맞춘 것 | 의도적으로 유지·미적용한 것 |
+| --- | --- | --- |
+| 보완 요청 `/supplements` | 설명 줄 제거, 첫 섹션 제목·건수(파랑), 신청별 카드(신청번호·사업명 링크·상태 배지) 안에 분야별 보완 상자(`.supp`), 아래 `확인한 요청` 표(없으면 빈 상자) | 답변 입력은 시안처럼 이 화면에서 받지 않고 기존처럼 신청 상세로 이동(중복 입력 방지, Stage 2 패널 한 곳). 시안 `답변한 요청`은 Front 상태 모델상 `확인한 요청`(RESOLVED) |
+| 문서함 `/documents` | 필터 라벨을 시안처럼 작은 보조 글자, 검색 버튼 글자만, 카드 정의 목록을 `적용 설정 / 확인 상태 / 마지막 저장(제출 시각)`으로(확인 상태는 시안처럼 목록 안 주의 글자), 서류 종류·신청 상태를 제목 아래 한 줄 | 시안의 `TXT 다운로드`·`협의 내용과 근거` 대신 기존 `미리보기 데이터(JSON)`·`신청 상세` 유지(정식 문서 생성 미구현) |
+| 통신 정보 `/network` | 설명 줄 제거, 행 전체가 상세로 가는 `.rows-link` 표, 사업명 칸 `신청번호 · 서류` + 사업명, 비어 있는 값은 주의 배지 | 시안은 방화벽 규칙 단위 행·`업무 표현`·`방향` 열·`입력 필요` 필터 칩·CSV. Front 데이터는 신청 단위 공통 답변이라 신청 단위 행·`할당 상태` 열 유지, 기존 사업명 검색 유지. 배지 문구는 Front 출처 규칙의 `담당자 확인 필요` |
+| 처리 이력 `/history` | 일시 `YYYY-MM-DD HH:mm`(한국표준시), 대상 칸 위에 작은 글자(`신청 · 기록 버전 n`)와 링크, 처리자 `이름 (역할)` 한 줄 | 감사 이력 불변 안내, 업무 구분 필터, 검색은 유지. 시안의 CSV 다운로드는 Front에 없음 |
+
+| 구분 | 내용 |
+| --- | --- |
+| 변경 파일 | `features/request/CaseInterview.tsx`, `features/request/SupportingPages.tsx`, `features/document/DocumentList.tsx`, `features/audit/AuditList.tsx`, `styles/newRequest.css`(Stage 4-A 블록), `styles/components.css`(Stage 4-A 블록), `styles/application.css`·`styles/globals.css`(사용하지 않게 된 `.interview-workspace`·`.conversation-*`·`.collected-*`·`.panel-resizer`·`.supplement-grid`·`.document-state` 규칙 삭제), `tests/case-workspace.test.tsx`(3), `tests/supporting-screens.test.tsx`(5) |
+| 업무 로직 | 훅(`useCase`, `useSaveCase`, `useAnalysis`, `useApplyAnalysis`, `useRequests`, `useAudit`), 저장 요청 본문, 입력 초안, revision 충돌 처리, 편집 가능 조건, 역할 제한(통신 정보는 ICT인프라만), 필터·검색 동작은 그대로 |
+| 미구현 AI 기능 표시 | 대화 영역의 문구는 정해진 안내이며 자연어 대화 AI가 아니다. 분석 결과는 기존처럼 `모의 AI 제안 · 미확정`과 "실제 파일 파싱·LLM 호출은 Back 연동 후 지원" 문구를 유지한다. 시안의 AI 아바타 글자 `AI`는 쓰지 않았다 |
+
 ## C. 기능 보존
 
 ### 기준선 (Stage 0, 코드 변경 전)
@@ -166,6 +197,21 @@
 | 키보드 | 수동 | 사업명 → 부서 → 서류 2개 → 파일 선택 → 사업 개요 → 시작 버튼 순서. 숨은 파일 입력은 탭 순서에서 제외, 형식 안내는 버튼 설명으로 연결 |
 | 미검증 | – | 운영체제 파일 선택 창에서의 실제 선택(브라우저 자동화 한계로 `change`·`drop` 이벤트로 검증), 화면 낭독기, 실제 Back의 생성 오류 응답 |
 
+### Stage 4-A 검증
+
+| 검증 | 실행 | 결과 |
+| --- | --- | --- |
+| `npm run check` | 실행 | 통과. 10개 파일 87개(Stage 3의 79개 유지 + 신규 8개). 실패 0 |
+| `npm run build` | 실행 | 통과 |
+| 사업 건 작업 영역(신청자) | 수동(모의) | 답변 저장 → 내 답변 말풍선 추가, 다음 질문(`2 / 4`), 수집 정보 값 갱신. 문서 분석 막대 열기 → 개요 입력 → 분석 요청 → `모의 AI 제안 · 미확정` 결과와 `제안을 미확정 답변으로 적용` 버튼 표시 |
+| 사업 건 읽기 전용 | 테스트 | 다른 신청자는 읽기 전용 안내만, 질문 카드·문서 분석 막대 없음 |
+| 보완 요청(신청자) | 수동 + 테스트 | 신청별 카드·분야별 보완 상자·`신청에서 보완하기` 링크(`#supplements`), 확인한 요청 표·빈 상태 |
+| 문서함(신청자) | 수동 | 미리보기 대화상자 열기·닫기, 신청번호 검색(1건), 확인 상태 표시 |
+| 통신 정보(ICT인프라) | 수동 + 테스트 | 검색(1건·0건·빈 상태), 행의 빈 칸 클릭 → 신청 상세 이동, 빈 값 배지. 신청자 접근 시 안내만 |
+| 처리 이력(ICT인프라) | 수동 + 테스트 | 업무 구분 필터(1건), 검색(0건·빈 상태), 초기화(8건), 시각 형식 |
+| 공통 화면 회귀 | 수동 | 390px(다크): 신청 현황·신청 상세·새 신청·보완·문서함·사업 건·통신 정보·처리 이력 가로 넘침 없음(표는 표 영역 안 스크롤). 1024px(라이트): 통신 정보·처리 이력·문서함·신청 현황 넘침 없음, 사업 건 2열 유지 |
+| 미검증 | – | 정보보안·관리자 역할의 처리 이력 화면, 사업 건 화면의 실제 파일 첨부 분석(운영체제 파일 창), 화면 낭독기, 실제 Back 연동 |
+
 ## D. API 영향
 
 | Stage | API 경로·요청·응답 | 조회 방식 | 비고 |
@@ -174,6 +220,7 @@
 | 1 | 변경 없음 | 변경 없음(목록은 기존 `GET /api/security-requests?size=100` 결과만 사용) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
 | 2 | 변경 없음 | 변경 없음(상세·명령 훅 그대로) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
 | 3 | 변경 없음 | 변경 없음(`useCreateCase` 요청 본문 title·department·description·docTypes 그대로, 파일은 이 화면에서 전송하지 않음) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
+| 4-A | 변경 없음 | 변경 없음(사업 건 저장·분석·적용, 신청 목록, 감사 이력 조회 그대로) | 모의 모드에서만 확인. 실제 Back 연결 미검증 |
 
 ## E. 후속 담당자 인계
 
@@ -188,6 +235,11 @@
 - 새 신청 화면은 파일을 서버로 보내지 않는다. 파일은 탭 메모리(`rememberUpload`)로 사업 건 화면에 넘어가고, 분석 요청 시 전송된다. 실제 Back 연동 시 업로드 크기·형식 검사를 서버에서도 같은 기준(PDF·HWP·HWPX·DOCX, 10MB)으로 하는지 확인한다.
 - 생성 실패 메시지는 `useCreateCase`가 던지는 오류의 `message`를 그대로 보여 준다. 실제 Back의 ProblemDetail `detail`이 사용자에게 보일 문구로 적절한지 확인한다.
 
+- **파일 업로드 계약 차이:** 시안은 여러 파일(최대 5개)·XLSX·TXT·파일당 20MB와 브라우저 안 파싱을 보여 주지만, Front는 새 신청에서 1개(PDF·HWP·HWPX·DOCX, 10MB)를 고르고 사업 건 화면의 분석 요청 때 `POST /api/business-cases/{id}/analysis-jobs`로 보낸다(모의 계약). 실제 Back의 분석 작업 API·허용 형식·크기·비동기(202·작업 조회) 계약이 확정되면 이 기준을 맞춘다.
+- **미구현 AI 기능:** 자연어 대화형 인터뷰, 공개자료 RAG, 실제 문서 파싱·LLM 호출, 방화벽 규칙 초안·데이터 흐름도 자동 생성은 없다. 화면에는 정해진 안내 문구와 모의 분석 결과(미확정 표시)만 있다.
+- **통신 정보 데이터 단위:** 시안은 방화벽 규칙 단위 표다. 실제 Back에 규칙(FirewallRule) 자원이 생기면 행 단위·`업무 표현`·`방향` 열·`입력 필요` 필터를 다시 검토한다.
+- **처리 이력 대상 표시:** 감사 이력 응답에 사업명이 없어 대상 칸은 신청번호 링크로 표시한다. Back이 대상 제목을 내려주면 시안처럼 사업명 링크로 바꿀 수 있다.
+
 ## F. 커밋 이력
 
 | 단계 | 커밋 | 변경 요약 | 검증 |
@@ -198,4 +250,7 @@
 | Stage 2 | `d70fbfc` | 신청 상세 단계 표시·라벨·값 표·우측 단일 패널, 사용 안 하는 CSS 정리, `waitingLine` 테스트 | check(75/75)·build 통과, 4개 역할 수동 점검 |
 | Stage 2 | `c848bdf` | Stage 2 변경 명세 기록 | – |
 | Stage 3 | `deb29cc` | 새 신청 파일 영역 시안 구조 적용, 파일 오류 영역 내 표시, 드래그·생성 중 상태 정리, 옛 CSS 정리, 테스트 4개 | check(79/79)·build 통과, 수동 시나리오 점검 |
-| Stage 3 | (이 커밋) | Stage 3 변경 명세 기록 | – |
+| Stage 3 | `c7a9eef` | Stage 3 변경 명세 기록 | – |
+| Stage 4-A | `5832d78` | 사업 건·인터뷰 작업 영역 시안 구조 적용, 문서 분석 막대 위치, 옛 CSS 정리, 테스트 3개 | check(82/82)·build 통과, 수동 점검 |
+| Stage 4-A | `4e76d5b` | 보완 요청·문서함·통신 정보·처리 이력 시안 정렬, 옛 CSS 정리, 테스트 5개 | check(87/87)·build 통과, 수동 점검 |
+| Stage 4-A | (이 커밋) | Stage 4-A 변경 명세 기록 | – |
