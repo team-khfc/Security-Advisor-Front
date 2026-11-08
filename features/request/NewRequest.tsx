@@ -51,12 +51,14 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
   const { file, title, department, description, docTypes } = values;
   const update = (change: Partial<NewCaseDraft>) => saveDraft({ ...values, ...change });
   const [error, setError] = useState('');
+  const [fileError, setFileError] = useState('');
   const [dragging, setDragging] = useState(false);
+  const pickButton = useRef<HTMLButtonElement>(null);
   const selectFile = (next?: File) => {
-    setError('');
+    setFileError('');
     if (!next) return;
     if (!/\.(pdf|hwp|hwpx|docx)$/i.test(next.name) || next.size > 10 * 1024 * 1024) {
-      setError('PDF, HWP, HWPX, DOCX 파일을 10MB 이하로 선택해 주세요.');
+      setFileError('PDF, HWP, HWPX, DOCX 파일을 10MB 이하로 선택해 주세요.');
       return;
     }
     update({ file: next });
@@ -64,10 +66,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
 
   return (
     <>
-      <PageHeading
-        title="새 신청"
-        description="사업에 필요한 보안 서류를 선택하고, 기획서 또는 대화로 작성을 시작하세요."
-      />
+      <PageHeading title="새 신청" />
       <form
         onSubmit={async (event) => {
           event.preventDefault();
@@ -179,61 +178,93 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
             닫으면 사라집니다.
           </p>
         )}
-        <section
-          className={`upload-zone ${dragging ? 'dragging' : ''}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            selectFile(e.dataTransfer.files[0]);
-          }}
-          aria-label="기획서 첨부"
-        >
-          <span className="upload-icon">
-            <Icon name="upload" size={32} />
-          </span>
-          <h2 className="h-sec">기획서를 끌어다 놓으세요</h2>
-          <p>기획서·사업계획서·기능명세서가 있으면 필요한 정보를 함께 정리할 수 있어요.</p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".pdf,.hwp,.hwpx,.docx"
-            className="sr-only"
-            tabIndex={-1}
-            aria-label="기획서 파일"
-            onChange={(e) => selectFile(e.target.files?.[0])}
-          />
-          <button type="button" className="btn" onClick={() => inputRef.current?.click()}>
-            <Icon name="plus" />
-            파일 선택
-          </button>
-          <p className="help">PDF, HWP, HWPX, DOCX · 파일 1개 · 최대 10MB</p>
-          {file && (
-            <div className="selected-file">
-              <Icon name="file" />
-              <span className="file-name" title={file.name}>
-                {file.name}
-              </span>
-              <span className="meta">{(file.size / 1024).toFixed(1)}KB · 선택됨</span>
-              <button
-                type="button"
-                className="btn btn-tertiary btn-sm"
-                onClick={() => {
-                  update({ file: undefined });
-                  if (inputRef.current) inputRef.current.value = '';
-                }}
-              >
-                선택 취소
-              </button>
-            </div>
-          )}
-          <p className="help">
-            선택한 파일은 아직 전송되지 않았습니다. 다음 화면에서 ‘분석 요청’을 누르면 전송합니다.
-          </p>
+        <section className="intake new-case-intake" aria-labelledby="intake-heading">
+          <div
+            className={`dropzone${dragging ? ' drag' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!create.isPending) setDragging(true);
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              if (!create.isPending) selectFile(e.dataTransfer.files[0]);
+            }}
+          >
+            <span className="dz-ic">
+              <Icon name="upload" size={32} />
+            </span>
+            <h2 className="h-panel" id="intake-heading">
+              기획서를 끌어다 놓으세요
+            </h2>
+            <p className="help">
+              기획서·사업계획서·기능명세서가 있으면 필요한 정보를 함께 정리할 수 있어요.
+            </p>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,.hwp,.hwpx,.docx"
+              className="sr-only"
+              tabIndex={-1}
+              aria-label="기획서 파일"
+              onChange={(e) => selectFile(e.target.files?.[0])}
+            />
+            <button
+              ref={pickButton}
+              type="button"
+              className="btn"
+              aria-describedby="file-help"
+              disabled={create.isPending}
+              onClick={() => inputRef.current?.click()}
+            >
+              파일 선택
+            </button>
+            <p className="help" id="file-help">
+              PDF, HWP, HWPX, DOCX 파일, 파일 1개, 최대 10MB
+            </p>
+            {fileError && (
+              <p className="ferr" role="alert">
+                {fileError}
+              </p>
+            )}
+            {file && (
+              <ul className="pend" aria-label="분석 전 파일">
+                <li>
+                  <Icon name="file" size={18} />
+                  <span className="pn" title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className="help">
+                    {(file.name.split('.').pop() ?? '').toUpperCase()},{' '}
+                    {file.size >= 1024 * 1024
+                      ? `${(file.size / 1024 / 1024).toFixed(1)}MB`
+                      : `${(file.size / 1024).toFixed(1)}KB`}
+                  </span>
+                  <span className="badge b-neutral">분석 전</span>
+                  <button
+                    type="button"
+                    className="iedit-btn"
+                    aria-label={`${file.name} 선택 취소`}
+                    title="선택 취소"
+                    disabled={create.isPending}
+                    onClick={() => {
+                      update({ file: undefined });
+                      if (inputRef.current) inputRef.current.value = '';
+                      pickButton.current?.focus();
+                    }}
+                  >
+                    <Icon name="x" size={18} />
+                  </button>
+                </li>
+              </ul>
+            )}
+            <p className="help">
+              선택한 파일은 아직 전송되지 않았습니다. 다음 화면에서 ‘분석 요청’을 누르면 전송합니다.
+            </p>
+          </div>
         </section>
         <details className="sub-block">
           <summary>기획서 없이 사업 개요 직접 입력</summary>
@@ -251,7 +282,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
             />
           </div>
         </details>
-        <div className="new-request-actions">
+        <div className="intake-actions new-case-actions">
           <p className="help">AI는 초안을 제안하며 최종 판단은 사람이 합니다.</p>
           <button className="btn btn-primary" disabled={create.isPending}>
             {create.isPending

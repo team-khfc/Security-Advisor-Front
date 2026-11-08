@@ -649,3 +649,48 @@ body.resizing {
   width: min(100%, 64rem);
   text-align: left;
 }
+
+/* UI 통합 Stage 3 (prototype-soo 563dd7e new-request 시작 화면 기준)
+ * 사업 정보 입력 카드(D3, 업무 필수)가 위에 있으므로 파일 영역 높이는 작업 영역 전체 대신 고정 최소 높이로 둔다. */
+.new-case-intake {
+  margin-bottom: 2.4rem;
+}
+.new-case-intake .dropzone {
+  min-height: 36rem;
+}
+.new-case-intake .dropzone > .help,
+.new-case-intake .dropzone > .ferr {
+  margin: 0;
+  max-width: 66ch;
+}
+.new-case-intake .dz-ic svg {
+  width: 3.2rem;
+  height: 3.2rem;
+}
+.new-case-actions {
+  align-items: center;
+}
+.new-case-actions > .help {
+  margin: 0 auto 0 0;
+}
+@media (max-width: 767px) {
+  .new-case-intake .dropzone {
+    min-height: 32rem;
+    padding: 2.4rem 1.6rem;
+  }
+  .new-case-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .new-case-actions > .help {
+    margin: 0;
+  }
+  .new-case-intake .pend li {
+    flex-wrap: wrap;
+  }
+  .new-case-intake .pend .pn {
+    flex: 1 1 calc(100% - 3rem);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
