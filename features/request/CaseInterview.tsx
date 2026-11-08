@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   EmptyState,
   ErrorState,
@@ -216,8 +216,29 @@ function InterviewWorkspace({
   }>(actor.id, `case:${businessCase.id}:interview`);
   const [questionIndex, setQuestionIndex] = useState(() => draft?.questionIndex ?? 0);
   const [chat, setChat] = useState<{ question: string; answer: string }[]>([]);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const latestMessageRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(380);
   const [error, setError] = useState('');
+
+  useLayoutEffect(() => {
+    const conversation = conversationRef.current;
+    const latestMessage = latestMessageRef.current;
+    if (!conversation || !latestMessage) return;
+
+    // AI 제안 패널이 펼쳐져 있어도 마지막 답변이 보이도록 대화 영역만 이동한다.
+    const contentTop = conversation.getBoundingClientRect().top + conversation.clientTop;
+    const paddingBottom = Number.parseFloat(getComputedStyle(conversation).paddingBottom) || 0;
+    conversation.scrollTop = Math.max(
+      0,
+      conversation.scrollTop +
+        latestMessage.getBoundingClientRect().bottom -
+        contentTop -
+        conversation.clientHeight +
+        paddingBottom,
+    );
+  }, [chat.length]);
+
   const question = questions[questionIndex];
   const draftAnswer = question ? draft?.answers[question.key] : undefined;
   const answerText = draftAnswer?.value ?? question?.value ?? '';
@@ -275,13 +296,23 @@ function InterviewWorkspace({
               <p className="help">업무를 설명해 주시면 필요한 보안정보를 함께 정리해요.</p>
             </div>
           </div>
-          <div className="conversation-body">
+          <div
+            className="conversation-body"
+            ref={conversationRef}
+            role="region"
+            aria-label="인터뷰 대화"
+            tabIndex={0}
+          >
             <div className="ai-message">
               <p>안녕하세요. 사업 목적과 처리하는 정보부터 살펴볼게요.</p>
               <p>서버·IP·포트처럼 확인이 필요한 정보는 ICT인프라 담당자에게 연결합니다.</p>
             </div>
             {chat.map((item, index) => (
-              <div className="chat-pair" key={`${index}-${item.question}`}>
+              <div
+                className="chat-pair"
+                key={`${index}-${item.question}`}
+                ref={index === chat.length - 1 ? latestMessageRef : null}
+              >
                 <p className="chat-question">{item.question}</p>
                 <p className="user-message">{item.answer}</p>
               </div>
