@@ -22,6 +22,8 @@ import {
 
 type DocumentFilter = 'all' | 'draft' | 'submitted' | 'finalized';
 
+const PAGE_SIZE = 6;
+
 const sourceLabels = {
   USER_ANSWER: '사용자 답변',
   AI_INFERRED: 'AI 추론',
@@ -79,11 +81,20 @@ export function DocumentList() {
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<DocumentFilter>('all');
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<SecurityRequest | null>(null);
 
   function searchDocuments(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSearch(searchDraft.trim());
+    setPage(1);
+  }
+
+  function resetFilters() {
+    setSearch('');
+    setSearchDraft('');
+    setKind('all');
+    setPage(1);
   }
 
   if (requests.isPending) return <LoadingState />;
@@ -105,6 +116,13 @@ export function DocumentList() {
         .includes(search.toLocaleLowerCase('ko-KR'))
     );
   });
+  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const currentPage = Math.max(1, Math.min(page, pages));
+  const visible = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageStart = Math.max(1, Math.min(currentPage - 3, pages - 6));
+  const pageNumbers = Array.from({ length: Math.min(7, pages) }, (_, index) => pageStart + index);
+
+  if (page !== currentPage) setPage(currentPage);
 
   return (
     <>
@@ -127,7 +145,10 @@ export function DocumentList() {
             className="input"
             id="document-kind"
             value={kind}
-            onChange={(event) => setKind(event.target.value as DocumentFilter)}
+            onChange={(event) => {
+              setKind(event.target.value as DocumentFilter);
+              setPage(1);
+            }}
           >
             <option value="all">전체</option>
             <option value="draft">작성·검토 초안</option>
@@ -140,25 +161,18 @@ export function DocumentList() {
             <Icon name="search" size={18} />
             검색
           </button>
-          <button
-            type="button"
-            className="btn btn-tertiary"
-            onClick={() => {
-              setSearch('');
-              setSearchDraft('');
-              setKind('all');
-            }}
-          >
+          <button type="button" className="btn btn-tertiary" onClick={resetFilters}>
             검색 초기화
           </button>
         </div>
       </form>
       <p className="filter-state" role="status">
-        문서 {list.length}건. 초안은 최신 저장 내용, 제출본은 제출 당시의 내용입니다.
+        문서 {list.length}건{list.length > 0 && ` · ${currentPage} / ${pages}페이지`}. 초안은 최신
+        저장 내용, 제출본은 제출 당시의 내용입니다.
       </p>
       {list.length ? (
         <div className="docs document-grid">
-          {list.map((request) => {
+          {visible.map((request) => {
             const answers = displayedAnswers(request);
             const unconfirmed = answers.filter(
               (answer) => answer.source === 'AI_INFERRED' && !answer.confirmed,
@@ -269,15 +283,7 @@ export function DocumentList() {
           }
           action={
             search || kind !== 'all' ? (
-              <button
-                type="button"
-                className="btn btn-tertiary"
-                onClick={() => {
-                  setSearch('');
-                  setSearchDraft('');
-                  setKind('all');
-                }}
-              >
+              <button type="button" className="btn btn-tertiary" onClick={resetFilters}>
                 검색 초기화
               </button>
             ) : (
@@ -287,6 +293,53 @@ export function DocumentList() {
             )
           }
         />
+      )}
+      {pages > 1 && (
+        <nav className="pager" aria-label="문서함 페이지">
+          <button
+            type="button"
+            aria-label="처음 페이지"
+            disabled={currentPage === 1}
+            onClick={() => setPage(1)}
+          >
+            «
+          </button>
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            <Icon name="chevronLeft" size={16} />
+            이전
+          </button>
+          {pageNumbers.map((pageNumber) => (
+            <button
+              type="button"
+              key={pageNumber}
+              aria-label={`${pageNumber}페이지`}
+              aria-current={pageNumber === currentPage ? 'page' : undefined}
+              onClick={() => setPage(pageNumber)}
+            >
+              {pageNumber}
+            </button>
+          ))}
+          <button
+            type="button"
+            disabled={currentPage === pages}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            다음
+            <Icon name="chevronRight" size={16} />
+          </button>
+          <button
+            type="button"
+            aria-label="마지막 페이지"
+            disabled={currentPage === pages}
+            onClick={() => setPage(pages)}
+          >
+            »
+          </button>
+        </nav>
       )}
       <Modal
         open={selected !== null}
