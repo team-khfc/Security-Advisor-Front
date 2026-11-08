@@ -18,27 +18,27 @@ interface MenuItem {
 
 const menus: Record<Role, MenuItem[]> = {
   APPLICANT: [
-    { href: '/requests', label: '신청 현황', icon: 'file' },
+    { href: '/requests', label: '신청 현황', icon: 'inbox' },
     { href: '/requests/new', label: '새 신청', icon: 'plus' },
-    { href: '/supplements', label: '보완 요청', icon: 'pencil' },
-    { href: '/documents', label: '문서함', icon: 'folder' },
+    { href: '/supplements', label: '보완 요청', icon: 'message' },
+    { href: '/documents', label: '문서함', icon: 'document' },
   ],
   INFRA: [
-    { href: '/requests', label: '협의 요청함', icon: 'file' },
+    { href: '/requests', label: '협의 요청함', icon: 'inbox' },
     { href: '/network', label: '통신 정보', icon: 'network' },
     { href: '/history', label: '처리 이력', icon: 'history' },
-    { href: '/policies', label: '정책 수명주기', icon: 'shield' },
-    { href: '/documents', label: '문서함', icon: 'folder' },
+    { href: '/policies', label: '정책 수명주기', icon: 'timer' },
+    { href: '/documents', label: '문서함', icon: 'document' },
   ],
   SECURITY: [
-    { href: '/requests', label: '협의 요청함', icon: 'file' },
+    { href: '/requests', label: '협의 요청함', icon: 'inbox' },
     { href: '/history', label: '검토 이력', icon: 'history' },
-    { href: '/policies', label: '정책 수명주기', icon: 'shield' },
-    { href: '/documents', label: '문서함', icon: 'folder' },
+    { href: '/policies', label: '정책 수명주기', icon: 'timer' },
+    { href: '/documents', label: '문서함', icon: 'document' },
   ],
   ADMIN: [
-    { href: '/requests', label: '신청 현황', icon: 'file' },
-    { href: '/documents', label: '문서함', icon: 'folder' },
+    { href: '/requests', label: '신청 현황', icon: 'inbox' },
+    { href: '/documents', label: '문서함', icon: 'document' },
     { href: '/settings', label: '기관 설정', icon: 'settings' },
     { href: '/members', label: '계정·담당자 관리', icon: 'users' },
     { href: '/history', label: '감사 이력', icon: 'history' },

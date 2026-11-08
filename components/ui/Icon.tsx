@@ -109,6 +109,26 @@ const paths: Record<string, ReactNode> = {
     </>
   ),
   folder: <path d="M3 5h6l2 2h10v13H3Z" />,
+  // 공통 메뉴 아이콘: prototype-soo assets/js/core.js NAVI(563dd7e)의 경로를 그대로 옮겼다.
+  inbox: (
+    <>
+      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+      <path d="M5.5 5.1L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.5-6.9A2 2 0 0016.8 4H7.2a2 2 0 00-1.7 1.1z" />
+    </>
+  ),
+  message: <path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z" />,
+  document: (
+    <>
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4M9 12h6M9 16h6" />
+    </>
+  ),
+  timer: (
+    <>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2.5 2M9 2h6" />
+    </>
+  ),
   help: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -131,6 +151,7 @@ export function Icon({ name, size = 20, className }: IconProps) {
       strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
+      data-icon={name}
       className={className}
     >
       {paths[name] ?? paths.file}
