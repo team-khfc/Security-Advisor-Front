@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type CSSProperties } from 'react';
+import { Fragment, useState, type CSSProperties } from 'react';
 import {
   EmptyState,
   ErrorState,
@@ -264,34 +264,50 @@ function InterviewWorkspace({
           </Link>
         ))}
       </div>
-      <div className="interview-workspace" style={viewStyle}>
-        <section className="conversation-panel">
-          <div className="conversation-heading">
-            <span className="assistant-avatar">
-              <Icon name="sparkles" />
-            </span>
-            <div>
-              <h2 className="h-panel">보안정보 도우미</h2>
-              <p className="help">업무를 설명해 주시면 필요한 보안정보를 함께 정리해요.</p>
+      {editable && (
+        <details className="docbar case-analysis">
+          <summary>기획서로 시작하거나 AI 제안 받기</summary>
+          <AnalysisPanel businessCase={businessCase} />
+        </details>
+      )}
+      <div className="work" style={viewStyle}>
+        <section className="chatp" aria-labelledby="chat-heading">
+          <div className="chatp-h">
+            <div className="ttl">
+              <span className="av" aria-hidden="true">
+                <Icon name="sparkles" size={18} />
+              </span>
+              <h2 className="h-panel" id="chat-heading">
+                보안정보 도우미
+              </h2>
             </div>
+            <span className="meta">업무를 설명해 주시면 필요한 보안정보를 함께 정리해요.</span>
           </div>
-          <div className="conversation-body">
-            <div className="ai-message">
-              <p>안녕하세요. 사업 목적과 처리하는 정보부터 살펴볼게요.</p>
-              <p>서버·IP·포트처럼 확인이 필요한 정보는 ICT인프라 담당자에게 연결합니다.</p>
+          <div className="msgs" role="log" aria-label="대화 내용" tabIndex={0}>
+            <div className="m-ai">
+              <span className="av" aria-hidden="true">
+                <Icon name="sparkles" size={18} />
+              </span>
+              <div className="body">
+                <div className="bubble">
+                  <p>안녕하세요. 사업 목적과 처리하는 정보부터 살펴볼게요.</p>
+                  <p>서버·IP·포트처럼 확인이 필요한 정보는 ICT인프라 담당자에게 연결합니다.</p>
+                </div>
+              </div>
             </div>
             {chat.map((item, index) => (
-              <div className="chat-pair" key={`${index}-${item.question}`}>
-                <p className="chat-question">{item.question}</p>
-                <p className="user-message">{item.answer}</p>
-              </div>
+              <Fragment key={`${index}-${item.question}`}>
+                <div className="m-ai">
+                  <span className="av" aria-hidden="true">
+                    <Icon name="sparkles" size={18} />
+                  </span>
+                  <div className="body">
+                    <div className="bubble">{item.question}</div>
+                  </div>
+                </div>
+                <p className="m-me">{item.answer}</p>
+              </Fragment>
             ))}
-            {editable && (
-              <details className="sub-block">
-                <summary>기획서로 시작하거나 AI 제안 받기</summary>
-                <AnalysisPanel businessCase={businessCase} />
-              </details>
-            )}
             {!editable && (
               <Notice>
                 이 사업 건은 현재 읽기 전용입니다. 서류별 상세에서 진행 상황을 확인하세요.
@@ -300,7 +316,7 @@ function InterviewWorkspace({
           </div>
           {editable && question && (
             <form
-              className="interview-question"
+              className="qcard"
               onSubmit={async (event) => {
                 event.preventDefault();
                 setError('');
@@ -332,16 +348,16 @@ function InterviewWorkspace({
                 }
               }}
             >
-              <div className="question-progress">
+              <p className="qnum">
                 <span>
                   공통 질문 {questionIndex + 1} / {questions.length}
                 </span>
-                <span>신청자 답변</span>
-              </div>
-              <label className="h-panel" htmlFor="interview-answer">
+                <span className="meta">신청자 답변</span>
+              </p>
+              <label className="qtitle" htmlFor="interview-answer">
                 {question.label}
               </label>
-              <p className="help">{questionHelp(question)}</p>
+              <p className="qhelp">{questionHelp(question)}</p>
               <textarea
                 className="input"
                 id="interview-answer"
@@ -411,8 +427,8 @@ function InterviewWorkspace({
             </form>
           )}
           {editable && !question && (
-            <div className="interview-question">
-              <h3 className="h-panel">공통 정보를 정리했습니다</h3>
+            <div className="qcard">
+              <h3 className="qtitle">공통 정보를 정리했습니다</h3>
               <p>서류별 상세 화면에서 추가 항목을 확인하고 담당자에게 협의를 요청해 주세요.</p>
               <div className="btn-row">
                 {requests.map((request, index) => (
@@ -446,7 +462,7 @@ function InterviewWorkspace({
           aria-valuemin={320}
           aria-valuemax={560}
           aria-valuenow={panelWidth}
-          className="panel-resizer"
+          className="splitter"
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
               event.preventDefault();
@@ -467,32 +483,32 @@ function InterviewWorkspace({
         >
           <span />
         </div>
-        <aside className="collected-panel">
-          <div className="collected-head">
-            <h2 className="h-panel">
-              <Icon name="file" /> 수집된 보안정보
-            </h2>
-            <p>
-              공통 필수정보{' '}
-              <strong>
-                {commonComplete} / {questions.length}
-              </strong>
-            </p>
+        <aside className="infop" aria-labelledby="info-heading">
+          <div className="infop-h">
+            <div className="row">
+              <h2 className="h-panel" id="info-heading">
+                수집된 보안정보
+              </h2>
+              <span className="help">
+                공통 필수정보 {commonComplete} / {questions.length}
+              </span>
+            </div>
             <progress
+              className="prog"
               value={commonComplete}
               max={Math.max(1, questions.length)}
               aria-label="확인한 공통 답변"
             />
           </div>
-          <div className="collected-body">
-            <h3 className="h-panel">사업 정보</h3>
+          <div className="infop-b">
+            <h3 className="grp">사업 정보</h3>
             <p className="help">
               {businessCase.department} · 설정 게시본 v{businessCase.publicationVersion}
             </p>
             <AnswerView
               answers={businessCase.answers.filter((answer) => answer.ownerRole === 'APPLICANT')}
             />
-            <h3 className="h-panel">담당자 확인 항목</h3>
+            <h3 className="grp">담당자 확인 항목</h3>
             <p className="help">내부 시스템 정보는 담당자가 직접 입력합니다.</p>
             <AnswerView
               answers={businessCase.answers.filter((answer) => answer.ownerRole !== 'APPLICANT')}
