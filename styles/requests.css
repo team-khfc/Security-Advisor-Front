@@ -175,20 +175,21 @@
 }
 .asg li {
   display: grid;
-  grid-template-columns: 6.4rem auto 1fr;
+  grid-template-columns: 7.2rem auto 1fr;
   align-items: center;
   gap: 0.8rem;
   font-size: 1.5rem;
 }
 .asg-f {
   color: var(--sf-muted);
-  font-size: 1.3rem;
+  font-size: 1.5rem;
+  white-space: nowrap;
 }
 .asg-s {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 1.3rem;
+  font-size: 1.7rem;
   white-space: nowrap;
 }
 .asg-s::before {
