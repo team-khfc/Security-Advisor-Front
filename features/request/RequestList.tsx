@@ -480,8 +480,8 @@ function RequestListView({ options }: { options: ListOptions }) {
                   type="search"
                   value={search}
                   onChange={(event) => {
-                    if (composing.current) setSearch(event.target.value);
-                    else searchRequests(event.target.value);
+                    // 조합 완료를 기다리면 마지막 한글 음절이 검색에서 빠진다.
+                    searchRequests(event.currentTarget.value);
                   }}
                   onCompositionStart={() => {
                     composing.current = true;
