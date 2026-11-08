@@ -454,12 +454,10 @@
 .candidate small {
   color: var(--sf-muted);
 }
-.settings-two ul,
-.settings-steps {
+.settings-two ul {
   padding-left: 2.4rem;
 }
-.settings-two li,
-.settings-steps li {
+.settings-two li {
   margin: 1.2rem 0;
 }
 

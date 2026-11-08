@@ -284,3 +284,19 @@
     gap: 0.4rem;
   }
 }
+
+/* UI 통합 Stage 4-B (prototype-soo 563dd7e settings 기준): 읽기 전용 기준 정보를 시안 배치에 맞춘다 */
+.org-bar .verbar {
+  margin: 0;
+}
+.org-bar > .help {
+  margin: 0;
+  flex: 1 1 40rem;
+}
+.tabpanel.card > .h-panel {
+  margin-bottom: 1.6rem;
+}
+.settings-flow-title {
+  font-size: 1.7rem;
+  margin: 2rem 0 1.2rem;
+}

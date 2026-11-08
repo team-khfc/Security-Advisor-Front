@@ -1,4 +1,4 @@
-import { PlannedPage } from '@/components/PlannedPage';
+import { PolicyLifecycle } from '@/features/policy';
 export default function Page() {
-  return <PlannedPage title="정책 수명주기" />;
+  return <PolicyLifecycle />;
 }

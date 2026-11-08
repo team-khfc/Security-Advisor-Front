@@ -500,3 +500,23 @@
 .audit-actor {
   white-space: nowrap;
 }
+
+/* UI 통합 Stage 4-B (prototype-soo 563dd7e policies 기준): 데이터 연결 전 정책 화면의 비활성 표시 */
+.stat.stat-disabled {
+  cursor: default;
+  color: var(--sf-muted);
+  background: var(--sf-background);
+}
+.stat.stat-disabled:hover {
+  border-color: var(--sf-border);
+}
+.stat.stat-disabled .stat-num {
+  color: var(--sf-muted);
+}
+.pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.pill:disabled:hover {
+  background: inherit;
+}
