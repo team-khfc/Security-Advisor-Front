@@ -213,7 +213,6 @@ function RequestListView({ options }: { options: ListOptions }) {
   const requests = useRequests();
   const router = useRouter();
   const [search, setSearch] = useState(options.search);
-  const [searchQuery, setSearchQuery] = useState(options.search.trim());
   const [previousSearch, setPreviousSearch] = useState(options.search);
   const composing = useRef(false);
   const [period, setPeriod] = useState(options.period);
@@ -222,17 +221,15 @@ function RequestListView({ options }: { options: ListOptions }) {
   const [periodError, setPeriodError] = useState('');
   const [today] = useState(() => dateKey(new Date()));
   const actor = session.data?.member;
+  const searchQuery = options.search.trim();
 
   if (previousSearch !== options.search) {
     setPreviousSearch(options.search);
-    if (searchQuery !== options.search.trim()) {
-      setSearch(options.search);
-      setSearchQuery(options.search.trim());
-    }
+    setSearch(options.search);
   }
 
-  function apply(next: Partial<ListOptions>, { historyOnly = false } = {}) {
-    const values = { ...options, search: searchQuery, ...next };
+  function apply(next: Partial<ListOptions>) {
+    const values = { ...options, ...next };
     const params = new URLSearchParams();
     if (values.filter !== 'all') params.set('filter', values.filter);
     if (values.search) params.set('q', values.search);
@@ -241,18 +238,7 @@ function RequestListView({ options }: { options: ListOptions }) {
     if (values.period === 'custom' && values.to) params.set('to', values.to);
     if (values.page > 1) params.set('page', String(values.page));
     const url = `/requests${params.size ? `?${params.toString()}` : ''}`;
-    if (historyOnly) {
-      // 이미 조회한 목록의 검색은 서버 이동 없이 URL과 입력 초점을 함께 유지한다.
-      window.history.replaceState(null, '', url);
-    } else {
-      router.replace(url, { scroll: false });
-    }
-  }
-
-  function searchRequests(value: string) {
-    setSearch(value);
-    setSearchQuery(value.trim());
-    apply({ search: value.trim(), page: 1 }, { historyOnly: true });
+    router.replace(url, { scroll: false });
   }
 
   function submitFilters(event: FormEvent<HTMLFormElement>) {
@@ -340,8 +326,7 @@ function RequestListView({ options }: { options: ListOptions }) {
       return right.createdAt.localeCompare(left.createdAt);
     });
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const requestedPage = searchQuery === options.search.trim() ? options.page : 1;
-  const currentPage = Math.max(1, Math.min(requestedPage, pages));
+  const currentPage = Math.max(1, Math.min(options.page, pages));
   const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const pageStart = Math.max(1, Math.min(currentPage - 3, pages - 6));
   const pageNumbers = Array.from({ length: Math.min(7, pages) }, (_, index) => pageStart + index);
@@ -480,15 +465,14 @@ function RequestListView({ options }: { options: ListOptions }) {
                   type="search"
                   value={search}
                   onChange={(event) => {
-                    // 조합 완료를 기다리면 마지막 한글 음절이 검색에서 빠진다.
-                    searchRequests(event.currentTarget.value);
+                    setSearch(event.currentTarget.value);
                   }}
                   onCompositionStart={() => {
                     composing.current = true;
                   }}
                   onCompositionEnd={(event) => {
                     composing.current = false;
-                    searchRequests(event.currentTarget.value);
+                    setSearch(event.currentTarget.value);
                   }}
                   onKeyDown={(event) => {
                     if (
