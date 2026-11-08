@@ -497,6 +497,16 @@
 .network-table .turn {
   display: block;
 }
+/* 감사 A02: 빈 통신 값은 칸마다 필드 이름 배지로, 담당자 확인 필요는 행마다 한 번만 */
+.network-table .network-missing {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--sf-warning-text);
+  font-size: 1.5rem;
+}
+.network-table .network-missing > span {
+  white-space: nowrap;
+}
 .audit-actor {
   white-space: nowrap;
 }

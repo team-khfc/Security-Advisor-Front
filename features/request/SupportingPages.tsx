@@ -138,6 +138,20 @@ export function SupplementList() {
   );
 }
 
+/**
+ * 통신 정보 표의 칸별 필드. 빈 값은 같은 경고를 반복하지 않고 어떤 값이 없는지 이름으로 알린다.
+ * group은 출발지·목적지처럼 같은 이름의 빈 값을 구별하는 화면 낭독기용 앞말이다.
+ */
+const NETWORK_FIELDS = [
+  { key: 'sourceSystem', group: '출발지', missing: '시스템명 미입력' },
+  { key: 'sourceIp', group: '출발지', missing: 'IP 미입력' },
+  { key: 'destinationSystem', group: '목적지', missing: '시스템명 미입력' },
+  { key: 'destinationIp', group: '목적지', missing: 'IP 미입력' },
+  { key: 'protocol', group: '', missing: '통신 방식 미입력' },
+  { key: 'port', group: '', missing: '포트 미입력' },
+] as const;
+type NetworkFieldKey = (typeof NETWORK_FIELDS)[number]['key'];
+
 /** 기재된 통신 사실만 보여 주며 변경은 배정된 신청 상세에서 처리한다. */
 export function NetworkList() {
   const query = useRequests();
@@ -201,8 +215,20 @@ export function NetworkList() {
               {rows.map((request) => {
                 const value = (key: string) =>
                   request.commonAnswers.find((item) => item.key === key)?.value || '';
-                const cell = (key: string) =>
-                  value(key) || <Badge tone="warning">담당자 확인 필요</Badge>;
+                const missingCount = NETWORK_FIELDS.filter((field) => !value(field.key)).length;
+                const cell = (key: NetworkFieldKey) => {
+                  const field = NETWORK_FIELDS.find((item) => item.key === key)!;
+                  const current = value(key);
+                  if (current) return <div>{current}</div>;
+                  return (
+                    <div>
+                      <Badge tone="warning">
+                        {field.group && <span className="sr-only">{field.group} </span>}
+                        {field.missing}
+                      </Badge>
+                    </div>
+                  );
+                };
                 const allocated = request.reviews.some(
                   (review) => review.field === 'INFRA' && review.allocationCompleted,
                 );
@@ -217,22 +243,27 @@ export function NetworkList() {
                       </div>
                     </td>
                     <td>
-                      <div>{cell('sourceSystem')}</div>
-                      <div>{cell('sourceIp')}</div>
+                      {cell('sourceSystem')}
+                      {cell('sourceIp')}
                     </td>
                     <td>
-                      <div>{cell('destinationSystem')}</div>
-                      <div>{cell('destinationIp')}</div>
+                      {cell('destinationSystem')}
+                      {cell('destinationIp')}
                     </td>
                     <td>
-                      <div>{cell('protocol')}</div>
-                      <div>{cell('port')}</div>
+                      {cell('protocol')}
+                      {cell('port')}
                     </td>
                     <td>
                       <Badge tone={allocated ? 'info' : 'neutral'}>
                         {allocated ? '할당 완료' : '할당 대기'}
                       </Badge>
                       <span className="turn">{STATUS_LABELS[request.status]}</span>
+                      {missingCount > 0 && (
+                        <span className="network-missing">
+                          <strong>담당자 확인 필요</strong> <span>· 미입력 {missingCount}개</span>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
