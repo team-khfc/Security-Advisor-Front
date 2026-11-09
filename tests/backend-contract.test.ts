@@ -7,7 +7,13 @@ import {
   requestDto,
   requestListDto,
 } from '@/features/request/apiTypes';
-import { adaptAnswers, adaptList } from '@/features/request/adapters/backend';
+import {
+  actionCandidates,
+  adaptAnswers,
+  adaptCase,
+  adaptList,
+  adaptRequest,
+} from '@/features/request/adapters/backend';
 import { commandRequest } from '@/features/request/useRequests';
 
 const summary = {
@@ -23,6 +29,78 @@ const summary = {
   department: '합성 부서',
   applicantUsername: 'synthetic',
 };
+
+test('실제 API의 3단계 반환은 신청자가 아니라 배정된 담당자의 작업 후보다', () => {
+  expect(actionCandidates(3, 'FINAL_REVIEW', 'APPLICANT')).not.toContain('RETURN');
+  expect(actionCandidates(3, 'FINAL_REVIEW', 'INFRA')).toContain('RETURN');
+  expect(actionCandidates(3, 'FINAL_REVIEW', 'SECURITY')).toContain('RETURN');
+});
+
+test('게시본의 단일 분야·적용 항목을 따르고 해결한 반환 항목을 계속 강조하지 않는다', () => {
+  const publication = publicationDto.parse({
+    publicationId: 1,
+    version: 1,
+    fieldSchema: {
+      docTypes: [{ code: 'CUSTOM_FORM', reviewFields: ['SECURITY'] }],
+      fields: [
+        {
+          key: 'other',
+          label: '다른 서류 전용',
+          scope: 'CASE',
+          docTypes: ['FIREWALL'],
+          required: true,
+          askRole: 'INFRA',
+        },
+      ],
+    },
+  });
+  const businessCase = adaptCase(
+    {
+      businessCaseId: 7,
+      title: '합성',
+      summary: '',
+      department: '',
+      applicantUsername: 'synthetic',
+      revision: 0,
+      publicationId: 1,
+      caseAnswers: [],
+      createdAt: summary.updatedAt,
+      updatedAt: summary.updatedAt,
+    },
+    publication,
+  );
+  const request = adaptRequest(
+    requestDto.parse({ ...summary, answers: [], createdAt: summary.updatedAt }),
+    businessCase,
+    publication,
+    {
+      reviews: [],
+      assignments: [],
+      supplements: [],
+      deadlines: [],
+      submissions: [],
+      finalConfirmations: [],
+      returns: [
+        {
+          stageReturnId: 1,
+          fromStage: 4,
+          toStage: 3,
+          reason: '합성 반환',
+          fieldKeys: ['resolved'],
+          fieldReasons: {},
+          returnedBy: 'security',
+          returnedAt: summary.updatedAt,
+        },
+      ],
+    },
+    'SECURITY',
+  );
+  expect(request.requiredReviewFields).toEqual(['SECURITY']);
+  expect(request.commonAnswers).toEqual([]);
+  expect(request.blockers).toEqual(['정보보안 협의가 완료되지 않았습니다.']);
+  expect(request.highlightedFields).toEqual([]);
+  expect(request.returns[0].fieldKeys).toEqual(['resolved']);
+});
 
 test('확장 서류 코드·숫자 식별자·0부터 시작하는 revision과 서버 표시 문구를 보존한다', () => {
   const request = adaptList(requestListDto.parse(summary), 'APPLICANT');

@@ -32,6 +32,9 @@ export const publicationDto = z.object({
   publicationId: id,
   version: id,
   fieldSchema: z.object({
+    docTypes: z
+      .array(z.object({ code: z.string(), reviewFields: z.array(field).nullish() }))
+      .optional(),
     fields: z.array(
       z.object({
         key: z.string(),

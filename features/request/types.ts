@@ -174,6 +174,7 @@ export const securityRequestSchema = z.object({
     }),
   ),
   currentSubmissionId: z.string().nullable(),
+  requiredReviewFields: z.array(reviewFieldSchema).optional(),
   changedCommonFields: z.array(z.string()),
   highlightedFields: z.array(z.string()),
   blockers: z.array(z.string()),

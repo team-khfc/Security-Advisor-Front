@@ -23,6 +23,7 @@ import { useFinalDraft } from './useFinalDraft';
 import { RequestTechnicalDetails } from './RequestTechnicalDetails';
 import { getRequestDetailData } from './requestDetailData';
 import { waitingLine } from './turns';
+import { finalReviewReadiness, pendingReviews, reviewFields } from './readiness';
 import {
   DOCUMENT_LABELS,
   FIELD_LABELS,
@@ -146,6 +147,8 @@ function RequestWorkspace({
   );
   const roleField = actor.role === 'INFRA' || actor.role === 'SECURITY' ? actor.role : undefined;
   const currentReview = request.reviews.find((review) => review.field === roleField);
+  const finalReview = finalReviewReadiness(request, actor);
+  const needsReconsultation = request.stage === 3 && pendingReviews(request).length > 0;
   const checklistItems = roleField ? REVIEW_CHECKLIST_ITEMS[roleField] : [];
   const checklist =
     currentReview &&
@@ -516,7 +519,7 @@ function RequestWorkspace({
           <div className="card">
             <h2 className="sr-only">담당자 협의 현황</h2>
             <div className="consult">
-              {(['INFRA', 'SECURITY'] as const).map((field) => {
+              {reviewFields(request).map((field) => {
                 const review = request.reviews.find((item) => item.field === field);
                 const assignment = request.assignments.find(
                   (item) => item.active && item.field === field,
@@ -554,7 +557,7 @@ function RequestWorkspace({
             {request.stage === 4 && (
               <div className="final-confirmations">
                 <h3 className="h-panel">제출본 최종 확인</h3>
-                {(['INFRA', 'SECURITY'] as const).map((field) => {
+                {reviewFields(request).map((field) => {
                   const confirmation = request.finalConfirmations.find(
                     (item) =>
                       item.submissionId === request.currentSubmissionId && item.field === field,
@@ -589,6 +592,16 @@ function RequestWorkspace({
                     ? ' 보완 요청이 오면 답변해 주세요.'
                     : ' 담당자가 처리하면 최신 진행 상황이 표시됩니다.'}
                 </p>
+                {needsReconsultation && (
+                  <Notice tone="warning">
+                    <strong>담당자 재검토가 필요합니다.</strong>
+                    <p>
+                      {roleField
+                        ? '아래 ‘이전 단계로 반환’에서 2단계 담당자 협의를 선택해 주세요. 보완 답변을 확인하고 필요한 분야의 협의를 다시 완료해야 재제출할 수 있습니다.'
+                        : '보완할 답변을 수정·저장해 주세요. 배정된 담당자가 2단계로 반환해 재검토를 완료하면 최종 보고서를 다시 확인하고 제출할 수 있습니다.'}
+                    </p>
+                  </Notice>
+                )}
                 {request.blockers.length > 0 && (
                   <Notice tone="warning">
                     <strong>제출 전 확인할 사항</strong>
@@ -599,7 +612,9 @@ function RequestWorkspace({
                     </ul>
                   </Notice>
                 )}
-                {(has('COMPLETE_ALLOCATION') || has('COMPLETE_REVIEW') || has('FINAL_CONFIRM')) && (
+                {(has('COMPLETE_ALLOCATION') ||
+                  has('COMPLETE_REVIEW') ||
+                  (has('FINAL_CONFIRM') && !finalReview.ownConfirmed)) && (
                   <>
                     {has('COMPLETE_REVIEW') && currentReview && checklistItems.length > 0 && (
                       <fieldset className="review-checklist" disabled={command.isPending}>
@@ -718,24 +733,42 @@ function RequestWorkspace({
                   </>
                 )}
                 {has('FINAL_CONFIRM') && (
-                  <button
-                    className="btn btn-primary full-width"
-                    disabled={command.isPending}
-                    onClick={() => {
-                      void invoke('FINAL_CONFIRM');
-                    }}
-                  >
-                    제출본 최종 확인
-                  </button>
+                  <>
+                    {finalReview.confirmReason && (
+                      <p className="help" id="final-confirm-help">
+                        {finalReview.confirmReason}
+                      </p>
+                    )}
+                    <button
+                      className="btn btn-primary full-width"
+                      disabled={command.isPending || !!finalReview.confirmReason}
+                      aria-describedby={
+                        finalReview.confirmReason ? 'final-confirm-help' : undefined
+                      }
+                      onClick={() => {
+                        void invoke('FINAL_CONFIRM');
+                      }}
+                    >
+                      {finalReview.ownConfirmed ? '담당 분야 최종 확인 완료' : '제출본 최종 확인'}
+                    </button>
+                  </>
                 )}
                 {has('FINALIZE') && (
-                  <button
-                    className="btn btn-primary full-width"
-                    disabled={command.isPending}
-                    onClick={() => setDialogAction('FINALIZE')}
-                  >
-                    서류 확정
-                  </button>
+                  <>
+                    {finalReview.finalizeReason && (
+                      <p className="help" id="finalize-help">
+                        {finalReview.finalizeReason}
+                      </p>
+                    )}
+                    <button
+                      className="btn btn-primary full-width"
+                      disabled={command.isPending || !!finalReview.finalizeReason}
+                      aria-describedby={finalReview.finalizeReason ? 'finalize-help' : undefined}
+                      onClick={() => setDialogAction('FINALIZE')}
+                    >
+                      서류 확정
+                    </button>
+                  </>
                 )}
                 {has('REASSIGN') && (
                   <button className="btn full-width" onClick={() => setDialogAction('REASSIGN')}>
@@ -954,7 +987,8 @@ function CommandForm({
       )}
       {action === 'FINALIZE' && (
         <Notice>
-          두 분야의 최종 확인이 완료된 이 제출본을 확정합니다. 방화벽 장비 적용은 별도 업무입니다.
+          필요한 분야의 최종 확인이 완료된 이 제출본을 확정합니다. 방화벽 장비 적용은 별도
+          업무입니다.
         </Notice>
       )}
       {(action === 'CLOSE' || action === 'WITHDRAW') && (

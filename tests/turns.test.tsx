@@ -90,9 +90,7 @@ describe('waitingLine: 상태별 진행 안내 문구', () => {
   test('제출됨은 현재 제출본의 최종 확인이 없는 분야를 안내한다', () => {
     const submitted = seeded('demo-request-3');
     expect(submitted.status).toBe('SUBMITTED');
-    expect(waitingLine({ ...submitted, finalConfirmations: [] })).toBe(
-      'ICT인프라 최종 확인 중, 정보보안 최종 확인 중',
-    );
+    expect(waitingLine({ ...submitted, finalConfirmations: [] })).toBe('ICT인프라 최종 확인 대기');
     const confirm = (field: 'INFRA' | 'SECURITY') => ({
       id: `confirm-${field}`,
       field,
@@ -101,7 +99,7 @@ describe('waitingLine: 상태별 진행 안내 문구', () => {
       confirmedAt: '2026-11-08T09:00:00+09:00',
     });
     expect(waitingLine({ ...submitted, finalConfirmations: [confirm('INFRA')] })).toBe(
-      '정보보안 최종 확인 중',
+      '정보보안 최종 확인 대기',
     );
     expect(
       waitingLine({ ...submitted, finalConfirmations: [confirm('INFRA'), confirm('SECURITY')] }),
@@ -118,7 +116,7 @@ describe('waitingLine: 상태별 진행 안내 문구', () => {
       confirmedAt: '2026-11-01T09:00:00+09:00',
     };
     expect(waitingLine({ ...submitted, finalConfirmations: [stale] })).toBe(
-      'ICT인프라 최종 확인 중, 정보보안 최종 확인 중',
+      'ICT인프라 최종 확인 대기',
     );
   });
 
