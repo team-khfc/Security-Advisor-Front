@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CaseInterview } from '@/features/request/CaseInterview';
 import type { BusinessCase, SecurityRequest } from '@/features/request/types';
+import type { InterviewTurn } from '@/features/request/useInterview';
 import { clearInputDraft } from '@/lib/inputDrafts';
 import type { Session } from '@/lib/types';
 import { createMockState, MOCK_MEMBERS } from '@/mocks/seed';
@@ -13,6 +14,8 @@ const controls = vi.hoisted(() => ({
   requests: [] as SecurityRequest[],
   save: vi.fn(),
   savePending: false,
+  turns: [] as InterviewTurn[],
+  askError: null as Error | null,
 }));
 
 vi.mock('@/features/auth', () => ({
@@ -22,7 +25,21 @@ vi.mock('@/features/request/useInterview', () => ({
   useInterviewTurns: () => ({ data: [] }),
   useInterviewStaffCheck: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('@/features/request/InterviewAssistance', () => ({ InterviewAssistance: () => null }));
+vi.mock('@/features/request/useInterviewAssistance', () => ({
+  useInterviewAssistance: () => ({
+    history: controls.turns,
+    ask: { isPending: false, error: controls.askError },
+    apply: { isPending: false },
+    mode: 'ANSWER',
+    help: {},
+    busy: false,
+    showHelp: false,
+    toggleHelp: vi.fn(),
+    send: vi.fn(),
+    setMode: vi.fn(),
+    isStale: () => false,
+  }),
+}));
 vi.mock('@/features/request/useRequests', () => ({
   useCase: () => ({ data: controls.businessCase, isPending: false }),
   useRequests: () => ({ data: controls.requests, isPending: false }),
@@ -40,6 +57,8 @@ beforeEach(() => {
   controls.requests = state.requests;
   controls.save.mockReset().mockResolvedValue({});
   controls.savePending = false;
+  controls.turns = [];
+  controls.askError = null;
 });
 
 afterEach(() => {
@@ -87,9 +106,18 @@ function mockConversationLayout(body: HTMLElement, { pairHeight = 240 } = {}) {
   const height = 360;
   const introHeight = 160;
   const gap = 24;
+  const questionHeight = 200;
   let scrollTop = 0;
   const pairs = () => Array.from(body.querySelectorAll<HTMLElement>('.chat-pair'));
-  const scrollHeight = () => introHeight + pairs().length * (pairHeight + gap) + 24;
+  const currentQuestion = () => body.querySelector('.interview-current');
+  const feedback = () => body.querySelector('.interview-feedback');
+  const feedbackHeight = () => (feedback() ? 120 : 0);
+  const scrollHeight = () =>
+    introHeight +
+    pairs().length * (pairHeight + gap) +
+    feedbackHeight() +
+    (currentQuestion() ? questionHeight + gap : 0) +
+    24;
 
   // jsdom에는 배치 엔진이 없어 저장된 대화 크기를 합성한다. 분석 패널은 대화 밖에 있다.
   body.style.paddingBottom = '24px';
@@ -111,6 +139,20 @@ function mockConversationLayout(body: HTMLElement, { pairHeight = 240 } = {}) {
     this: HTMLElement,
   ) {
     if (this === body) return new DOMRect(40, top, 600, height);
+    if (this === feedback())
+      return new DOMRect(
+        64,
+        top + introHeight + pairs().length * (pairHeight + gap) - scrollTop,
+        552,
+        feedbackHeight(),
+      );
+    if (this === currentQuestion())
+      return new DOMRect(
+        64,
+        top + introHeight + pairs().length * (pairHeight + gap) + feedbackHeight() - scrollTop,
+        552,
+        questionHeight,
+      );
     const index = pairs().indexOf(this);
     if (index >= 0)
       return new DOMRect(
@@ -123,14 +165,20 @@ function mockConversationLayout(body: HTMLElement, { pairHeight = 240 } = {}) {
   });
 }
 
-function expectLatestAnswerVisible(body: HTMLElement, wholePair = false) {
-  const pair = body.querySelector<HTMLElement>('.chat-pair:last-of-type');
+function expectLatestAnswerVisible(body: HTMLElement) {
+  const pair = Array.from(body.querySelectorAll<HTMLElement>('.chat-pair')).at(-1);
   expect(pair).not.toBeNull();
   const bounds = pair!.getBoundingClientRect();
   const viewportTop = body.getBoundingClientRect().top + body.clientTop;
   expect(bounds.bottom).toBeGreaterThan(viewportTop);
   expect(bounds.bottom).toBeLessThanOrEqual(viewportTop + body.clientHeight);
-  if (wholePair) expect(bounds.top).toBeGreaterThanOrEqual(viewportTop);
+}
+
+function expectCurrentQuestionVisible(body: HTMLElement) {
+  const bounds = body.querySelector<HTMLElement>('.interview-current')!.getBoundingClientRect();
+  const viewportTop = body.getBoundingClientRect().top + body.clientTop;
+  expect(bounds.top).toBeGreaterThanOrEqual(viewportTop);
+  expect(bounds.bottom).toBeLessThanOrEqual(viewportTop + body.clientHeight);
 }
 
 async function fillAnswer(user: ReturnType<typeof userEvent.setup>, label: string, answer: string) {
@@ -138,6 +186,54 @@ async function fillAnswer(user: ReturnType<typeof userEvent.setup>, label: strin
   await user.clear(input);
   await user.type(input, answer);
 }
+
+test('긴 AI 응답은 대화창에 한 번 표시하고 다음 요청 실패 시 이전 응답 대신 오류를 보여 준다', () => {
+  const id = controls.businessCase!.id;
+  const view = render(<CaseInterview id={id} />);
+  const body = conversation();
+  mockConversationLayout(body, { pairHeight: 520 });
+  const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
+  const input = screen.getByRole('textbox', { name: '사업 목적' });
+  input.focus();
+  const scrollPage = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  controls.turns = [
+    {
+      interviewTurnId: 42,
+      businessCaseId: 601,
+      fieldKey: 'purpose',
+      mode: 'SUGGEST',
+      question: '합성 AI 질문',
+      reply: '긴 합성 AI 응답',
+      proposedValue: '합성 추천 내용',
+      evidence: [{ tag: 'B', label: '합성 근거 자료' }],
+      basedRevision: 1,
+      answerRevision: null,
+      modelReference: 'fake/offline',
+      flagged: false,
+      applied: false,
+      createdAt: '2026-11-10T00:00:00Z',
+    },
+  ];
+  view.rerender(<CaseInterview id={id} />);
+  for (const text of ['합성 AI 질문', '긴 합성 AI 응답', '합성 추천 내용', '합성 근거 자료']) {
+    expect(within(body).getAllByText(text)).toHaveLength(1);
+    expect(within(card).queryByText(text)).toBeNull();
+  }
+  expect(within(card).getAllByRole('textbox')).toHaveLength(1);
+  expect(body.querySelector('.chat-pair')!.getBoundingClientRect().top).toBe(
+    body.getBoundingClientRect().top,
+  );
+  expect(document.activeElement).toBe(input);
+  expect(scrollPage).not.toHaveBeenCalled();
+  controls.askError = new Error('합성 AI 재시도 오류');
+  view.rerender(<CaseInterview id={id} />);
+  const feedbackBounds = body.querySelector('.interview-feedback')!.getBoundingClientRect();
+  expect(feedbackBounds.top).toBeGreaterThanOrEqual(body.getBoundingClientRect().top);
+  expect(feedbackBounds.bottom).toBeLessThanOrEqual(body.getBoundingClientRect().bottom);
+  expect(within(card).queryByText(/합성 AI 재시도 오류/)).toBeNull();
+  expect(document.activeElement).toBe(input);
+  expect(scrollPage).not.toHaveBeenCalled();
+});
 
 test('답변 저장과 마지막 공통 답변 저장 후 새 답변의 끝을 보여 주고 페이지와 초점을 옮기지 않는다', async () => {
   const businessCase = controls.businessCase!;
@@ -191,8 +287,8 @@ test('대화 밖의 분석 패널이 열려 있어도 대화 영역에서 새로
   await fillAnswer(user, '사업 목적', '첫 번째 합성 인터뷰 답변입니다.');
   await user.click(screen.getByRole('button', { name: '답변 저장하고 다음' }));
   await within(body).findByText('첫 번째 합성 인터뷰 답변입니다.');
-  expectLatestAnswerVisible(body, true);
-  expect(body.scrollTop).toBeLessThan(body.scrollHeight - body.clientHeight);
+  expectLatestAnswerVisible(body);
+  expectCurrentQuestionVisible(body);
 
   // 앞선 대화를 읽으려고 위로 이동해도 다음 저장은 최신 답변으로 돌아온다.
   body.scrollTop = 0;
@@ -200,12 +296,13 @@ test('대화 밖의 분석 패널이 열려 있어도 대화 영역에서 새로
   expect(body.scrollTop).toBe(0);
   await user.click(screen.getByRole('button', { name: '답변 저장하고 다음' }));
   await within(body).findByText('두 번째 합성 인터뷰 답변입니다.');
-  expectLatestAnswerVisible(body, true);
+  expectLatestAnswerVisible(body);
+  expectCurrentQuestionVisible(body);
   expect(body.scrollTop).toBeGreaterThan(0);
   expect(analysisPanel?.open).toBe(true);
 });
 
-test('입력 중이거나 저장 실패 또는 나중에 입력을 선택하면 읽던 대화 위치를 유지한다', async () => {
+test('입력·저장 실패 중에는 읽던 위치를 유지하고 나중에 입력을 선택하면 다음 질문을 보여 준다', async () => {
   const user = userEvent.setup();
   render(<CaseInterview id={controls.businessCase!.id} />);
   const body = conversation();
@@ -225,7 +322,7 @@ test('입력 중이거나 저장 실패 또는 나중에 입력을 선택하면 
 
   await user.click(screen.getByRole('button', { name: '나중에 입력' }));
   expect(screen.getByRole('textbox', { name: '외부 전송 여부' })).toBeTruthy();
-  expect(body.scrollTop).toBe(40);
+  expectCurrentQuestionVisible(body);
 });
 
 test('저장 응답을 기다리는 동안 위치를 유지하고 성공 응답 뒤에만 새 대화로 이동한다', async () => {

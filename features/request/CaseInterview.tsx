@@ -15,7 +15,12 @@ import { useSession } from '@/features/auth';
 import { useInputDraft } from '@/lib/inputDrafts';
 import { forgetUpload, getUpload } from '@/lib/uploadDraft';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
-import { InterviewAssistance } from './InterviewAssistance';
+import {
+  InterviewAssistance,
+  InterviewComposer,
+  InterviewTurnMessage,
+} from './InterviewAssistance';
+import { useInterviewAssistance } from './useInterviewAssistance';
 import { useInterviewStaffCheck, useInterviewTurns } from './useInterview';
 import { DOCUMENT_LABELS, STATUS_LABELS, type BusinessCase, type Answer } from './types';
 import { useAnalysis, useApplyAnalysis, useCase, useRequests, useSaveCase } from './useRequests';
@@ -232,32 +237,15 @@ function InterviewWorkspace({
     answers: Record<string, { value: string; revision: number; answerRevision?: number }>;
   }>(actor.id, `case:${businessCase.id}:interview`);
   const [questionIndex, setQuestionIndex] = useState(() => draft?.questionIndex ?? 0);
-  const [chat, setChat] = useState<{ question: string; answer: string }[]>([]);
+  const [chat, setChat] = useState<{ question: string; answer: string; createdAt: number }[]>([]);
   const conversationRef = useRef<HTMLDivElement>(null);
   const latestMessageRef = useRef<HTMLDivElement>(null);
   const questionCardRef = useRef<HTMLFormElement>(null);
+  const currentQuestionRef = useRef<HTMLDivElement>(null);
+  const latestAiRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(380);
   const [error, setError] = useState('');
   const savingRef = useRef(false);
-  const [applyingRecommendation, setApplyingRecommendation] = useState(false);
-
-  useLayoutEffect(() => {
-    const conversation = conversationRef.current;
-    const latestMessage = latestMessageRef.current;
-    if (!conversation || !latestMessage) return;
-
-    // AI 제안 패널이 펼쳐져 있어도 마지막 답변이 보이도록 대화 영역만 이동한다.
-    const contentTop = conversation.getBoundingClientRect().top + conversation.clientTop;
-    const paddingBottom = Number.parseFloat(getComputedStyle(conversation).paddingBottom) || 0;
-    conversation.scrollTop = Math.max(
-      0,
-      conversation.scrollTop +
-        latestMessage.getBoundingClientRect().bottom -
-        contentTop -
-        conversation.clientHeight +
-        paddingBottom,
-    );
-  }, [chat.length]);
 
   const question = questions[questionIndex];
   useLayoutEffect(() => {
@@ -293,7 +281,6 @@ function InterviewWorkspace({
     actor.role === 'APPLICANT' && actor.id === businessCase.ownerId,
   );
   const staffCheck = useInterviewStaffCheck(businessCase.id);
-  const answerBusy = save.isPending || staffCheck.isPending || applyingRecommendation;
   const [staffNotice, setStaffNotice] = useState('');
   const clearCurrentDraft = () => {
     if (!question || !draft) return;
@@ -302,6 +289,60 @@ function InterviewWorkspace({
     if (Object.keys(remaining).length) saveDraft({ questionIndex, answers: remaining });
     else clearDraft();
   };
+  const assistance = useInterviewAssistance({
+    businessCase,
+    question,
+    actorId: actor.id,
+    answerText,
+    turns: turns.data ?? [],
+    disabled: !editable || save.isPending || staffCheck.isPending || conflict,
+    onApplied: clearCurrentDraft,
+  });
+  const answerBusy = save.isPending || staffCheck.isPending || assistance.apply.isPending;
+  const latestTurnId = assistance.history.at(-1)?.interviewTurnId;
+  const messages = [
+    ...chat.map((item, index) => ({ kind: 'answer' as const, item, index, at: item.createdAt })),
+    ...assistance.history.map((turn, index) => ({
+      kind: 'ai' as const,
+      turn,
+      index,
+      at: Date.parse(turn.createdAt),
+    })),
+  ].sort((a, b) => a.at - b.at);
+  useLayoutEffect(() => {
+    const conversation = conversationRef.current;
+    const latestMessage = currentQuestionRef.current ?? latestMessageRef.current;
+    if (!conversation || !latestMessage) return;
+
+    // 다음 질문을 대화 안에서 보여 주되 페이지와 입력 초점은 옮기지 않는다.
+    const contentTop = conversation.getBoundingClientRect().top + conversation.clientTop;
+    const paddingBottom = Number.parseFloat(getComputedStyle(conversation).paddingBottom) || 0;
+    conversation.scrollTop = Math.max(
+      0,
+      conversation.scrollTop +
+        latestMessage.getBoundingClientRect().bottom -
+        contentTop -
+        conversation.clientHeight +
+        paddingBottom,
+    );
+  }, [chat.length, question?.key]);
+
+  useLayoutEffect(() => {
+    const container = conversationRef.current;
+    const message = assistance.ask.isPending
+      ? container?.querySelector<HTMLElement>('.interview-pending')
+      : assistance.ask.error || assistance.apply.error
+        ? container?.querySelector<HTMLElement>('.interview-feedback')
+        : latestAiRef.current;
+    if (!container || !message) return;
+    const bounds = message.getBoundingClientRect();
+    const top = container.getBoundingClientRect().top + container.clientTop;
+    // 긴 AI 답변은 시작부터 읽고, 짧은 답변은 끝까지 보이게 한다. 페이지·입력 초점은 유지한다.
+    container.scrollTop +=
+      bounds.height > container.clientHeight
+        ? bounds.top - top
+        : Math.max(0, bounds.bottom - top - container.clientHeight + 24);
+  }, [latestTurnId, assistance.ask.isPending, assistance.ask.error, assistance.apply.error]);
   const presentation = question ? questionPresentation(question) : undefined;
   const updateAnswer = (value: string) => {
     if (!question) return;
@@ -336,7 +377,10 @@ function InterviewWorkspace({
           },
         ],
       });
-      setChat((old) => [...old, { question: question.label, answer: value || '담당자 확인 필요' }]);
+      setChat((old) => [
+        ...old,
+        { question: question.label, answer: value || '담당자 확인 필요', createdAt: Date.now() },
+      ]);
       const remaining = { ...draft?.answers };
       delete remaining[question.key];
       if (Object.keys(remaining).length)
@@ -420,42 +464,172 @@ function InterviewWorkspace({
                   </div>
                 </div>
               </div>
-              {chat.map((item, index) => (
-                <div
-                  className="chat-pair"
-                  key={`${index}-${item.question}`}
-                  ref={index === chat.length - 1 ? latestMessageRef : null}
-                >
-                  <div className="m-ai">
-                    <span className="av" aria-hidden="true">
-                      <Icon name="sparkles" size={18} />
-                    </span>
-                    <div className="body">
-                      <div className="bubble">{item.question}</div>
+              {messages.map((message) =>
+                message.kind === 'answer' ? (
+                  <div
+                    className="chat-pair"
+                    key={`answer-${message.index}`}
+                    ref={message.index === chat.length - 1 ? latestMessageRef : null}
+                  >
+                    <div className="m-ai">
+                      <span className="av" aria-hidden="true">
+                        <Icon name="sparkles" size={18} />
+                      </span>
+                      <div className="body">
+                        <div className="bubble">{message.item.question}</div>
+                      </div>
                     </div>
+                    <p className="m-me">{message.item.answer}</p>
                   </div>
-                  <p className="m-me">{item.answer}</p>
+                ) : (
+                  <div
+                    className="chat-pair"
+                    key={`turn-${message.turn.interviewTurnId}`}
+                    ref={message.turn.interviewTurnId === latestTurnId ? latestAiRef : null}
+                  >
+                    <InterviewTurnMessage
+                      turn={message.turn}
+                      question={questions.find((q) => q.key === message.turn.fieldKey)}
+                      active={editable && question?.key === message.turn.fieldKey}
+                      state={assistance}
+                      onSelect={() =>
+                        goToQuestion(questions.findIndex((q) => q.key === message.turn.fieldKey))
+                      }
+                    />
+                  </div>
+                ),
+              )}
+              {assistance.ask.isPending && (
+                <div className="interview-pending">
+                  <p className="m-me">{assistance.ask.variables?.text}</p>
+                  <p role="status">AI가 답변을 작성하고 있습니다. 입력한 답변은 유지됩니다…</p>
                 </div>
-              ))}
-              {(turns.data ?? []).map((turn) => (
-                <div className="chat-pair" key={`turn-${turn.interviewTurnId}`}>
-                  <p className="m-me">{turn.question}</p>
-                  <div className="m-ai">
-                    <span className="av" aria-hidden="true">
-                      <Icon name="sparkles" size={18} />
-                    </span>
-                    <div className="body">
-                      <div className="bubble">
-                        <strong>
-                          {questions.find((q) => q.key === turn.fieldKey)?.label ?? '항목 도움말'}
-                        </strong>
-                        <p>{turn.reply}</p>
-                        <p className="help">AI 설명 · 신청서에 자동 반영되지 않음</p>
+              )}
+              {(assistance.ask.error || assistance.apply.error) && (
+                <div className="interview-feedback">
+                  {assistance.ask.error && (
+                    <Notice tone="danger">
+                      {assistance.ask.error.message} 질문과 답변을 유지했습니다. 다시 요청할 수
+                      있습니다.
+                    </Notice>
+                  )}
+                  {assistance.apply.error && (
+                    <Notice tone="danger">{assistance.apply.error.message}</Notice>
+                  )}
+                </div>
+              )}
+              {editable && question && presentation && (
+                <div className="m-ai interview-current" ref={currentQuestionRef}>
+                  <span className="av" aria-hidden="true">
+                    <Icon name="sparkles" size={18} />
+                  </span>
+                  <div className="body">
+                    <div className="bubble">
+                      <p className="qnum">
+                        <span>{question.required ? '필수 항목' : '선택 항목'}</span>
+                        <span className="meta">
+                          공통 질문 {questionIndex + 1} / {questions.length}
+                        </span>
+                      </p>
+                      <h3 className="qtitle" id="interview-question-title">
+                        {presentation.title}
+                      </h3>
+                      <p className="qhelp" id="interview-question-help">
+                        {presentation.help}
+                      </p>
+                      {question.source === 'AI_INFERRED' && !question.confirmed && (
+                        <Notice tone="warning">
+                          AI가 작성한 미확정 답변입니다. 내용을 읽고 확인해 주세요.
+                          {question.evidence && <p className="help">근거: {question.evidence}</p>}
+                        </Notice>
+                      )}
+                      <InterviewAssistance state={assistance} question={question} />
+                      {draftAnswer && (
+                        <p className="help interview-draft-note">
+                          입력 내용은 이 탭에서 임시 보관됩니다. 새로고침하거나 탭을 닫으면
+                          사라집니다.
+                        </p>
+                      )}
+                      {conflict && (
+                        <Notice tone="warning">
+                          <p>서버에 새 내용이 있습니다. 작성한 답변은 유지했습니다.</p>
+                          <p>서버 최신 값: {question.value || '입력 없음'}</p>
+                          <button
+                            className="btn btn-sm"
+                            type="button"
+                            onClick={() => {
+                              if (draft)
+                                saveDraft({
+                                  ...draft,
+                                  answers: {
+                                    ...draft.answers,
+                                    [question.key]: {
+                                      value: answerText,
+                                      revision: businessCase.revision,
+                                      answerRevision: question.revision,
+                                    },
+                                  },
+                                });
+                            }}
+                          >
+                            내 답변을 유지하고 최신 버전 기준으로 저장 준비
+                          </button>
+                        </Notice>
+                      )}
+                      {error && <Notice tone="danger">{error}</Notice>}
+                      {staffCheck.error && (
+                        <Notice tone="danger">{staffCheck.error.message}</Notice>
+                      )}
+                      {staffNotice && <Notice>{staffNotice}</Notice>}
+                      <div className="btn-row">
+                        <button
+                          type="button"
+                          className="btn btn-tertiary"
+                          disabled={answerBusy || conflict}
+                          onClick={async () => {
+                            try {
+                              const result = await staffCheck.mutateAsync({
+                                fieldKey: question.key,
+                                expectedRevision: question.revision ?? 0,
+                              });
+                              if (draftAnswer)
+                                saveDraft({
+                                  questionIndex,
+                                  answers: {
+                                    ...draft?.answers,
+                                    [question.key]: {
+                                      value: answerText,
+                                      revision: businessCase.revision,
+                                      answerRevision: result.revision,
+                                    },
+                                  },
+                                });
+                              setStaffNotice(
+                                `${question.label}: 담당자 확인 필요로 표시했습니다. 입력 중인 내용은 보존되며, 서류별 화면에서 협의를 요청할 수 있습니다.`,
+                              );
+                            } catch {
+                              /* 입력 보존 */
+                            }
+                          }}
+                        >
+                          잘 모르겠어요 · 담당자 확인 요청
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-tertiary"
+                          disabled={answerBusy}
+                          onClick={() => {
+                            setError('');
+                            goToQuestion(questionIndex + 1);
+                          }}
+                        >
+                          나중에 입력
+                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
+              )}
               {turns.error && (
                 <Notice tone="warning">
                   대화 이력을 불러오지 못했습니다. 직접 입력은 계속할 수 있습니다.
@@ -475,183 +649,79 @@ function InterviewWorkspace({
               aria-labelledby="interview-question-title"
               onSubmit={(event) => {
                 event.preventDefault();
-                void saveAnswer(answerText);
+                if (assistance.mode === 'ASK') void assistance.send('ASK');
+                else void saveAnswer(answerText);
               }}
             >
-              <p className="qnum">
-                <span>{question.required ? '필수 항목' : '선택 항목'}</span>
-                <span className="meta">
-                  공통 질문 {questionIndex + 1} / {questions.length}
-                </span>
-              </p>
-              <h3 className="qtitle" id="interview-question-title">
-                {presentation.title}
-              </h3>
-              <p className="qhelp" id="interview-question-help">
-                {presentation.help}
-              </p>
-              {presentation.options && (
-                <div
-                  className="qchips"
-                  role="group"
-                  aria-label={`${question.label} 보기, 누르면 바로 답변됩니다`}
-                  aria-describedby="interview-question-help"
-                >
-                  {presentation.options.map((option) => (
+              <InterviewComposer state={assistance}>
+                {presentation.options && (
+                  <div
+                    className="qchips"
+                    role="group"
+                    aria-label={`${question.label} 보기, 누르면 바로 답변됩니다`}
+                    aria-describedby="interview-question-help"
+                  >
+                    {presentation.options.map((option) => (
+                      <button
+                        className="qchip"
+                        type="button"
+                        key={option}
+                        disabled={answerBusy || conflict}
+                        onClick={() => void saveAnswer(option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="field">
+                  <label className="sr-only" htmlFor="interview-answer">
+                    {question.label}
+                  </label>
+                  <div className="qrow">
+                    {question.inputType === 'LONG_TEXT' ? (
+                      <textarea
+                        className="input"
+                        id="interview-answer"
+                        rows={2}
+                        maxLength={4000}
+                        aria-describedby="interview-question-help"
+                        value={answerText}
+                        disabled={answerBusy}
+                        onChange={(e) => updateAnswer(e.target.value)}
+                        placeholder={presentation.placeholder}
+                      />
+                    ) : (
+                      <input
+                        className="input"
+                        id="interview-answer"
+                        type={question.inputType === 'NUMBER' ? 'number' : 'text'}
+                        aria-describedby="interview-question-help"
+                        autoComplete="off"
+                        maxLength={4000}
+                        value={answerText}
+                        disabled={answerBusy}
+                        onChange={(e) => updateAnswer(e.target.value)}
+                        placeholder={presentation.placeholder}
+                      />
+                    )}
                     <button
-                      className="qchip"
-                      type="button"
-                      key={option}
-                      disabled={answerBusy || conflict}
-                      onClick={() => void saveAnswer(option)}
+                      className="btn btn-primary"
+                      disabled={answerBusy || conflict || !answerText.trim()}
                     >
-                      {option}
+                      {save.isPending
+                        ? '저장 중…'
+                        : question.source === 'AI_INFERRED' &&
+                            !question.confirmed &&
+                            answerText === question.value
+                          ? 'AI 답변 확인하고 다음'
+                          : questionIndex === questions.length - 1
+                            ? '공통 답변 저장'
+                            : '답변 저장하고 다음'}
                     </button>
-                  ))}
+                  </div>
                 </div>
-              )}
-              <div className="field">
-                <label htmlFor="interview-answer">{question.label}</label>
-                {presentation.options && <p className="help">보기에 없으면 직접 입력해 주세요.</p>}
-                <div className="qrow">
-                  {question.inputType === 'LONG_TEXT' ? (
-                    <textarea
-                      className="input"
-                      id="interview-answer"
-                      rows={4}
-                      maxLength={4000}
-                      aria-describedby="interview-question-help"
-                      value={answerText}
-                      disabled={answerBusy}
-                      onChange={(e) => updateAnswer(e.target.value)}
-                      placeholder={presentation.placeholder}
-                    />
-                  ) : (
-                    <input
-                      className="input"
-                      id="interview-answer"
-                      type={question.inputType === 'NUMBER' ? 'number' : 'text'}
-                      aria-describedby="interview-question-help"
-                      autoComplete="off"
-                      maxLength={4000}
-                      value={answerText}
-                      disabled={answerBusy}
-                      onChange={(e) => updateAnswer(e.target.value)}
-                      placeholder={presentation.placeholder}
-                    />
-                  )}
-                  <button
-                    className="btn btn-primary"
-                    disabled={answerBusy || conflict || !answerText.trim()}
-                  >
-                    {save.isPending
-                      ? '저장 중…'
-                      : question.source === 'AI_INFERRED' &&
-                          !question.confirmed &&
-                          answerText === question.value
-                        ? 'AI 답변 확인하고 다음'
-                        : questionIndex === questions.length - 1
-                          ? '공통 답변 저장'
-                          : '답변 저장하고 다음'}
-                  </button>
-                </div>
-              </div>
-              {question.source === 'AI_INFERRED' && !question.confirmed && (
-                <Notice tone="warning">
-                  AI가 작성한 미확정 답변입니다. 내용을 읽고 확인해 주세요.
-                  {question.evidence && <p className="help">근거: {question.evidence}</p>}
-                </Notice>
-              )}
-              <InterviewAssistance
-                key={`${actor.id}:${businessCase.id}:${question.key}`}
-                businessCase={businessCase}
-                question={question}
-                actorId={actor.id}
-                answerText={answerText}
-                turns={turns.data ?? []}
-                disabled={save.isPending || staffCheck.isPending || conflict}
-                onApplied={clearCurrentDraft}
-                onApplyingChange={setApplyingRecommendation}
-              />
-              {draftAnswer && (
-                <p className="help interview-draft-note">
-                  입력 내용은 이 탭에서 임시 보관됩니다. 새로고침하거나 탭을 닫으면 사라집니다.
-                </p>
-              )}
-              {conflict && (
-                <Notice tone="warning">
-                  <p>서버에 새 내용이 있습니다. 작성한 답변은 유지했습니다.</p>
-                  <p>서버 최신 값: {question.value || '입력 없음'}</p>
-                  <button
-                    className="btn btn-sm"
-                    type="button"
-                    onClick={() => {
-                      if (draft)
-                        saveDraft({
-                          ...draft,
-                          answers: {
-                            ...draft.answers,
-                            [question.key]: {
-                              value: answerText,
-                              revision: businessCase.revision,
-                              answerRevision: question.revision,
-                            },
-                          },
-                        });
-                    }}
-                  >
-                    내 답변을 유지하고 최신 버전 기준으로 저장 준비
-                  </button>
-                </Notice>
-              )}
-              {error && <Notice tone="danger">{error}</Notice>}
-              {staffCheck.error && <Notice tone="danger">{staffCheck.error.message}</Notice>}
-              {staffNotice && <Notice>{staffNotice}</Notice>}
-              <div className="btn-row">
-                <button
-                  type="button"
-                  className="btn btn-tertiary"
-                  disabled={answerBusy || conflict}
-                  onClick={async () => {
-                    try {
-                      const result = await staffCheck.mutateAsync({
-                        fieldKey: question.key,
-                        expectedRevision: question.revision ?? 0,
-                      });
-                      if (draftAnswer)
-                        saveDraft({
-                          questionIndex,
-                          answers: {
-                            ...draft?.answers,
-                            [question.key]: {
-                              value: answerText,
-                              revision: businessCase.revision,
-                              answerRevision: result.revision,
-                            },
-                          },
-                        });
-                      setStaffNotice(
-                        `${question.label}: 담당자 확인 필요로 표시했습니다. 입력 중인 내용은 보존되며, 서류별 화면에서 협의를 요청할 수 있습니다.`,
-                      );
-                    } catch {
-                      /* 입력 보존 */
-                    }
-                  }}
-                >
-                  잘 모르겠어요 · 담당자 확인 요청
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-tertiary"
-                  disabled={answerBusy}
-                  onClick={() => {
-                    setError('');
-                    goToQuestion(questionIndex + 1);
-                  }}
-                >
-                  나중에 입력
-                </button>
-              </div>
+              </InterviewComposer>
             </form>
           )}
           {editable && !question && (

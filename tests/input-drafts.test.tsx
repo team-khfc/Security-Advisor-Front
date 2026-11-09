@@ -188,4 +188,18 @@ vi.mock('@/features/request/useInterview', () => ({
   useInterviewTurns: () => ({ data: [] }),
   useInterviewStaffCheck: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('@/features/request/InterviewAssistance', () => ({ InterviewAssistance: () => null }));
+vi.mock('@/features/request/useInterviewAssistance', () => ({
+  useInterviewAssistance: () => ({
+    history: [],
+    ask: { isPending: false },
+    apply: { isPending: false },
+    mode: 'ANSWER',
+    help: {},
+    busy: false,
+    showHelp: false,
+    toggleHelp: vi.fn(),
+    send: vi.fn(),
+    setMode: vi.fn(),
+    isStale: () => false,
+  }),
+}));
