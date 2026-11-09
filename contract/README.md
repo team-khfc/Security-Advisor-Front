@@ -2,8 +2,8 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `c6cfccd63bac4e96f376d9b6e18f3b9a16de10e3`
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/c6cfccd63bac4e96f376d9b6e18f3b9a16de10e3/docs/api/openapi.yaml
+- Back 커밋: `b3eca56560d24af73142bf198a7ad74d69c93f88` (PR #4의 main 병합본)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/b3eca56560d24af73142bf198a7ad74d69c93f88/docs/api/openapi.yaml
 - 최종 보고서·PDF API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/4
 - 인터뷰 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/2
 - 요청서: https://github.com/team-khfc/Security-Advisor-Back/blob/74cbdfb5ef0896b2628d243e3bec7f01b183eaac/docs/FRONT_CHANGE_REQUEST_20261109.md
