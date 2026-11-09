@@ -137,6 +137,7 @@ export function AnswerEditor({
   if (!eligible.length) return null;
   const inputValue = (answer: Answer): AnswerInput => ({
     key: answer.key,
+    expectedRevision: answer.revision,
     value: answer.value,
     confirmed: answer.ownerRole === actor.role ? answer.confirmed : false,
     notApplicable: answer.notApplicable,

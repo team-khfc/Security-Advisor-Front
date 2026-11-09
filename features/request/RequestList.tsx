@@ -210,7 +210,7 @@ function Deadline({
 
 function RequestListView({ options }: { options: ListOptions }) {
   const session = useSession();
-  const requests = useRequests();
+  const requests = useRequests(true);
   const router = useRouter();
   const [search, setSearch] = useState(options.search);
   const [previousSearch, setPreviousSearch] = useState(options.search);
@@ -309,7 +309,7 @@ function RequestListView({ options }: { options: ListOptions }) {
       if (options.filter === 'done' && request.status !== 'FINALIZED') return false;
       if (
         query &&
-        !`${request.caseTitle} ${request.id} ${request.department} ${request.ownerName} ${DOCUMENT_LABELS[request.docType]}`
+        !`${request.caseTitle} ${request.id} ${request.department} ${request.ownerName} ${DOCUMENT_LABELS[request.docType] ?? request.docType}`
           .toLocaleLowerCase('ko-KR')
           .includes(query)
       )
@@ -559,7 +559,9 @@ function RequestListView({ options }: { options: ListOptions }) {
                               {request.caseTitle}
                             </Link>
                           </div>
-                          <div className="request-type">{DOCUMENT_LABELS[request.docType]}</div>
+                          <div className="request-type">
+                            {DOCUMENT_LABELS[request.docType] ?? request.docType}
+                          </div>
                           <div className="p-meta">접수일 {shortDate(request.createdAt)}</div>
                         </td>
                         <td>
@@ -592,7 +594,7 @@ function RequestListView({ options }: { options: ListOptions }) {
                         </td>
                         <td>
                           <Badge tone={statusTones[request.status]}>
-                            {STATUS_LABELS[request.status]}
+                            {request.statusLabel ?? STATUS_LABELS[request.status]}
                           </Badge>
                           {action && <span className="turn me">{action}</span>}
                         </td>

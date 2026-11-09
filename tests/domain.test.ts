@@ -385,6 +385,8 @@ describe('모의 도메인의 문서·데이터 불변식', () => {
 
   test('분석 결과는 근거 있는 신청자 항목만 미확정으로 적용하고 기술 사실은 거부한다', () => {
     const state = createMockState();
+    state.cases[0].answers[0].confirmed = false;
+    state.cases[0].answers[0].confirmation = null;
     const next = applyAnalysis(state, actor('APPLICANT'), 'demo-case-1', 1, [
       { key: 'purpose', value: '합성 문서에서 추출한 목적', evidence: '합성 개요서 1절' },
     ]);

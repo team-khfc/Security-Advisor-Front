@@ -17,7 +17,7 @@ import { useRequests } from './useRequests';
 
 /** 보완 답변은 신청 상세의 한 입력 영역으로 모아 중복 수정을 피한다. */
 export function SupplementList() {
-  const query = useRequests();
+  const query = useRequests(true);
   if (query.isPending) return <LoadingState />;
   if (query.error)
     return (
@@ -62,7 +62,7 @@ export function SupplementList() {
                 <span className="meta">{request.id}</span>
               </div>
               <h3 className="h-panel">{request.caseTitle}</h3>
-              <p className="help">{DOCUMENT_LABELS[request.docType]}</p>
+              <p className="help">{DOCUMENT_LABELS[request.docType] ?? request.docType}</p>
               <p>{supplement.reason}</p>
               {supplement.answer && <p>등록한 답변: {supplement.answer}</p>}
               <Link
@@ -94,7 +94,7 @@ export function SupplementList() {
 
 /** 기재된 통신 사실만 보여 주며 변경은 배정된 신청 상세에서 처리한다. */
 export function NetworkList() {
-  const query = useRequests();
+  const query = useRequests(true);
   const session = useSession();
   const [search, setSearch] = useState('');
   if (query.isPending || session.isPending) return <LoadingState />;
@@ -150,7 +150,7 @@ export function NetworkList() {
                     <p>
                       <Link href={`/requests/${request.id}`}>{request.caseTitle}</Link>
                     </p>
-                    <small>{DOCUMENT_LABELS[request.docType]}</small>
+                    <small>{DOCUMENT_LABELS[request.docType] ?? request.docType}</small>
                   </td>
                   <td>
                     {answer('sourceSystem')}

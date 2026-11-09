@@ -64,7 +64,7 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
         <input
           id="analysis-file"
           type="file"
-          accept=".pdf,.hwp,.hwpx,.docx"
+          accept=".pdf,.hwpx,.docx,.txt"
           onChange={(e) => {
             const selected = e.target.files?.[0];
             setFileError('');
@@ -72,9 +72,13 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
             setApplied(false);
             if (
               selected &&
-              (!/\.(pdf|hwp|hwpx|docx)$/i.test(selected.name) || selected.size > 10 * 1024 * 1024)
+              (!/\.(pdf|hwpx|docx|txt)$/i.test(selected.name) || selected.size > 10 * 1024 * 1024)
             ) {
-              setFileError('허용된 문서 형식으로 10MB 이하의 파일을 선택해 주세요.');
+              setFileError(
+                /\.hwp$/i.test(selected.name)
+                  ? 'HWPX 로 변환해 올려 주세요.'
+                  : '허용된 문서 형식으로 10MB 이하의 파일을 선택해 주세요.',
+              );
               return;
             }
             if (!selected) forgetUpload(actorId, businessCase.id);
@@ -124,9 +128,7 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
       )}
       {analysis.data && !analysis.error && (
         <div className="analysis-result">
-          <Badge tone="warning">
-            {analysis.data.mode === 'EXAMPLE' ? '모의 AI 제안' : 'AI 제안'} · 미확정
-          </Badge>
+          <Badge tone="warning">{session.data?.mock ? '모의 AI 제안' : 'AI 제안'} · 미확정</Badge>
           <p className="help">이 제안을 적용해도 확인 완료로 바뀌지 않습니다.</p>
           {analysis.data.suggestions.map((suggestion) => (
             <div className="candidate" key={suggestion.key}>
@@ -140,7 +142,14 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
             </Notice>
           )}
           {apply.error && <Notice tone="danger">{apply.error.message}</Notice>}
-          {applied ? (
+          {apply.data?.warnings.map((warning) => (
+            <Notice key={warning} tone="warning">
+              {warning}
+            </Notice>
+          ))}
+          {analysis.data.summaryOnly ? (
+            <p role="status">사업 개요를 저장했습니다.</p>
+          ) : applied ? (
             <p role="status" className="save-success">
               제안을 미확정 상태로 적용했습니다. 아래 답변에서 확인해 주세요.
             </p>
@@ -212,7 +221,7 @@ function InterviewWorkspace({
   const questions = businessCase.answers.filter((answer) => answer.ownerRole === 'APPLICANT');
   const { draft, saveDraft, clearDraft } = useInputDraft<{
     questionIndex: number;
-    answers: Record<string, { value: string; revision: number }>;
+    answers: Record<string, { value: string; revision: number; answerRevision?: number }>;
   }>(actor.id, `case:${businessCase.id}:interview`);
   const [questionIndex, setQuestionIndex] = useState(() => draft?.questionIndex ?? 0);
   const [chat, setChat] = useState<{ question: string; answer: string }[]>([]);
@@ -243,7 +252,10 @@ function InterviewWorkspace({
   const draftAnswer = question ? draft?.answers[question.key] : undefined;
   const answerText = draftAnswer?.value ?? question?.value ?? '';
   const answerRevision = draftAnswer?.revision ?? businessCase.revision;
-  const conflict = Boolean(draftAnswer && answerRevision !== businessCase.revision);
+  const conflict = Boolean(
+    draftAnswer &&
+    (answerRevision !== businessCase.revision || draftAnswer.answerRevision !== question?.revision),
+  );
   const goToQuestion = (next: number) => {
     setQuestionIndex(next);
     if (draft) saveDraft({ ...draft, questionIndex: next });
@@ -279,8 +291,8 @@ function InterviewWorkspace({
         {requests.map((request) => (
           <Link className="case-document-link" key={request.id} href={`/requests/${request.id}`}>
             <Icon name="file" />
-            <strong>{DOCUMENT_LABELS[request.docType]}</strong>
-            <Badge>{STATUS_LABELS[request.status]}</Badge>
+            <strong>{DOCUMENT_LABELS[request.docType] ?? request.docType}</strong>
+            <Badge>{request.statusLabel ?? STATUS_LABELS[request.status]}</Badge>
             <Icon name="arrowRight" size={18} />
           </Link>
         ))}
@@ -342,6 +354,7 @@ function InterviewWorkspace({
                     answers: [
                       {
                         key: question.key,
+                        expectedRevision: draftAnswer?.answerRevision ?? question.revision,
                         value,
                         confirmed: Boolean(value.trim()),
                         notApplicable: false,
@@ -385,7 +398,11 @@ function InterviewWorkspace({
                     questionIndex,
                     answers: {
                       ...draft?.answers,
-                      [question.key]: { value: e.target.value, revision: answerRevision },
+                      [question.key]: {
+                        value: e.target.value,
+                        revision: answerRevision,
+                        answerRevision: draftAnswer?.answerRevision ?? question.revision,
+                      },
                     },
                   })
                 }
@@ -409,7 +426,11 @@ function InterviewWorkspace({
                           ...draft,
                           answers: {
                             ...draft.answers,
-                            [question.key]: { value: answerText, revision: businessCase.revision },
+                            [question.key]: {
+                              value: answerText,
+                              revision: businessCase.revision,
+                              answerRevision: question.revision,
+                            },
                           },
                         });
                     }}
@@ -452,7 +473,7 @@ function InterviewWorkspace({
                     key={request.id}
                     href={`/requests/${request.id}`}
                   >
-                    {DOCUMENT_LABELS[request.docType]} 작성
+                    {DOCUMENT_LABELS[request.docType] ?? request.docType} 작성
                     <Icon name="arrowRight" />
                   </Link>
                 ))}

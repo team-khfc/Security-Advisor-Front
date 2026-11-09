@@ -1,3 +1,4 @@
+import { ContractMapper } from './contractMapper';
 import { compare, hash } from 'bcryptjs';
 import { z } from 'zod';
 import { loginInputSchema, signupInputSchema } from '@/features/auth';
@@ -8,6 +9,7 @@ import {
   requestForActor,
   saveCaseAnswers,
   type BusinessCase,
+  type AuditEvent,
   type CaseAnalysis,
   type CommandAction,
   type CommandInput,
@@ -405,7 +407,7 @@ async function validateFile(file: File) {
   const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
   const types: Record<string, string[]> = {
     pdf: ['application/pdf'],
-    hwp: ['application/x-hwp', 'application/haansofthwp', 'application/octet-stream', ''],
+    txt: ['text/plain', ''],
     hwpx: [
       'application/vnd.hancom.hwpx',
       'application/haansofthwpx',
@@ -419,7 +421,12 @@ async function validateFile(file: File) {
     ],
   };
   if (!types[extension]?.includes(file.type))
-    fail(400, 'INVALID_FILE_TYPE', 'PDF·HWP·HWPX·DOCX 문서만 선택해 주세요.');
+    fail(
+      400,
+      'INVALID_FILE_TYPE',
+      'PDF·HWPX·DOCX·TXT 문서만 선택해 주세요. HWP는 HWPX 로 변환해 올려 주세요.',
+    );
+  if (extension === 'txt') return;
   const signature = new Uint8Array(await file.slice(0, 8).arrayBuffer());
   const pdf = [0x25, 0x50, 0x44, 0x46, 0x2d];
   const zip = [0x50, 0x4b, 0x03, 0x04];
@@ -433,6 +440,8 @@ async function validateFile(file: File) {
 export function createMockApi(options: MockApiOptions = {}) {
   const initialized = initialize(options);
   const now = () => (options.now?.() ?? new Date()).getTime();
+  let mapper: ContractMapper | undefined;
+  const uploads = new Map<string, { caseId: string; file: File }>();
 
   return async function handle(requestInput: Request): Promise<Response> {
     const cookieToken = cookiesOf(requestInput).get(CSRF_COOKIE);
@@ -449,7 +458,20 @@ export function createMockApi(options: MockApiOptions = {}) {
         });
       }
       const runtime = await initialized;
-      response = await dispatch(runtime, request, now(), options);
+      mapper ??= new ContractMapper(() => runtime.members.map((m) => m.actor));
+      for (const c of runtime.state.cases) {
+        for (const a of c.answers) a.revision ??= c.revision;
+        mapper.businessCase(c, runtime.state.requests);
+      }
+      for (const r of runtime.state.requests) {
+        for (const a of r.answers) a.revision ??= r.revision;
+        mapper.request(r);
+        mapper.reviews(r);
+        mapper.assignments(r);
+        mapper.supplements(r);
+        mapper.submissions(r);
+      }
+      response = await dispatchContract(runtime, request, now(), options, mapper, uploads);
     } catch (error) {
       response = problemResponse(error);
     }
@@ -915,4 +937,415 @@ let defaultHandler: ReturnType<typeof createMockApi> | undefined;
 export async function handleMockRequest(request: Request): Promise<Response> {
   defaultHandler ??= createMockApi();
   return defaultHandler(request);
+}
+
+async function dispatchContract(
+  runtime: MockRuntime,
+  request: Request,
+  now: number,
+  options: MockApiOptions,
+  wire: ContractMapper,
+  uploads: Map<string, { caseId: string; file: File }>,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  const resource = parts[1],
+    numericId = parts[2],
+    sub = parts[3],
+    fieldKey = parts[4];
+  const id = wire.original(numericId ?? '');
+  const method = request.method;
+  if (resource === 'publications' && method === 'GET') {
+    sessionMember(runtime, request, now);
+    return json(
+      wire.publication(
+        runtime.state.cases,
+        runtime.state.requests,
+        numericId === 'current' ? 1 : Number(numericId),
+      ),
+    );
+  }
+  if (resource === 'business-cases' && sub === 'uploaded-files' && method === 'POST') {
+    const actor = sessionMember(runtime, request, now);
+    const c = getCase(runtime, id, actor);
+    if (c.ownerId !== actor.id) fail(403, 'FORBIDDEN', '신청자만 파일을 업로드할 수 있습니다.');
+    const form = await request.formData();
+    const file = form.get('file');
+    if (!(file instanceof File)) fail(400, 'FILE_REQUIRED', '파일을 선택해 주세요.');
+    await validateFile(file);
+    const fileId = String(wire.id(crypto.randomUUID()));
+    uploads.set(fileId, { caseId: id, file });
+    return json(
+      {
+        uploadedFileId: Number(fileId),
+        businessCaseId: Number(numericId),
+        originalName: file.name,
+        contentType: file.type,
+        sizeBytes: file.size,
+      },
+      201,
+    );
+  }
+  const actor =
+    resource === 'installation' ||
+    resource === 'auth' ||
+    resource === 'demo-sessions' ||
+    (resource === 'members' && method === 'POST' && !numericId)
+      ? undefined
+      : sessionMember(runtime, request, now);
+  if (resource === 'security-requests' && method === 'GET' && sub && sub !== 'documents') {
+    const r = getRequest(runtime, id, actor!);
+    const collections: Record<string, unknown> = {
+      reviews: wire.reviews(r),
+      assignments: wire.assignments(r),
+      supplements: wire.supplements(r),
+      'stage-returns': wire.returns(r),
+      deadlines: wire.deadlines(r),
+      submissions: wire.submissions(r),
+      'audit-events': runtime.state.auditEvents
+        .filter((e) => e.targetId === id)
+        .map((e) => wire.audit(e)),
+    };
+    if (sub in collections) return json(collections[sub]);
+  }
+  if (resource === 'submissions' && sub === 'final-confirmations' && method === 'GET') {
+    const r = findParent(runtime, 'submissions', id, actor!).request;
+    return json(wire.confirmations(r).filter((c) => String(c.submissionId) === numericId));
+  }
+  let body: Record<string, unknown> | undefined;
+  if (
+    !['GET', 'HEAD'].includes(method) &&
+    request.headers.get('content-type')?.includes('application/json')
+  )
+    body = parse(z.record(z.string(), z.unknown()), await bodyJson(request));
+  if (resource === 'business-cases' && numericId && !sub && method === 'PUT') {
+    const c = getCase(runtime, id, actor!);
+    if (c.ownerId !== actor!.id) fail(403, 'FORBIDDEN', '신청자만 개요를 수정할 수 있습니다.');
+    const input = parse(
+      z.object({
+        title: z.string().min(1).max(200),
+        summary: z.string().max(4000),
+        department: z.string().max(100),
+        expectedRevision: z.number().optional(),
+      }),
+      body,
+    );
+    if (input.expectedRevision !== undefined && input.expectedRevision !== c.revision)
+      fail(409, 'REVISION_CONFLICT', '최신 사업 정보를 확인해 주세요.');
+    Object.assign(c, {
+      title: input.title,
+      description: input.summary,
+      department: input.department,
+      revision: c.revision + 1,
+      updatedAt: new Date(now).toISOString(),
+    });
+    return json(wire.businessCase(c, runtime.state.requests));
+  }
+  if (resource === 'reviews' && sub === 'answers' && fieldKey && method === 'PUT') {
+    const r = findParent(runtime, 'reviews', id, actor!).request;
+    const review = r.reviews.find((v) => v.id === id)!;
+    if (
+      review.field !== actor!.role ||
+      !r.assignments.some((v) => v.active && v.field === actor!.role && v.assigneeId === actor!.id)
+    )
+      fail(403, 'FORBIDDEN', '배정된 담당자만 답변을 입력할 수 있습니다.');
+    const common = runtime.state.cases.find((c) => c.id === r.caseId)!;
+    const stored = runtime.state.requests.find((v) => v.id === r.id)!;
+    const a = [...common.answers, ...stored.answers].find((v) => v.key === fieldKey);
+    if (!a) fail(404, 'ANSWER_NOT_FOUND', '답변을 찾을 수 없습니다.');
+    const input = parse(
+      z.object({ value: z.string().max(4000).optional(), expectedRevision: z.number().optional() }),
+      body,
+    );
+    if (
+      input.expectedRevision !== undefined &&
+      input.expectedRevision !== (a.revision ?? (a.scope === 'CASE' ? common.revision : r.revision))
+    )
+      fail(409, 'REVISION_CONFLICT', '최신 답변을 확인해 주세요.');
+    const value = {
+      key: fieldKey,
+      value: input.value ?? a.value,
+      confirmed: true,
+      notApplicable: false,
+    };
+    if (a.scope === 'CASE')
+      runtime.state = saveCaseAnswers(runtime.state, actor!, common.id, common.revision, [value]);
+    else
+      runtime.state = executeCommand(
+        runtime.state,
+        actor!,
+        r.id,
+        { action: 'SAVE_ANSWERS', expectedRevision: r.revision, answers: [value] },
+        runtime.members.map((m) => m.actor),
+      );
+    const owner =
+      a.scope === 'CASE'
+        ? runtime.state.cases.find((v) => v.id === common.id)!
+        : runtime.state.requests.find((v) => v.id === r.id)!;
+    const updated = owner.answers.find((v) => v.key === fieldKey)!;
+    updated.revision = (a.revision ?? owner.revision - 1) + 1;
+    return json(wire.answer(updated, owner.id, owner.revision));
+  }
+  if (
+    (resource === 'business-cases' || resource === 'security-requests') &&
+    sub === 'answers' &&
+    method === 'PUT' &&
+    parts[5] === 'confirmation'
+  ) {
+    const current =
+      resource === 'business-cases'
+        ? getCase(runtime, id, actor!)
+        : getRequest(runtime, id, actor!);
+    const answer = current.answers.find((a) => a.key === fieldKey);
+    if (!answer) fail(404, 'ANSWER_NOT_FOUND', '답변을 찾을 수 없습니다.');
+    if (answer.source !== 'AI_INFERRED')
+      fail(422, 'AI_CONFIRMATION_REQUIRED', 'AI 제안 값만 사용자가 확인할 수 있습니다.');
+    const input = parse(z.object({ expectedRevision: z.number() }), body);
+    if (input.expectedRevision !== (answer.revision ?? current.revision))
+      fail(409, 'REVISION_CONFLICT', '최신 답변을 확인해 주세요.');
+    const values = [
+      { key: fieldKey, value: answer.value, confirmed: true, notApplicable: answer.notApplicable },
+    ];
+    if (resource === 'business-cases')
+      runtime.state = saveCaseAnswers(runtime.state, actor!, id, current.revision, values);
+    else
+      runtime.state = executeCommand(
+        runtime.state,
+        actor!,
+        id,
+        { action: 'SAVE_ANSWERS', expectedRevision: current.revision, answers: values },
+        runtime.members.map((m) => m.actor),
+      );
+    const updated =
+      resource === 'business-cases'
+        ? getCase(runtime, id, actor!)
+        : getRequest(runtime, id, actor!);
+    const stored =
+      resource === 'business-cases'
+        ? runtime.state.cases.find((c) => c.id === id)!
+        : runtime.state.requests.find((r) => r.id === id)!;
+    const a = stored.answers.find((a) => a.key === fieldKey)!;
+    a.revision = input.expectedRevision + 1;
+    return json(wire.answer(a, id, updated.revision));
+  }
+  let legacyResource = resource,
+    legacyId = id,
+    legacySub: string | undefined = sub,
+    legacyMethod = method;
+  if (resource === 'members' && numericId) {
+    legacyId = runtime.members.find((m) => m.actor.username === numericId)?.actor.id ?? id;
+    if (sub === 'activation' && method === 'PUT') {
+      body = { ...body, role: runtime.members.find((m) => m.actor.id === legacyId)?.actor.role };
+      legacySub = 'role-assignments';
+      legacyMethod = 'POST';
+    }
+  }
+  if (resource === 'business-cases' && !numericId && method === 'POST' && body) {
+    body = { ...body, description: body.summary };
+    delete body.summary;
+  }
+  if (resource === 'business-cases' && sub === 'analysis-jobs' && method === 'POST' && body) {
+    const upload = uploads.get(String(body.uploadedFileId));
+    if (!upload || upload.caseId !== id)
+      fail(404, 'FILE_NOT_FOUND', '업로드 파일을 찾을 수 없습니다.');
+    const c = getCase(runtime, id, actor!);
+    body = { text: c.description, expectedRevision: c.revision };
+  }
+  let savedKeys: string[] | undefined;
+  if (
+    (resource === 'business-cases' || resource === 'security-requests') &&
+    sub === 'answers' &&
+    method === 'PATCH' &&
+    body
+  ) {
+    const c =
+      resource === 'business-cases'
+        ? getCase(runtime, id, actor!)
+        : getRequest(runtime, id, actor!);
+    const items = parse(
+      z.array(
+        z.object({
+          fieldKey: z.string(),
+          value: z.string().max(4000),
+          expectedRevision: z.number().optional(),
+        }),
+      ),
+      body.answers,
+    );
+    for (const item of items) {
+      const a = c.answers.find((v) => v.key === item.fieldKey);
+      if (
+        item.expectedRevision !== undefined &&
+        item.expectedRevision !== (a?.revision ?? c.revision)
+      )
+        fail(409, 'REVISION_CONFLICT', '입력한 내용을 보존한 채 최신 답변을 확인해 주세요.');
+    }
+    savedKeys = items.map((v) => v.fieldKey);
+    body = {
+      expectedRevision: c.revision,
+      answers: items.map((v) => ({
+        key: v.fieldKey,
+        value: v.value,
+        confirmed: true,
+        notApplicable: false,
+      })),
+    };
+    if (resource === 'business-cases') legacySub = undefined;
+  }
+  if (resource === 'reviews' && sub === 'supplements' && method === 'POST') {
+    const parent = findParent(runtime, 'reviews', id, actor!).request;
+    const review = parent.reviews.find((v) => v.id === id)!;
+    legacyResource = 'security-requests';
+    legacyId = parent.id;
+    legacySub = 'supplements';
+    body = { ...body, field: review.field };
+  }
+  if (body) {
+    if ('opinion' in body) {
+      body.comment = body.opinion;
+      delete body.opinion;
+    }
+    if ('note' in body) {
+      body.answer = body.note;
+      delete body.note;
+    }
+    if ('assigneeUsername' in body) {
+      body.assigneeId = runtime.members.find(
+        (m) => m.actor.username === body!.assigneeUsername,
+      )?.actor.id;
+      delete body.assigneeUsername;
+    }
+    delete body.checklist;
+    delete body.fieldReasons;
+    if (resource === 'security-requests' && sub === 'assignments')
+      body.expectedRevision = getRequest(runtime, id, actor!).revision;
+  }
+  const legacyUrl = new URL(request.url);
+  legacyUrl.pathname =
+    '/api/' +
+    [legacyResource, legacyId || undefined, legacySub]
+      .filter((v): v is string => Boolean(v))
+      .map(encodeURIComponent)
+      .join('/');
+  if (legacyUrl.searchParams.has('submissionId'))
+    legacyUrl.searchParams.set(
+      'submissionId',
+      wire.original(legacyUrl.searchParams.get('submissionId')!),
+    );
+  const headers = new Headers(request.headers);
+  if (body) headers.set('content-type', 'application/json');
+  const legacy = new Request(legacyUrl, {
+    method: legacyMethod,
+    headers,
+    body: body
+      ? JSON.stringify(body)
+      : !['GET', 'HEAD'].includes(method)
+        ? await request.arrayBuffer()
+        : undefined,
+  });
+  const preserved =
+    resource === 'analysis-jobs' && sub === 'applications'
+      ? getCase(runtime, runtime.analyses.get(id)!.caseId, actor!)
+          .answers.filter(
+            (a) => a.confirmed && (a.key === 'purpose' || a.key === 'project.summary'),
+          )
+          .map((a) => a.key)
+      : [];
+  const response = await dispatch(runtime, legacy, now, options);
+  if (!response.ok || response.status === 204 || sub === 'documents') return response;
+  const value: unknown = await response.json();
+  let output: unknown = value;
+  if (
+    (resource === 'auth' && (numericId === 'me' || numericId === 'login')) ||
+    resource === 'demo-sessions'
+  )
+    output = wire.session(value as Session);
+  else if (resource === 'sessions' && sub === 'renewals')
+    output = { expiresAt: (value as Session).expiresAt };
+  else if (resource === 'members') {
+    const data = value as Actor | { content: Actor[] };
+    output = 'content' in data ? data.content.map((m) => wire.member(m)) : wire.member(data);
+  } else if (resource === 'audit-events') {
+    const data = value as
+      | AuditEvent
+      | { content: AuditEvent[]; page: number; size: number; totalElements: number };
+    output =
+      'content' in data
+        ? { ...data, content: data.content.map((e) => wire.audit(e)) }
+        : wire.audit(data);
+  } else if (resource === 'business-cases' && sub === 'analysis-jobs')
+    output = wire.analysis(value as CaseAnalysis);
+  else if (resource === 'analysis-jobs') {
+    const analysis = runtime.analyses.get(id)!;
+    output =
+      sub === 'applications'
+        ? {
+            job: wire.analysis(analysis),
+            summaryProposal: (() => {
+              const c = getCase(runtime, analysis.caseId, actor!);
+              const a = c.answers.find((a) => a.key === analysis.suggestions[0]?.key);
+              return a && !preserved.includes(a.key) ? wire.answer(a, c.id, c.revision) : null;
+            })(),
+            proposals: [],
+            warnings: preserved.map((k) => `${k}: 사용자가 확인한 값은 덮어쓰지 않았습니다.`),
+          }
+        : wire.analysis(value as CaseAnalysis);
+  } else if (resource === 'business-cases') {
+    if (savedKeys) {
+      getCase(runtime, id, actor!);
+      const c = runtime.state.cases.find((c) => c.id === id)!;
+      output = c.answers
+        .filter((a) => savedKeys!.includes(a.key))
+        .map((a) => {
+          a.revision = (a.revision ?? c.revision - 1) + 1;
+          return wire.answer(a, id, c.revision);
+        });
+    } else if (value && typeof value === 'object' && 'content' in value) {
+      const page = value as { content: BusinessCase[] };
+      output = {
+        ...page,
+        content: page.content.map((c) => wire.businessCase(c, runtime.state.requests)),
+      };
+    } else output = wire.businessCase(value as BusinessCase, runtime.state.requests);
+  } else if (resource === 'security-requests' && !numericId) {
+    const page = value as { content: SecurityRequest[] };
+    output = { ...page, content: page.content.map((r) => wire.list(r)) };
+  } else if (
+    resource === 'security-requests' ||
+    ['reviews', 'supplements', 'submissions'].includes(resource)
+  ) {
+    const r =
+      resource === 'security-requests'
+        ? getRequest(runtime, id, actor!)
+        : findParent(runtime, resource, id, actor!).request;
+    if (savedKeys)
+      output = runtime.state.requests
+        .find((v) => v.id === r.id)!
+        .answers.filter((a) => savedKeys!.includes(a.key))
+        .map((a) => {
+          a.revision = (a.revision ?? r.revision - 1) + 1;
+          return wire.answer(a, r.id, r.revision);
+        });
+    else if (sub === 'submissions' || (resource === 'submissions' && !sub))
+      output = wire.submissions(r).find((v) => v.latest);
+    else if (resource === 'reviews')
+      output =
+        sub === 'supplements'
+          ? wire.supplements(r).at(-1)
+          : wire.reviews(r).find((v) => String(v.reviewId) === numericId);
+    else if (resource === 'supplements')
+      output = wire.supplements(r).find((v) => String(v.supplementId) === numericId);
+    else output = wire.request(r);
+  }
+  const result = new Response(JSON.stringify(output), {
+    status: resource === 'sessions' && sub === 'renewals' ? 201 : response.status,
+    headers: response.headers,
+  });
+  const location = result.headers.get('location');
+  if (location) {
+    const segments = location.split('/');
+    segments[segments.length - 1] = String(wire.id(segments.at(-1)!));
+    result.headers.set('location', segments.join('/'));
+  }
+  return result;
 }

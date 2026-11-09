@@ -101,7 +101,13 @@ function MemberForm({ member, onClose }: { member: Actor; onClose: () => void })
       onSubmit={async (event) => {
         event.preventDefault();
         try {
-          await mutation.mutateAsync({ id: member.id, role, active, reason });
+          await mutation.mutateAsync({
+            id: member.username,
+            role,
+            active,
+            reason,
+            previousRole: member.role,
+          });
           onClose();
         } catch {
           /* 오류를 아래에 유지해 재시도할 수 있게 한다. */

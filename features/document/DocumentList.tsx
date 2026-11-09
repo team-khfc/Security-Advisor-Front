@@ -56,7 +56,7 @@ function documentText(request: SecurityRequest) {
   const submission = request.submissions.find((item) => item.id === request.currentSubmissionId);
   const answers = displayedAnswers(request);
   return [
-    `${DOCUMENT_LABELS[request.docType]} · ${documentLabel(request)}`,
+    `${DOCUMENT_LABELS[request.docType] ?? request.docType} · ${documentLabel(request)}`,
     '',
     `사업명: ${request.caseTitle}`,
     `신청번호: ${request.id}`,
@@ -77,7 +77,7 @@ function documentText(request: SecurityRequest) {
 
 /** 초안은 최신 저장값으로, 제출본은 저장 당시 스냅샷으로 구분해 표시한다. */
 export function DocumentList() {
-  const requests = useRequests();
+  const requests = useRequests(true);
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<DocumentFilter>('all');
@@ -111,7 +111,7 @@ export function DocumentList() {
     if (kind !== 'all' && documentKind(request) !== kind) return false;
     return (
       !search ||
-      `${request.caseTitle} ${request.id} ${DOCUMENT_LABELS[request.docType]}`
+      `${request.caseTitle} ${request.id} ${DOCUMENT_LABELS[request.docType] ?? request.docType}`
         .toLocaleLowerCase('ko-KR')
         .includes(search.toLocaleLowerCase('ko-KR'))
     );
@@ -201,7 +201,7 @@ export function DocumentList() {
                   <span className="p-id">{request.id}</span>
                 </div>
                 <h2 className="doc-t">{request.caseTitle}</h2>
-                <p className="help">{DOCUMENT_LABELS[request.docType]}</p>
+                <p className="help">{DOCUMENT_LABELS[request.docType] ?? request.docType}</p>
                 <dl className="doc-dl">
                   <div>
                     <dt>신청 상태</dt>
@@ -343,7 +343,11 @@ export function DocumentList() {
       )}
       <Modal
         open={selected !== null}
-        title={selected ? `${DOCUMENT_LABELS[selected.docType]} 미리보기` : '문서 미리보기'}
+        title={
+          selected
+            ? `${DOCUMENT_LABELS[selected.docType] ?? selected.docType} 미리보기`
+            : '문서 미리보기'
+        }
         onClose={() => setSelected(null)}
       >
         {selected && (

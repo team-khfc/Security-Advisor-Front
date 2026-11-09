@@ -67,7 +67,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
   const caseQuery = useCase(request.caseId, canViewCase);
   const allRequests = useRequests();
   const command = useRequestCommand(request);
-  const saveCase = useSaveCase(request.caseId);
+  const saveCase = useSaveCase(request.caseId, request);
   const [dialogAction, setDialogAction] = useState<CommandAction | null>(null);
   const [message, setMessage] = useState('');
   const [failure, setFailure] = useState('');
@@ -81,7 +81,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
       !(
         answer.source &&
         answer.confirmed &&
-        answer.confirmation &&
+        (answer.source === 'USER_ANSWER' || answer.confirmation) &&
         (answer.notApplicable || answer.value.trim())
       ),
   ).length;
@@ -133,7 +133,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
         description={
           <div className="request-meta">
             <span>{request.id}</span>
-            <span>{DOCUMENT_LABELS[request.docType]}</span>
+            <span>{DOCUMENT_LABELS[request.docType] ?? request.docType}</span>
             <span>
               {request.department} · {request.ownerName}
             </span>
@@ -149,7 +149,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                       : 'info'
               }
             >
-              {STATUS_LABELS[request.status]}
+              {request.statusLabel ?? STATUS_LABELS[request.status]}
             </Badge>
           </div>
         }
@@ -159,7 +159,8 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
           <span>함께 신청한 서류</span>
           {siblings.map((sibling) => (
             <Link key={sibling.id} href={`/requests/${sibling.id}`}>
-              {DOCUMENT_LABELS[sibling.docType]} · {STATUS_LABELS[sibling.status]}
+              {DOCUMENT_LABELS[sibling.docType] ?? sibling.docType} ·{' '}
+              {STATUS_LABELS[sibling.status]}
               <Icon name="chevronRight" size={14} />
             </Link>
           ))}
@@ -186,8 +187,8 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
       </ol>
       {terminal && (
         <Notice tone={request.status === 'FINALIZED' ? 'success' : 'warning'}>
-          <strong>{STATUS_LABELS[request.status]}된 신청입니다.</strong> 내용은 읽기 전용이며 기록과
-          제출본을 보존합니다.
+          <strong>{request.statusLabel ?? STATUS_LABELS[request.status]}된 신청입니다.</strong>{' '}
+          내용은 읽기 전용이며 기록과 제출본을 보존합니다.
           {request.status === 'FINALIZED' ? (
             <p>서류 확정은 방화벽 장비 적용을 의미하지 않습니다.</p>
           ) : (
@@ -201,6 +202,11 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
             {latestReturn.fromStage}단계에서 {latestReturn.targetStage}단계로 반환되었습니다.
           </strong>
           <p>{latestReturn.reason}</p>
+          {Object.entries(latestReturn.fieldReasons ?? {}).map(([key, reason]) => (
+            <p key={key}>
+              {key}: {reason}
+            </p>
+          ))}
           <p className="help">
             {latestReturn.actorName} · {formatTime(latestReturn.createdAt)} · 기존 값은
             보존했습니다.
@@ -337,7 +343,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                 <Icon name="file" size={32} />
               </span>
               <div>
-                <h3 className="h-panel">{DOCUMENT_LABELS[request.docType]}</h3>
+                <h3 className="h-panel">{DOCUMENT_LABELS[request.docType] ?? request.docType}</h3>
                 <p className="help">
                   {request.currentSubmissionId
                     ? `제출본 v${request.submissions.at(-1)?.number} · 제출 시점의 공통값·서류값·설정 버전 보존`
@@ -411,7 +417,12 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                   actor={actor}
                   highlighted={request.highlightedFields}
                   onSave={(expectedRevision, answers) =>
-                    command.mutateAsync({ action: 'SAVE_ANSWERS', expectedRevision, answers })
+                    command.mutateAsync({
+                      action: 'SAVE_ANSWERS',
+                      expectedRevision,
+                      answers,
+                      field: roleField,
+                    })
                   }
                 />
               </details>
@@ -469,7 +480,10 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                 <div className="deadline-line" key={deadline.id}>
                   <Icon name="clock" size={16} />
                   <span>{deadline.field ? `${FIELD_LABELS[deadline.field]} ` : ''}처리 기한</span>
-                  <strong>{formatTime(deadline.dueAt)}</strong>
+                  <strong>
+                    {deadline.dueAt.slice(0, 10)}
+                    {deadline.paused ? ' · 일시 중지' : ''}
+                  </strong>
                 </div>
               ))}
             {request.stage === 4 && (
@@ -501,7 +515,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                     : '담당 분야 검토'}
               </h2>
               <p className="help">
-                현재 {request.stage}단계 · {STATUS_LABELS[request.status]}
+                현재 {request.stage}단계 · {request.statusLabel ?? STATUS_LABELS[request.status]}
               </p>
               {actor.role === 'APPLICANT' && request.stage === 2 && (
                 <Notice>담당자가 정보를 확인하고 있습니다. 보완 요청이 오면 답변해 주세요.</Notice>
@@ -803,7 +817,7 @@ function CommandForm({
       }}
     >
       <p>
-        <strong>{DOCUMENT_LABELS[request.docType]}</strong> · {request.caseTitle}
+        <strong>{DOCUMENT_LABELS[request.docType] ?? request.docType}</strong> · {request.caseTitle}
       </p>
       {action === 'REQUEST_REVIEW' && (
         <Notice>
@@ -966,10 +980,14 @@ function AssigneeSelector({
 }
 
 function TerminalReason({ requestId, status }: { requestId: string; status: string }) {
-  const audit = useAudit();
+  const audit = useAudit(requestId);
   const event = audit.data?.find(
     (item) =>
-      item.targetId === requestId && item.action === (status === 'CLOSED' ? 'CLOSE' : 'WITHDRAW'),
+      item.targetId === requestId &&
+      [
+        status === 'CLOSED' ? 'REQUEST_CLOSED' : 'REQUEST_WITHDRAWN',
+        status === 'CLOSED' ? 'CLOSE' : 'WITHDRAW',
+      ].includes(item.action),
   );
   return event ? (
     <p>
@@ -981,7 +999,7 @@ function TerminalReason({ requestId, status }: { requestId: string; status: stri
 }
 
 function RequestHistory({ requestId }: { requestId: string }) {
-  const audit = useAudit();
+  const audit = useAudit(requestId);
   const events = (audit.data ?? []).filter((event) => event.targetId === requestId);
   return (
     <section className="card">

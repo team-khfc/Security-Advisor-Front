@@ -3,8 +3,8 @@ import type { Actor } from '@/lib/types';
 
 const roleSchema = z.enum(['APPLICANT', 'INFRA', 'SECURITY', 'ADMIN']);
 
-/** Back 계약 확정 전까지 사용하는 명세 기반 모의 데이터의 서류 구분이다. */
-export const documentTypeSchema = z.enum(['FIREWALL', 'SECURITY_REVIEW']);
+/** 게시본에서 확장할 수 있는 Back 서류 코드 규칙이다. */
+export const documentTypeSchema = z.string().regex(/^[A-Z][A-Z0-9_]{1,29}$/);
 export const requestStatusSchema = z.enum([
   'DRAFT',
   'CONSULTING',
@@ -19,6 +19,8 @@ export const reviewFieldSchema = z.enum(['INFRA', 'SECURITY']);
 export const stageSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
 
 export const answerSchema = z.object({
+  revision: z.number().optional(),
+  needsReview: z.boolean().optional(),
   key: z.string(),
   label: z.string(),
   scope: z.enum(['CASE', 'REQUEST']),
@@ -30,7 +32,12 @@ export const answerSchema = z.object({
   confirmed: z.boolean(),
   notApplicable: z.boolean(),
   confirmation: z
-    .object({ actorId: z.string(), actorName: z.string(), role: roleSchema, at: z.string() })
+    .object({
+      actorId: z.string(),
+      actorName: z.string(),
+      role: roleSchema.optional(),
+      at: z.string(),
+    })
     .nullable(),
 });
 
@@ -42,7 +49,8 @@ const summaryShape = {
   docType: documentTypeSchema,
   stage: stageSchema,
   status: requestStatusSchema,
-  revision: z.number().int().positive(),
+  statusLabel: z.string().optional(),
+  revision: z.number().int().nonnegative(),
   updatedAt: z.string(),
 };
 
@@ -54,14 +62,17 @@ export const businessCaseSchema = z.object({
   description: z.string(),
   ownerId: z.string(),
   ownerName: z.string(),
-  revision: z.number().int().positive(),
-  publicationVersion: z.number().int().positive(),
+  revision: z.number().int().nonnegative(),
+  publicationVersion: z.number().int().nonnegative(),
   answers: z.array(answerSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
 export const reviewSchema = z.object({
+  revision: z.number().optional(),
+  statusLabel: z.string().optional(),
+  checklist: z.record(z.string(), z.boolean()).optional(),
   id: z.string(),
   field: reviewFieldSchema,
   status: z.enum([
@@ -89,6 +100,7 @@ export const assignmentSchema = z.object({
 });
 
 export const supplementSchema = z.object({
+  revision: z.number().optional(),
   id: z.string(),
   field: reviewFieldSchema,
   fieldKeys: z.array(z.string()),
@@ -101,6 +113,7 @@ export const supplementSchema = z.object({
 });
 
 export const deadlineSchema = z.object({
+  paused: z.boolean().optional(),
   id: z.string(),
   field: reviewFieldSchema.nullable(),
   kind: z.enum(['CONSULTATION', 'SUPPLEMENT', 'FINALIZATION']),
@@ -111,11 +124,12 @@ export const deadlineSchema = z.object({
 });
 
 export const submissionSchema = z.object({
+  snapshot: z.unknown().optional(),
   id: z.string(),
-  number: z.number().int().positive(),
-  requestRevision: z.number().int().positive(),
-  caseRevision: z.number().int().positive(),
-  publicationVersion: z.number().int().positive(),
+  number: z.number().int().nonnegative(),
+  requestRevision: z.number().int().nonnegative(),
+  caseRevision: z.number().int().nonnegative(),
+  publicationVersion: z.number().int().nonnegative(),
   commonAnswers: z.array(answerSchema),
   answers: z.array(answerSchema),
   idempotencyKey: z.string(),
@@ -126,8 +140,8 @@ export const securityRequestSchema = z.object({
   ...summaryShape,
   ownerId: z.string(),
   ownerName: z.string(),
-  caseRevision: z.number().int().positive(),
-  publicationVersion: z.number().int().positive(),
+  caseRevision: z.number().int().nonnegative(),
+  publicationVersion: z.number().int().nonnegative(),
   commonAnswers: z.array(answerSchema),
   answers: z.array(answerSchema),
   reviews: z.array(reviewSchema),
@@ -138,6 +152,7 @@ export const securityRequestSchema = z.object({
       id: z.string(),
       fromStage: stageSchema,
       targetStage: stageSchema,
+      fieldReasons: z.record(z.string(), z.string()).optional(),
       fieldKeys: z.array(z.string()),
       reason: z.string(),
       actorName: z.string(),
@@ -213,6 +228,7 @@ export interface CreateCaseInput {
 }
 
 export interface AnswerInput {
+  expectedRevision?: number;
   key: string;
   value: string;
   confirmed: boolean;
@@ -244,6 +260,8 @@ export interface CommandInput {
   targetStage?: number;
   answers?: AnswerInput[];
   comment?: string;
+  checklist?: Record<string, boolean>;
+  fieldReasons?: Record<string, string>;
   answer?: string;
   assigneeId?: string;
   field?: ReviewField;
