@@ -712,6 +712,19 @@ main:has(.new-request-page) {
 .new-case-start-form .new-case-basics > .h-panel {
   margin-bottom: 1.6rem;
 }
+.new-case-basics .form-two {
+  align-items: start;
+  margin-bottom: 2rem;
+}
+.new-case-basics .form-two > .field {
+  min-width: 0;
+  margin: 0;
+  align-content: start;
+}
+.new-case-basics .form-two .input {
+  width: 100%;
+  min-height: 4.8rem;
+}
 .new-case-start-form .document-option {
   min-width: 0;
   flex: 1 1 22rem;
@@ -881,10 +894,10 @@ progress.prog::-moz-progress-bar {
   margin-bottom: 1.2rem;
 }
 
-/* 시안의 작업 영역에 기존 대화·질문 높이와 내부 스크롤을 유지한다. */
+/* 시안처럼 대화와 질문을 한 작업 영역에 두고 대화만 내부 스크롤한다. */
 .case-work .chatp,
 .case-work .infop {
-  height: auto;
+  height: var(--work-h);
   overflow: hidden;
 }
 .case-work .chatp-h,
@@ -893,8 +906,8 @@ progress.prog::-moz-progress-bar {
   flex-shrink: 0;
 }
 .case-work .conversation-body {
-  flex: 0 0 auto;
-  height: clamp(48rem, 65dvh, 100rem);
+  flex: 1 1 auto;
+  min-height: 12rem;
 }
 .case-work .conversation-log,
 .case-work .chat-pair {
@@ -903,15 +916,42 @@ progress.prog::-moz-progress-bar {
   gap: 1.6rem;
 }
 .case-work .interview-question {
-  max-height: none;
+  max-height: 65%;
 }
 .case-work form.interview-question {
-  min-height: clamp(40rem, 42dvh, 56rem);
+  min-height: 0;
 }
-.case-work .interview-question textarea {
-  height: clamp(20rem, 24dvh, 32rem);
-  min-height: 20rem;
-  max-height: 52rem;
+.case-work .interview-question .qrow .input {
+  min-width: 0;
+  width: 100%;
+}
+.case-work .interview-question .qrow .btn {
+  flex-shrink: 0;
+}
+.case-work .interview-question .qchips {
+  margin-top: 0;
+}
+.case-work .interview-question .qchip {
+  padding-block: 0.8rem;
+  white-space: normal;
+  text-align: left;
+}
+.case-work .interview-question .qchip:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.case-work .interview-question .field > label {
+  font-weight: 400;
+}
+.case-work .interview-question .field > .help {
+  margin: 0;
+}
+.case-work .interview-draft-note {
+  margin: 0.8rem 0 0;
+}
+.case-work .interview-question > .btn-row {
+  justify-content: flex-end;
+  margin-top: 0.8rem;
 }
 .case-work .infop-b {
   height: 0;
@@ -932,14 +972,13 @@ progress.prog::-moz-progress-bar {
   }
 }
 @media (max-width: 767px) {
-  .case-work .conversation-body {
-    height: clamp(40rem, 58dvh, 64rem);
+  .case-work .chatp {
+    height: max(64rem, 80dvh);
   }
-  .case-work form.interview-question {
-    min-height: auto;
+  .case-work .qnum {
+    flex-wrap: wrap;
   }
-  .case-work .interview-question textarea {
-    height: 20rem;
-    max-height: 40rem;
+  .case-work .interview-question .qrow .btn {
+    white-space: normal;
   }
 }

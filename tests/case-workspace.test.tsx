@@ -91,3 +91,59 @@ test('다른 사용자가 열면 읽기 전용 안내만 보이고 질문 카드
   expect(screen.queryByText(/공통 질문 1 \//)).toBeNull();
   expect(screen.queryByText('기획서로 시작하거나 AI 제안 받기')).toBeNull();
 });
+
+test('시안처럼 질문 제목과 도움말을 분리하고 선택형 답변은 같은 항목에 저장한다', async () => {
+  const user = userEvent.setup();
+  render(<CaseInterview id={controls.businessCase!.id} />);
+  const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
+  expect(within(card).getByText(/남은 질문 \d+개/)).toBeTruthy();
+  expect(
+    within(card).getByText(
+      '사업 목적을 한두 문장으로 적어 주세요. 신청서의 신청 사유로 들어갑니다.',
+    ),
+  ).toBeTruthy();
+  expect(within(card).getByRole('textbox', { name: '사업 목적' }).tagName).toBe('INPUT');
+  await user.click(screen.getByRole('button', { name: '나중에 입력' }));
+  await user.click(screen.getByRole('button', { name: '개인정보가 포함돼요' }));
+  await waitFor(() =>
+    expect(controls.save).toHaveBeenCalledWith({
+      expectedRevision: controls.businessCase!.revision,
+      answers: [
+        expect.objectContaining({
+          key: 'dataTypes',
+          value: '개인정보가 포함돼요',
+          confirmed: true,
+        }),
+      ],
+    }),
+  );
+  expect(screen.getByRole('heading', { name: '외부 기관이나 서비스와 연결되나요?' })).toBeTruthy();
+  expect(
+    within(screen.getByRole('log', { name: '대화 내용' })).getByText('개인정보가 포함돼요'),
+  ).toBeTruthy();
+});
+
+test('선택형 저장 실패 시 선택한 답변을 입력란에 보존하고 직접 수정해 재시도한다', async () => {
+  const user = userEvent.setup();
+  controls.save.mockRejectedValueOnce(new Error('저장 실패. 다시 시도해 주세요.'));
+  render(<CaseInterview id={controls.businessCase!.id} />);
+  await user.click(screen.getByRole('button', { name: '나중에 입력' }));
+  await user.click(screen.getByRole('button', { name: '공개 자료만 다뤄요' }));
+  await screen.findByText('저장 실패. 다시 시도해 주세요.');
+  const input = screen.getByRole('textbox', { name: '처리하는 정보' }) as HTMLInputElement;
+  expect(input.value).toBe('공개 자료만 다뤄요');
+  expect(
+    within(screen.getByRole('log', { name: '대화 내용' })).queryByText('공개 자료만 다뤄요'),
+  ).toBeNull();
+  await user.clear(input);
+  await user.type(input, '공개 통계 자료를 처리합니다.');
+  await user.click(screen.getByRole('button', { name: '답변 저장하고 다음' }));
+  await waitFor(() =>
+    expect(controls.save).toHaveBeenLastCalledWith({
+      expectedRevision: controls.businessCase!.revision,
+      answers: [
+        expect.objectContaining({ key: 'dataTypes', value: '공개 통계 자료를 처리합니다.' }),
+      ],
+    }),
+  );
+});
