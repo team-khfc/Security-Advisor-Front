@@ -1,5 +1,6 @@
+import { render } from './queryRender';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RequestDetail } from '@/features/request/RequestDetail';
 import type { BusinessCase, ReviewField, SecurityRequest } from '@/features/request/types';

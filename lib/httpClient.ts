@@ -85,7 +85,7 @@ async function problemFromResponse(response: Response): Promise<ProblemDetail> {
 }
 
 /** 모든 화면은 같은 출처 API만 사용하며 세션·CSRF 전달을 이 경계에 모은다. */
-export async function requestJson<T>(path: string, options: RequestJsonOptions = {}): Promise<T> {
+async function requestResponse(path: string, options: RequestJsonOptions = {}): Promise<Response> {
   if (!path.startsWith('/api/') || path.includes('\\')) {
     throw new ApiError({
       type: 'about:blank',
@@ -99,7 +99,7 @@ export async function requestJson<T>(path: string, options: RequestJsonOptions =
   const changesState = !['GET', 'HEAD', 'OPTIONS'].includes(method);
   if (changesState) await initializeCsrf(options.signal);
   const headers = new Headers(options.headers);
-  headers.set('Accept', 'application/json');
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   headers.set('X-Requested-With', 'SecurityAdvisor');
   const token = csrfToken();
   if (changesState && token) headers.set('X-XSRF-TOKEN', token);
@@ -119,6 +119,20 @@ export async function requestJson<T>(path: string, options: RequestJsonOptions =
           : JSON.stringify(options.body),
   });
   if (!response.ok) throw new ApiError(await problemFromResponse(response));
+  return response;
+}
+
+/** JSON과 파일에 동일한 인증·CSRF·오류 처리를 적용한다. */
+export async function requestJson<T>(path: string, options: RequestJsonOptions = {}): Promise<T> {
+  const response = await requestResponse(path, options);
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+/** 서버가 생성한 PDF만 받고 로그인 페이지나 JSON을 파일로 저장하지 않는다. */
+export async function requestBlob(path: string): Promise<Blob> {
+  const response = await requestResponse(path, { headers: { Accept: 'application/pdf' } });
+  if (!response.headers.get('content-type')?.startsWith('application/pdf'))
+    throw new Error('PDF 응답을 받지 못했습니다. 다시 시도해 주세요.');
+  return response.blob();
 }

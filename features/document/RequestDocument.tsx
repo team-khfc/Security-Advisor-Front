@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { PdfDownloadButton } from './PdfDownloadButton';
+import { FinalReportText } from './FinalReportText';
+import { useFinalDraft } from '@/features/request/useFinalDraft';
 import { Badge, Modal, Notice } from '@/components/ui';
 import { AnswerView } from '@/features/request/AnswerEditor';
 import {
@@ -89,22 +92,12 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-function downloadDocument(requestId: string, text: string, submission?: Submission) {
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${requestId.replace(/[^a-zA-Z0-9._-]/g, '_')}_${submission ? `제출본v${submission.number}` : '초안'}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 /** 시안의 문서 카드에서 실제 저장값과 불변 제출본을 구분해 미리보고 내려받는다. */
 export function RequestDocument({ request }: { request: SecurityRequest }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const submission = request.submissions.find((item) => item.id === request.currentSubmissionId);
+  const finalDraft = useFinalDraft(request.id, !submission && request.stage === 3);
+  const finalPending = !!finalDraft.data && (!finalDraft.data.confirmed || finalDraft.data.stale);
   const unavailable = Boolean(
     (request.currentSubmissionId || request.stage === 4 || request.status === 'FINALIZED') &&
     !submission,
@@ -115,14 +108,12 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
       ? [...submission.commonAnswers, ...submission.answers]
       : [...request.commonAnswers, ...request.answers];
   const text = documentText(request, answers, submission);
-  const bytes = new TextEncoder().encode(text).length;
-  const size = bytes > 1024 ? `${(bytes / 1024).toFixed(1)}KB` : `${bytes}B`;
-  const aiPending = answers.filter(
-    (answer) => answer.source === 'AI_INFERRED' && needsConfirmation(answer),
-  ).length;
-  const otherPending = answers.filter(
-    (answer) => answer.source !== 'AI_INFERRED' && needsConfirmation(answer),
-  ).length;
+  const aiPending =
+    answers.filter((answer) => answer.source === 'AI_INFERRED' && needsConfirmation(answer))
+      .length + (finalPending && finalDraft.data?.valueSource === 'AI_INFERRED' ? 1 : 0);
+  const otherPending =
+    answers.filter((answer) => answer.source !== 'AI_INFERRED' && needsConfirmation(answer))
+      .length + (finalPending && finalDraft.data?.valueSource === 'USER_ANSWER' ? 1 : 0);
   const checkState = [
     otherPending > 0 ? `미확정 ${otherPending}개` : '',
     aiPending > 0 ? `AI 추론 미확인 ${aiPending}개` : '',
@@ -171,7 +162,7 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
           </div>
           <div>
             <dt>문서 형식</dt>
-            <dd>{unavailable ? '확인 필요' : `TXT, ${size}`}</dd>
+            <dd>{unavailable ? '확인 필요' : 'PDF · 생성 후 용량 표시'}</dd>
           </div>
         </dl>
         {unavailable && (
@@ -194,14 +185,11 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
           >
             문서 미리보기
           </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-tertiary"
+          <PdfDownloadButton
+            requestId={request.id}
+            submissionId={submission?.id}
             disabled={unavailable}
-            onClick={() => downloadDocument(request.id, text, submission)}
-          >
-            TXT 다운로드{unavailable ? '' : ` (${size})`}
-          </button>
+          />
         </div>
       </div>
       {request.submissions.length > 0 && (
@@ -214,6 +202,8 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
                 {formatTime(version.createdAt)} · 게시본 v{version.publicationVersion}
               </p>
               <AnswerView answers={[...version.commonAnswers, ...version.answers]} />
+              <FinalReportText request={request} submission={version} />
+              <PdfDownloadButton requestId={request.id} submissionId={version.id} />
             </div>
           ))}
         </details>
@@ -226,15 +216,13 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
         <pre className="docpre" tabIndex={0} aria-label="문서 내용">
           {text}
         </pre>
+        {!unavailable && <FinalReportText request={request} submission={submission} />}
         <div className="dlg-actions">
-          <button
-            type="button"
-            className="btn btn-tertiary"
-            onClick={() => downloadDocument(request.id, text, submission)}
+          <PdfDownloadButton
+            requestId={request.id}
+            submissionId={submission?.id}
             disabled={unavailable}
-          >
-            TXT 다운로드
-          </button>
+          />
           <button type="button" className="btn" onClick={() => setPreviewOpen(false)}>
             닫기
           </button>

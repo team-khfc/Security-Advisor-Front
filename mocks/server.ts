@@ -1,5 +1,6 @@
 import { ContractMapper } from './contractMapper';
 import type { InterviewTurn } from '@/features/request/useInterview';
+import type { FinalDraft } from '@/features/request/useFinalDraft';
 import { compare, hash } from 'bcryptjs';
 import { z } from 'zod';
 import { loginInputSchema, signupInputSchema } from '@/features/auth';
@@ -68,6 +69,7 @@ interface MockRuntime {
   attempts: Map<string, LoginAttempt>;
   analyses: Map<string, CaseAnalysis>;
   interviewTurns: Map<number, { turn: InterviewTurn; fingerprint: string }>;
+  finalDrafts: Map<string, { draft: FinalDraft; fingerprint: string }>;
   dummyHash: string;
 }
 export interface MockApiOptions {
@@ -197,6 +199,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
     attempts: new Map(),
     analyses: new Map(),
     interviewTurns: new Map(),
+    finalDrafts: new Map(),
     dummyHash: await hash(crypto.randomUUID(), 10),
   };
 }
@@ -996,6 +999,100 @@ async function dispatchContract(
     (resource === 'members' && method === 'POST' && !numericId)
       ? undefined
       : sessionMember(runtime, request, now);
+  const draftFingerprint = (r: SecurityRequest) =>
+    JSON.stringify([r.revision, getCase(runtime, r.caseId, actor!).answers, r.answers]);
+  if (resource === 'security-requests' && sub === 'final-draft' && method === 'GET') {
+    const r = getRequest(runtime, id, actor!);
+    const stored = runtime.finalDrafts.get(id);
+    return stored
+      ? json({ ...stored.draft, stale: stored.fingerprint !== draftFingerprint(r) })
+      : new Response(null, { status: 204 });
+  }
+  if (
+    resource === 'security-requests' &&
+    ['final-draft-generations', 'final-drafts'].includes(sub) &&
+    method === 'POST'
+  ) {
+    const r = getRequest(runtime, id, actor!);
+    if (actor!.id !== r.ownerId) fail(403, 'FORBIDDEN', '신청자만 초안을 작성할 수 있습니다.');
+    if (r.stage !== 3 || r.status !== 'FINAL_REVIEW')
+      fail(422, 'INVALID_STAGE', '최종 검토 단계에서 작성해 주세요.');
+    const input = parse(
+      z.object({
+        expectedRevision: z.number(),
+        text: z.string().trim().min(1).max(12000).optional(),
+      }),
+      await request.json(),
+    );
+    if (input.expectedRevision !== r.revision)
+      fail(409, 'STALE_REVISION', '신청이 변경되었습니다.');
+    if (sub === 'final-drafts' && !input.text)
+      fail(422, 'EMPTY_DRAFT', '최종 보고서 내용을 작성해 주세요.');
+    const draft: FinalDraft = {
+      finalDraftId: Number(wire.id(crypto.randomUUID())),
+      securityRequestId: Number(numericId),
+      text:
+        sub === 'final-drafts'
+          ? input.text!
+          : `${r.caseTitle} 사업의 요청 내용입니다. 저장된 답변을 확인하고 담당자 협의 내용을 반영합니다. (모의 AI 합성 초안)`,
+      valueSource: sub === 'final-drafts' ? 'USER_ANSWER' : 'AI_INFERRED',
+      modelReference: sub === 'final-drafts' ? null : 'fake/offline',
+      confirmedBy: null,
+      confirmedAt: null,
+      confirmed: false,
+      stale: false,
+      revision: 0,
+    };
+    runtime.finalDrafts.set(id, { draft, fingerprint: draftFingerprint(r) });
+    return json(draft, 201);
+  }
+  if (resource === 'final-drafts' && sub === 'confirmation' && method === 'PUT') {
+    const entry = [...runtime.finalDrafts.entries()].find(
+      ([, s]) => String(s.draft.finalDraftId) === numericId,
+    );
+    if (!entry) fail(404, 'NOT_FOUND', '최신 초안을 다시 확인해 주세요.');
+    const [requestId, stored] = entry;
+    const r = getRequest(runtime, requestId, actor!);
+    if (actor!.id !== r.ownerId) fail(403, 'FORBIDDEN', '신청자만 확인할 수 있습니다.');
+    if (r.stage !== 3 || r.status !== 'FINAL_REVIEW')
+      fail(422, 'INVALID_STAGE', '최종 검토 단계에서 확인해 주세요.');
+    const input = parse(
+      z.object({ expectedRevision: z.number(), text: z.string().trim().min(1).max(12000) }),
+      await request.json(),
+    );
+    if (
+      input.expectedRevision !== stored.draft.revision ||
+      stored.fingerprint !== draftFingerprint(r)
+    )
+      fail(409, 'STALE_DRAFT', '원본 답변 또는 초안이 변경되었습니다. 다시 작성해 주세요.');
+    stored.draft = {
+      ...stored.draft,
+      text: input.text,
+      confirmed: true,
+      confirmedBy: actor!.username ?? actor!.id,
+      confirmedAt: new Date(now).toISOString(),
+      revision: stored.draft.revision + 1,
+    };
+    return json(stored.draft);
+  }
+  if (resource === 'security-requests' && sub === 'generated-documents' && method === 'POST') {
+    getRequest(runtime, id, actor!);
+    fail(
+      503,
+      'PDF_REQUIRES_BACKEND',
+      '모의 환경에서는 PDF를 생성하지 않습니다. 실제 서버 연결 환경에서 내려받아 주세요.',
+    );
+  }
+  if (resource === 'security-requests' && sub === 'submissions' && method === 'POST') {
+    const r = getRequest(runtime, id, actor!);
+    const stored = runtime.finalDrafts.get(id);
+    if (
+      r.stage === 3 &&
+      stored &&
+      (!stored.draft.confirmed || stored.fingerprint !== draftFingerprint(r))
+    )
+      fail(422, 'UNCONFIRMED_FINAL_DRAFT', '최신 최종 초안을 확인한 뒤 제출해 주세요.');
+  }
   if (resource === 'security-requests' && method === 'GET' && sub && sub !== 'documents') {
     const r = getRequest(runtime, id, actor!);
     const collections: Record<string, unknown> = {
@@ -1391,6 +1488,13 @@ async function dispatchContract(
       : [];
   const response = await dispatch(runtime, legacy, now, options);
   if (!response.ok || response.status === 204 || sub === 'documents') return response;
+  if (resource === 'security-requests' && sub === 'submissions' && method === 'POST') {
+    const r = runtime.state.requests.find((item) => item.id === id)!;
+    const submission = r.submissions.find((item) => item.id === r.currentSubmissionId);
+    const stored = runtime.finalDrafts.get(id);
+    if (submission && stored && !submission.snapshot)
+      submission.snapshot = { finalDraft: structuredClone(stored.draft) };
+  }
   const value: unknown = await response.json();
   let output: unknown = value;
   if (

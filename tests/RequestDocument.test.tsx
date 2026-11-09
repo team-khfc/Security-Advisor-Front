@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import * as http from '@/lib/httpClient';
+import { render } from './queryRender';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { RequestDocument } from '@/features/document/RequestDocument';
@@ -180,7 +182,7 @@ test('제출본 본문이 누락되면 현재 초안으로 대신 내보내지 �
   expect(
     (screen.getByRole('button', { name: '문서 미리보기' }) as HTMLButtonElement).disabled,
   ).toBe(true);
-  expect((screen.getByRole('button', { name: 'TXT 다운로드' }) as HTMLButtonElement).disabled).toBe(
+  expect((screen.getByRole('button', { name: 'PDF 다운로드' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
   expect(screen.queryByText('모든 값 확인됨')).toBeNull();
@@ -205,7 +207,7 @@ test.each(['SUBMITTED', 'FINALIZED'] as const)(
       (screen.getByRole('button', { name: '문서 미리보기' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(
-      (screen.getByRole('button', { name: 'TXT 다운로드' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'PDF 다운로드' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(screen.queryByText('모든 값 확인됨')).toBeNull();
     expect(screen.getByLabelText('문서 내용').textContent).not.toContain(
@@ -214,58 +216,44 @@ test.each(['SUBMITTED', 'FINALIZED'] as const)(
   },
 );
 
-test('TXT 다운로드의 실제 UTF-8 바이트와 표시 크기가 미리보기 내용과 일치하고 임시 URL을 해제한다', async () => {
+test('PDF 다운로드는 지정한 제출본을 생성하고 서버의 파일 바이트·용량·임시 URL을 사용한다', async () => {
+  const json = vi.spyOn(http, 'requestJson').mockResolvedValue({ generatedDocumentId: 88 });
+  const blob = new Blob(['%PDF-1.7 합성 PDF 바이트'], { type: 'application/pdf' });
+  const binary = vi.spyOn(http, 'requestBlob').mockResolvedValue(blob);
+  const createUrl = vi.fn(() => 'blob:synthetic-pdf');
+  const revokeUrl = vi.fn();
+  vi.stubGlobal(
+    'URL',
+    Object.assign(URL, { createObjectURL: createUrl, revokeObjectURL: revokeUrl }),
+  );
+  const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  const frozen = submission({ id: '123' });
   render(
     <RequestDocument
-      request={request({ commonAnswers: [answer({ value: '한글 합성 문서 내용 🎯' })] })}
+      request={request({ id: '42', currentSubmissionId: '123', submissions: [frozen] })}
     />,
   );
-  const preview = await openPreview();
-  const text = preview.textContent ?? '';
-  const bytes = new TextEncoder().encode(text).length;
-  const size = bytes > 1024 ? `${(bytes / 1024).toFixed(1)}KB` : `${bytes}B`;
-  expect(screen.getByText(`TXT, ${size}`)).toBeTruthy();
+  const card = screen.getByRole('region', { name: '문서' });
+  fireEvent.click(within(card).getAllByRole('button', { name: 'PDF 다운로드' })[0]);
+  await waitFor(() => expect(clicked).toHaveBeenCalledOnce());
+  expect(json).toHaveBeenCalledWith('/api/security-requests/42/generated-documents', {
+    method: 'POST',
+    body: { submissionId: 123, aiSupplement: false },
+  });
+  expect(binary).toHaveBeenCalledWith('/api/generated-documents/88/download?format=PDF');
+  expect(createUrl).toHaveBeenCalledWith(blob);
+  expect(screen.getByRole('status').textContent).toContain((blob.size / 1024).toFixed(1) + 'KB');
+  await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith('blob:synthetic-pdf'), {
+    timeout: 2000,
+  });
+});
 
-  const createUrl = vi.fn<(blob: Blob) => string>(() => 'blob:demo-request-document');
-  const revokeUrl = vi.fn();
-  const originalCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
-  const originalRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
-  Object.defineProperties(URL, {
-    createObjectURL: { configurable: true, value: createUrl },
-    revokeObjectURL: { configurable: true, value: revokeUrl },
-  });
-  const downloaded: { href: string; filename: string }[] = [];
-  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
-    this: HTMLAnchorElement,
-  ) {
-    downloaded.push({ href: this.href, filename: this.download });
-  });
-  vi.useFakeTimers();
-  try {
-    fireEvent.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'TXT 다운로드' }),
-    );
-    expect(createUrl).toHaveBeenCalledOnce();
-    expect(createUrl.mock.calls[0][0].size).toBe(bytes);
-    expect(createUrl.mock.calls[0][0].type).toBe('text/plain;charset=utf-8');
-    expect(downloaded).toEqual([
-      { href: 'blob:demo-request-document', filename: `${request().id}_초안.txt` },
-    ]);
-    expect(revokeUrl).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1000);
-    expect(revokeUrl).toHaveBeenCalledWith('blob:demo-request-document');
-    vi.useRealTimers();
-    const downloadedText = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error('합성 다운로드 내용을 읽지 못했습니다.'));
-      reader.readAsText(createUrl.mock.calls[0][0]);
-    });
-    expect(downloadedText).toBe(text);
-  } finally {
-    if (originalCreate) Object.defineProperty(URL, 'createObjectURL', originalCreate);
-    else Reflect.deleteProperty(URL, 'createObjectURL');
-    if (originalRevoke) Object.defineProperty(URL, 'revokeObjectURL', originalRevoke);
-    else Reflect.deleteProperty(URL, 'revokeObjectURL');
-  }
+test('PDF 생성 실패는 오류를 표시하며 성공 다운로드를 만들지 않는다', async () => {
+  vi.spyOn(http, 'requestJson').mockRejectedValue(new Error('출력 형식을 사용할 수 없습니다.'));
+  const binary = vi.spyOn(http, 'requestBlob');
+  render(<RequestDocument request={request({ stage: 1 })} />);
+  fireEvent.click(screen.getByRole('button', { name: 'PDF 다운로드' }));
+  await screen.findByText('출력 형식을 사용할 수 없습니다.');
+  expect(binary).not.toHaveBeenCalled();
+  expect(screen.queryByText(/다운로드 준비 완료/)).toBeNull();
 });

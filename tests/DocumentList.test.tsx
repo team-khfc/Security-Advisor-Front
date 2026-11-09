@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { render } from './queryRender';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { DocumentList } from '@/features/document';
@@ -209,22 +210,31 @@ test('뒤쪽 페이지의 미리보기와 상세·다운로드 링크가 선택�
   expect(within(card).getByRole('link', { name: '신청 상세' }).getAttribute('href')).toBe(
     '/requests/demo-document-07#documents',
   );
-  expect(
-    within(card).getByRole('link', { name: '미리보기 데이터 (JSON)' }).getAttribute('href'),
-  ).toBe('/api/security-requests/demo-document-07/documents');
+  expect(within(card).getByRole('button', { name: 'PDF 다운로드' })).toBeTruthy();
 
   await user.click(within(card).getByRole('button', { name: '미리보기' }));
   const dialog = screen.getByRole('dialog', { name: '방화벽신청서 미리보기' });
   expect(dialog.textContent).toContain('사업명: 합성 문서 07');
   expect(dialog.textContent).toContain('신청번호: demo-document-07');
-  expect(
-    within(dialog)
-      .getByRole('link', { name: '미리보기 데이터 내려받기 (JSON)' })
-      .getAttribute('href'),
-  ).toBe('/api/security-requests/demo-document-07/documents');
+  expect(within(dialog).getByRole('button', { name: 'PDF 다운로드' })).toBeTruthy();
 
   await user.click(within(dialog).getByRole('button', { name: '닫기' }));
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.getByRole('status').textContent).toContain('2 / 3페이지');
   expect(visibleTitles()).toEqual(controls.requests.slice(6, 12).map((item) => item.caseTitle));
+});
+
+test('4단계 제출본 정보가 없으면 현재 초안 PDF를 대신 다운로드하지 않는다', async () => {
+  const request = createDocuments(7)[6];
+  controls.requests = [{ ...request, stage: 4, currentSubmissionId: null, submissions: [] }];
+  const user = userEvent.setup();
+  render(<DocumentList />);
+  expect((screen.getByRole('button', { name: 'PDF 다운로드' }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  await user.click(screen.getByRole('button', { name: '미리보기' }));
+  const dialog = screen.getByRole('dialog');
+  expect(
+    (within(dialog).getByRole('button', { name: 'PDF 다운로드' }) as HTMLButtonElement).disabled,
+  ).toBe(true);
 });

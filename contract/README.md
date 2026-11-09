@@ -2,8 +2,9 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `b2f232bcd2c78d24db43c03407c3867894bfb7ee`
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/b2f232bcd2c78d24db43c03407c3867894bfb7ee/docs/api/openapi.yaml
+- Back 커밋: `c6cfccd63bac4e96f376d9b6e18f3b9a16de10e3`
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/c6cfccd63bac4e96f376d9b6e18f3b9a16de10e3/docs/api/openapi.yaml
+- 최종 보고서·PDF API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/4
 - 인터뷰 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/2
 - 요청서: https://github.com/team-khfc/Security-Advisor-Back/blob/74cbdfb5ef0896b2628d243e3bec7f01b183eaac/docs/FRONT_CHANGE_REQUEST_20261109.md
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
@@ -29,3 +30,5 @@
 기존 정렬 결과는 `docs/API_ALIGNMENT_20261109.md`, 신청자 인터뷰 추가 사항과 실제 도커 검증은 `docs/APPLICANT_INTERVIEW_20261110.md`에 기록한다.
 
 신청자 인터뷰의 GET/POST 대화와 POST 적용 계약을 추가했다. 화면은 게시본 `type`·`hint`를 보존하고, 항목 도움말은 해당 사업 건의 `publicationId`로 조회한다. 자유 질문과 추천 미리보기는 답변 저장과 분리한다. 명시적 적용 뒤에도 AI 값은 미확정이며 기존 confirmation API로 확인한다.
+
+최종 보고서는 GET `final-draft`, POST `final-draft-generations`/`final-drafts`, PUT `final-drafts/{id}/confirmation`을 사용한다. 생성 시 신청 revision, 확인 시 초안 revision을 보낸다. 최초 조회 204는 미작성으로 처리하고, 제출 후에는 snapshot.finalDraft를 표시한다. PDF는 기존 generated-documents에 submissionId를 지정한 뒤 download?format=PDF로 받는다. 실제 Docker 검증은 [최종 보고서 기록](../docs/FINAL_DRAFT_20261110.md)에 있다.
