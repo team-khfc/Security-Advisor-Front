@@ -236,7 +236,22 @@ function InterviewWorkspace({
     questionIndex: number;
     answers: Record<string, { value: string; revision: number; answerRevision?: number }>;
   }>(actor.id, `case:${businessCase.id}:interview`);
-  const [questionIndex, setQuestionIndex] = useState(() => draft?.questionIndex ?? 0);
+  const [questionIndex, setQuestionIndex] = useState(() => {
+    if (draft) return draft.questionIndex;
+    // 새로고침 후에도 서버에 저장한 미확정 추천을 먼저 확인한다.
+    const pendingSuggestion = questions.findIndex(
+      (answer) =>
+        answer.source === 'AI_INFERRED' &&
+        answer.value &&
+        (!answer.confirmed || answer.needsReview),
+    );
+    if (pendingSuggestion >= 0) return pendingSuggestion;
+    const incomplete = questions.findIndex(
+      (answer) =>
+        !(answer.value || answer.notApplicable) || !answer.confirmed || answer.needsReview,
+    );
+    return incomplete >= 0 ? incomplete : questions.length;
+  });
   const [chat, setChat] = useState<{ question: string; answer: string; createdAt: number }[]>([]);
   const conversationRef = useRef<HTMLDivElement>(null);
   const latestMessageRef = useRef<HTMLDivElement>(null);
@@ -492,8 +507,13 @@ function InterviewWorkspace({
                       question={questions.find((q) => q.key === message.turn.fieldKey)}
                       active={editable && question?.key === message.turn.fieldKey}
                       state={assistance}
-                      onSelect={() =>
-                        goToQuestion(questions.findIndex((q) => q.key === message.turn.fieldKey))
+                      onSelect={
+                        editable
+                          ? () =>
+                              goToQuestion(
+                                questions.findIndex((q) => q.key === message.turn.fieldKey),
+                              )
+                          : undefined
                       }
                     />
                   </div>

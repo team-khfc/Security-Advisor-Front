@@ -134,7 +134,7 @@ export function InterviewTurnMessage({
   question?: Answer;
   active: boolean;
   state: InterviewAssistanceState;
-  onSelect: () => void;
+  onSelect?: () => void;
 }) {
   const applied = turn.applied || state.apply.data?.interviewTurnId === turn.interviewTurnId;
   return (
@@ -149,7 +149,13 @@ export function InterviewTurnMessage({
             <strong>{question?.label ?? '항목 도움말'}</strong>
             <Badge tone="warning">
               {turn.modelReference.includes('fake') ? '모의 AI' : 'AI'} ·{' '}
-              {turn.mode === 'ASK' ? '설명' : applied ? '추천답변 적용됨' : '추천답변 미확정'}
+              {turn.mode === 'ASK'
+                ? '설명'
+                : applied
+                  ? '추천답변 적용됨'
+                  : turn.proposedValue
+                    ? '추천답변 미확정'
+                    : '추가 정보 필요'}
             </Badge>
             <p className="interview-ai-text">{turn.reply}</p>
             {turn.proposedValue && (
@@ -169,11 +175,26 @@ export function InterviewTurnMessage({
               </details>
             )}
             {applied ? (
-              <p className="help">
-                {question?.confirmed
-                  ? '추천을 적용한 뒤 사용자가 내용을 확인했습니다.'
-                  : '미확정 답변으로 적용했습니다. 내용을 확인한 뒤 답변을 저장해 주세요.'}
-              </p>
+              <>
+                <p className="help">
+                  {question?.confirmed
+                    ? '추천을 적용한 뒤 사용자가 내용을 확인했습니다.'
+                    : '미확정 답변으로 적용했습니다. 내용을 확인한 뒤 답변을 저장해 주세요.'}
+                </p>
+                {question &&
+                  (!question.confirmed || question.needsReview) &&
+                  !active &&
+                  onSelect && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={state.apply.isPending}
+                      onClick={onSelect}
+                    >
+                      적용한 답변 확인하기
+                    </button>
+                  )}
+              </>
             ) : (
               turn.proposedValue &&
               !turn.flagged && (
@@ -198,7 +219,8 @@ export function InterviewTurnMessage({
                       {state.apply.isPending ? '적용 중…' : '추천을 미확정 답변으로 적용'}
                     </button>
                   ) : (
-                    question && (
+                    question &&
+                    onSelect && (
                       <button
                         type="button"
                         className="btn btn-sm"

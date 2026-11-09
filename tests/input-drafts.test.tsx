@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, beforeEach, afterEach, expect, test, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NewRequest } from '@/features/request/NewRequest';
 import { AnalysisPanel, CaseInterview } from '@/features/request/CaseInterview';
@@ -140,12 +140,12 @@ test('새 신청 입력은 화면 복귀 시 복원하며 다른 계정의 새 �
 test('인터뷰 답변을 재로그인 후 복원하고 그동안 서버 값이 바뀌면 비교 전 저장을 막는다', async () => {
   const user = userEvent.setup();
   const businessCase = controls.businessCase!;
-  const first = render(<CaseInterview id={businessCase.id} />);
+  const first = renderForEditing(businessCase.id);
   await user.clear(screen.getByLabelText('사업 목적'));
   await user.type(screen.getByLabelText('사업 목적'), '아직 보내지 않은 인터뷰 답변');
   first.unmount();
   controls.businessCase = { ...businessCase, revision: businessCase.revision + 1 };
-  render(<CaseInterview id={businessCase.id} />);
+  renderForEditing(businessCase.id);
   expect((screen.getByLabelText('사업 목적') as HTMLTextAreaElement).value).toBe(
     '아직 보내지 않은 인터뷰 답변',
   );
@@ -203,3 +203,11 @@ vi.mock('@/features/request/useInterviewAssistance', () => ({
     isStale: () => false,
   }),
 }));
+
+// 기존 합성 자료는 완료된 답변이다. 재작성 검사는 사용자가 다시 보기로 여는 흐름을 따른다.
+function renderForEditing(id: string) {
+  const view = render(<CaseInterview id={id} />);
+  const restart = screen.queryByRole('button', { name: '공통 질문 다시 보기' });
+  if (restart) fireEvent.click(restart);
+  return view;
+}

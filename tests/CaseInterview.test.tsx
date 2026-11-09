@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CaseInterview } from '@/features/request/CaseInterview';
 import type { BusinessCase, SecurityRequest } from '@/features/request/types';
@@ -72,6 +72,74 @@ function conversation() {
   return screen.getByRole('region', { name: '인터뷰 대화' });
 }
 
+test('새로 열면 완료된 항목을 건너뛰고 저장된 미완료 항목부터 작성한다', () => {
+  const answers = controls.businessCase!.answers;
+  const target = answers.filter((answer) => answer.ownerRole === 'APPLICANT')[1];
+  controls.businessCase = {
+    ...controls.businessCase!,
+    answers: answers.map((answer) =>
+      answer.key === target.key ? { ...answer, value: '', confirmed: false } : answer,
+    ),
+  };
+  render(<CaseInterview id={controls.businessCase.id} />);
+  expect(screen.getByRole('textbox', { name: target.label })).toBeTruthy();
+  expect(controls.save).not.toHaveBeenCalled();
+});
+
+test('저장된 미확정 AI 답변부터 재개하고 다른 항목으로 이동한 뒤에도 대화에서 다시 확인할 수 있다', async () => {
+  const answers = controls.businessCase!.answers;
+  const applicantAnswers = answers.filter((answer) => answer.ownerRole === 'APPLICANT');
+  const target = applicantAnswers.at(-1)!;
+  controls.businessCase = {
+    ...controls.businessCase!,
+    answers: answers.map((answer) =>
+      answer.key === target.key
+        ? { ...answer, value: '합성 추천', confirmed: false, source: 'AI_INFERRED' as const }
+        : answer.key === applicantAnswers[0].key
+          ? { ...answer, value: '', confirmed: false }
+          : answer,
+    ),
+  };
+  controls.turns = [
+    {
+      interviewTurnId: 73,
+      businessCaseId: 601,
+      fieldKey: target.key,
+      mode: 'SUGGEST',
+      question: '합성 질문',
+      reply: '합성 설명',
+      proposedValue: '합성 추천',
+      evidence: [],
+      basedRevision: 1,
+      answerRevision: null,
+      modelReference: 'fake/offline',
+      flagged: false,
+      applied: true,
+      createdAt: '2026-11-10T00:00:00Z',
+    },
+  ];
+  const user = userEvent.setup();
+  const view = render(<CaseInterview id={controls.businessCase.id} />);
+  expect((screen.getByRole('textbox', { name: target.label }) as HTMLInputElement).value).toBe(
+    '합성 추천',
+  );
+  expect(screen.getByRole('button', { name: 'AI 답변 확인하고 다음' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '나중에 입력' }));
+  await user.click(screen.getByRole('button', { name: '적용한 답변 확인하기' }));
+  expect(screen.getByRole('textbox', { name: target.label })).toBeTruthy();
+  expect(controls.save).not.toHaveBeenCalled();
+  controls.session = { member: MOCK_MEMBERS[1], mock: true, expiresAt: null };
+  view.rerender(<CaseInterview id={controls.businessCase.id} />);
+  expect(screen.queryByRole('button', { name: '적용한 답변 확인하기' })).toBeNull();
+});
+
+test('저장된 답변을 모두 확인했다면 다시 작성하도록 요구하지 않고 완료 안내를 표시한다', () => {
+  render(<CaseInterview id={controls.businessCase!.id} />);
+  expect(screen.getByRole('heading', { name: '공통 정보를 정리했습니다' })).toBeTruthy();
+  expect(screen.queryByRole('form')).toBeNull();
+  expect(controls.save).not.toHaveBeenCalled();
+});
+
 test('게시본의 질문·도움말·긴 답변 형식과 미완료 상태를 표시한다', async () => {
   const original = controls.businessCase!;
   controls.businessCase = {
@@ -90,7 +158,7 @@ test('게시본의 질문·도움말·긴 답변 형식과 미완료 상태를 �
     ],
   };
   const user = userEvent.setup();
-  render(<CaseInterview id={original.id} />);
+  renderForEditing(original.id);
   expect(screen.getByRole('heading', { name: '게시본 사업 개요' })).toBeTruthy();
   expect(screen.getByText('사업 목적과 대상 이용자를 적어 주세요.')).toBeTruthy();
   expect(screen.getByRole('textbox', { name: '게시본 사업 개요' }).tagName).toBe('TEXTAREA');
@@ -189,7 +257,7 @@ async function fillAnswer(user: ReturnType<typeof userEvent.setup>, label: strin
 
 test('긴 AI 응답은 대화창에 한 번 표시하고 다음 요청 실패 시 이전 응답 대신 오류를 보여 준다', () => {
   const id = controls.businessCase!.id;
-  const view = render(<CaseInterview id={id} />);
+  const view = renderForEditing(id);
   const body = conversation();
   mockConversationLayout(body, { pairHeight: 520 });
   const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
@@ -242,7 +310,7 @@ test('답변 저장과 마지막 공통 답변 저장 후 새 답변의 끝을 �
     answers: businessCase.answers.filter((answer) => answer.ownerRole === 'APPLICANT').slice(0, 2),
   };
   const user = userEvent.setup();
-  render(<CaseInterview id={businessCase.id} />);
+  renderForEditing(businessCase.id);
   const body = conversation();
   mockConversationLayout(body, { pairHeight: 520 });
   const scrollPage = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
@@ -274,7 +342,7 @@ test('답변 저장과 마지막 공통 답변 저장 후 새 답변의 끝을 �
 
 test('대화 밖의 분석 패널이 열려 있어도 대화 영역에서 새로 저장한 답변을 보여 준다', async () => {
   const user = userEvent.setup();
-  render(<CaseInterview id={controls.businessCase!.id} />);
+  renderForEditing(controls.businessCase!.id);
   const body = conversation();
   mockConversationLayout(body);
   const analysisToggle = screen.getByText('기획서로 시작하거나 AI 제안 받기');
@@ -304,7 +372,7 @@ test('대화 밖의 분석 패널이 열려 있어도 대화 영역에서 새로
 
 test('입력·저장 실패 중에는 읽던 위치를 유지하고 나중에 입력을 선택하면 다음 질문을 보여 준다', async () => {
   const user = userEvent.setup();
-  render(<CaseInterview id={controls.businessCase!.id} />);
+  renderForEditing(controls.businessCase!.id);
   const body = conversation();
   mockConversationLayout(body, { pairHeight: 520 });
   await fillAnswer(user, '사업 목적', '저장을 마친 합성 답변입니다.');
@@ -328,7 +396,7 @@ test('입력·저장 실패 중에는 읽던 위치를 유지하고 나중에 �
 test('저장 응답을 기다리는 동안 위치를 유지하고 성공 응답 뒤에만 새 대화로 이동한다', async () => {
   const user = userEvent.setup();
   const id = controls.businessCase!.id;
-  const view = render(<CaseInterview id={id} />);
+  const view = renderForEditing(id);
   const body = conversation();
   mockConversationLayout(body, { pairHeight: 520 });
   await fillAnswer(user, '사업 목적', '이미 저장한 합성 답변입니다.');
@@ -361,3 +429,11 @@ test('저장 응답을 기다리는 동안 위치를 유지하고 성공 응답 
   await waitFor(() => expectLatestAnswerVisible(body));
   expect(body.scrollTop).toBeGreaterThan(40);
 });
+
+// 기존 합성 자료는 완료된 답변이다. 재작성 검사는 사용자가 다시 보기로 여는 흐름을 따른다.
+function renderForEditing(id: string) {
+  const view = render(<CaseInterview id={id} />);
+  const restart = screen.queryByRole('button', { name: '공통 질문 다시 보기' });
+  if (restart) fireEvent.click(restart);
+  return view;
+}

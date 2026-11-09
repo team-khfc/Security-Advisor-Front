@@ -104,6 +104,22 @@ afterEach(() => {
   clearInputDraft('test', `case:601:question:${question.key}`);
 });
 
+test('정보 부족으로 후보가 없는 추천 응답은 추가 정보 필요로 표시하고 적용을 제공하지 않는다', async () => {
+  vi.mocked(requestJson).mockResolvedValueOnce({
+    ...response,
+    proposedValue: null,
+    reply: '대상 이용자를 알려 주세요.',
+  });
+  const { onApplied } = setup();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'AI 추천답변 받기' }));
+  await screen.findByText('대상 이용자를 알려 주세요.');
+  expect(screen.getByText(/추가 정보 필요/)).toBeTruthy();
+  expect(screen.queryByText(/추천답변 미확정/)).toBeNull();
+  expect(screen.queryByRole('button', { name: '추천을 미확정 답변으로 적용' })).toBeNull();
+  expect(onApplied).not.toHaveBeenCalled();
+});
+
 test('추천은 별도 미리보기이며 명시적 적용 전까지 답변을 저장하지 않는다', async () => {
   vi.mocked(requestJson)
     .mockResolvedValueOnce(response)
