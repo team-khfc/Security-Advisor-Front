@@ -98,4 +98,30 @@ describe('값 목록의 빈 값·출처 표시', () => {
     render(<AnswerView answers={[answer({ value: '', notApplicable: true })]} />);
     expect(within(item('사업 목적')).getByText('미해당')).toBeTruthy();
   });
+
+  test('AI 확인 플래그만 있고 확인자가 없으면 미확정으로 남긴다', () => {
+    render(<AnswerView answers={[answer({ source: 'AI_INFERRED', confirmed: true })]} />);
+    expect(screen.getByText('AI 추론 · 미확정')).toBeTruthy();
+    expect(screen.queryByText(/사용자 확인/)).toBeNull();
+  });
+
+  test('담당자가 확인한 AI 값의 확인 주체를 사용자로 바꾸지 않는다', () => {
+    render(
+      <AnswerView
+        answers={[
+          answer({
+            source: 'AI_INFERRED',
+            confirmation: {
+              actorId: 'synthetic-infra',
+              actorName: '인프라 담당 가',
+              role: 'INFRA',
+              at: '2026-11-09T09:00:00+09:00',
+            },
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText(/AI 추론 · 담당자 확인/)).toBeTruthy();
+    expect(screen.queryByText(/사용자 확인/)).toBeNull();
+  });
 });
