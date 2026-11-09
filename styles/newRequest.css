@@ -895,7 +895,7 @@ progress.prog::-moz-progress-bar {
 }
 .case-work .conversation-body {
   flex: 1 1 auto;
-  min-height: 12rem;
+  min-height: 24rem;
 }
 .case-work .conversation-log,
 .case-work .chat-pair {
@@ -904,10 +904,14 @@ progress.prog::-moz-progress-bar {
   gap: 1.6rem;
 }
 .case-work .interview-question {
-  max-height: 65%;
+  max-height: 38%;
+  margin: 0 1.6rem 1.6rem;
+  padding: 1.2rem 1.6rem;
 }
 .case-work form.interview-question {
   min-height: 0;
+  display: grid;
+  gap: 0.8rem;
 }
 .case-work .interview-question .qrow .input {
   min-width: 0;
@@ -974,27 +978,27 @@ progress.prog::-moz-progress-bar {
 /* 항목별 도움말·AI 대화와 공식 답변을 시각적으로 구분한다. */
 .interview-assistance {
   display: grid;
-  gap: 1.2rem;
-  margin: 1.8rem 0;
-  padding: 1.8rem;
-  border: 1px solid var(--sf-line);
-  border-radius: var(--r-panel);
-  background: var(--sf-background);
+  gap: 0.8rem;
+  margin: 1.2rem 0;
 }
-.interview-assistance label {
-  font-weight: 600;
-}
-.interview-prompt-row {
+.interview-input-modes {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 0.8rem;
 }
-.interview-prompt-row .input {
-  flex: 1;
-  min-width: 0;
+.interview-input-modes [aria-pressed='true'] {
+  color: var(--sf-primary-text);
+  border-color: var(--sf-primary);
+  background: var(--sf-primary-soft);
 }
-.interview-prompt-row .btn {
-  flex-shrink: 0;
+.interview-current .qhelp {
+  margin-bottom: 0;
+}
+.interview-current .btn-row {
+  flex-wrap: wrap;
+}
+.interview-current .btn {
+  white-space: normal;
 }
 .interview-ai-text {
   white-space: pre-wrap;
@@ -1004,15 +1008,20 @@ progress.prog::-moz-progress-bar {
 .interview-proposal {
   display: grid;
   gap: 1.2rem;
-  padding-top: 1.6rem;
-  border-top: 1px solid var(--sf-line);
 }
-.interview-proposal .btn {
+.interview-proposal .btn,
+.interview-proposal .badge {
   justify-self: start;
 }
 .interview-evidence {
   margin: 0;
-  padding-left: 22px;
+}
+.interview-evidence summary {
+  cursor: pointer;
+  color: var(--sf-primary-text);
+}
+.interview-evidence ul {
+  padding-left: 2.2rem;
 }
 .interview-help {
   padding: 12px 0;
@@ -1025,13 +1034,4 @@ progress.prog::-moz-progress-bar {
 }
 .interview-help cite {
   font-size: 0.9em;
-}
-@media (max-width: 640px) {
-  .interview-assistance {
-    padding: 14px;
-  }
-  .interview-prompt-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }

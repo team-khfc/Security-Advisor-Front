@@ -92,13 +92,15 @@ test('다른 사용자가 열면 읽기 전용 안내만 보이고 질문 카드
   expect(screen.queryByText('기획서로 시작하거나 AI 제안 받기')).toBeNull();
 });
 
-test('시안처럼 질문 제목과 도움말을 분리하고 선택형 답변은 같은 항목에 저장한다', async () => {
+test('질문 안내는 대화창에 표시하고 입력 카드의 선택형 답변은 같은 항목에 저장한다', async () => {
   const user = userEvent.setup();
   render(<CaseInterview id={controls.businessCase!.id} />);
   const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
-  expect(within(card).getByText(/필수 항목|선택 항목/)).toBeTruthy();
+  const conversation = screen.getByRole('region', { name: '인터뷰 대화' });
+  expect(within(conversation).getByText(/필수 항목|선택 항목/)).toBeTruthy();
+  expect(within(card).queryByText(/필수 항목|선택 항목/)).toBeNull();
   expect(
-    within(card).getByText(
+    within(conversation).getByText(
       '사업 목적을 한두 문장으로 적어 주세요. 신청서의 신청 사유로 들어갑니다.',
     ),
   ).toBeTruthy();
@@ -151,4 +153,18 @@ vi.mock('@/features/request/useInterview', () => ({
   useInterviewTurns: () => ({ data: [] }),
   useInterviewStaffCheck: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('@/features/request/InterviewAssistance', () => ({ InterviewAssistance: () => null }));
+vi.mock('@/features/request/useInterviewAssistance', () => ({
+  useInterviewAssistance: () => ({
+    history: [],
+    ask: { isPending: false },
+    apply: { isPending: false },
+    mode: 'ANSWER',
+    help: {},
+    busy: false,
+    showHelp: false,
+    toggleHelp: vi.fn(),
+    send: vi.fn(),
+    setMode: vi.fn(),
+    isStale: () => false,
+  }),
+}));

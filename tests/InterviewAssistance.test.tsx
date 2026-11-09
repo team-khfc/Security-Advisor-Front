@@ -1,8 +1,13 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { InterviewAssistance } from '@/features/request/InterviewAssistance';
+import {
+  InterviewAssistance,
+  InterviewComposer,
+  InterviewTurnMessage,
+} from '@/features/request/InterviewAssistance';
+import { useInterviewAssistance } from '@/features/request/useInterviewAssistance';
 import { requestJson } from '@/lib/httpClient';
 import { clearInputDraft } from '@/lib/inputDrafts';
 import { createMockState } from '@/mocks/seed';
@@ -32,13 +37,46 @@ const response = {
   applied: false,
   createdAt: '2026-11-10T00:00:00Z',
 };
+function AssistanceHarness(props: Parameters<typeof useInterviewAssistance>[0]) {
+  const state = useInterviewAssistance(props);
+  return (
+    <>
+      <section aria-label="인터뷰 대화">
+        <InterviewAssistance state={state} question={question} />
+        {state.history.map((turn) => (
+          <InterviewTurnMessage
+            key={turn.interviewTurnId}
+            turn={turn}
+            question={question}
+            active
+            state={state}
+            onSelect={() => {}}
+          />
+        ))}
+        {state.ask.error && <p role="alert">{state.ask.error.message}</p>}
+      </section>
+      <form
+        aria-label="인터뷰 입력"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (state.mode === 'ASK') void state.send('ASK');
+        }}
+      >
+        <InterviewComposer state={state}>
+          <input aria-label="직접 답변" value={props.answerText} readOnly />
+          <button type="submit">답변 저장</button>
+        </InterviewComposer>
+      </form>
+    </>
+  );
+}
 function setup(answerText = '') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const onApplied = vi.fn();
   const props = {
-    businessCase,
+    businessCase: { ...businessCase, answers: [question] },
     question,
     actorId: 'test',
     answerText,
@@ -48,7 +86,7 @@ function setup(answerText = '') {
   };
   const view = render(
     <QueryClientProvider client={client}>
-      <InterviewAssistance {...props} />
+      <AssistanceHarness {...props} />
     </QueryClientProvider>,
   );
   return {
@@ -56,7 +94,7 @@ function setup(answerText = '') {
     rerender: (text: string) =>
       view.rerender(
         <QueryClientProvider client={client}>
-          <InterviewAssistance {...props} answerText={text} />
+          <AssistanceHarness {...props} answerText={text} />
         </QueryClientProvider>,
       ),
   };
@@ -74,6 +112,12 @@ test('추천은 별도 미리보기이며 명시적 적용 전까지 답변을 �
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'AI 추천답변 받기' }));
   await screen.findByText('합성 추천답변');
+  expect(
+    within(screen.getByRole('form', { name: '인터뷰 입력' })).queryByText('합성 추천답변'),
+  ).toBeNull();
+  expect(
+    within(screen.getByRole('region', { name: '인터뷰 대화' })).getAllByText(response.reply),
+  ).toHaveLength(1);
   expect(requestJson).toHaveBeenCalledTimes(1);
   expect(onApplied).not.toHaveBeenCalled();
   expect(requestJson).toHaveBeenLastCalledWith(
@@ -94,6 +138,7 @@ test('자유 질문은 공식 답변이나 다음 질문으로 넘어가는 행�
   vi.mocked(requestJson).mockResolvedValueOnce({ ...response, mode: 'ASK', proposedValue: null });
   const { onApplied } = setup();
   const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
   await user.type(
     screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }),
     '개인정보란 무엇인가요?',
@@ -114,6 +159,7 @@ test('실패한 자유 질문은 다시 보낼 수 있도록 원문을 유지한
   vi.mocked(requestJson).mockRejectedValueOnce(new Error('합성 AI 연결 오류'));
   setup();
   const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
   const prompt = screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' });
   await user.type(prompt, '다시 보낼 질문');
   await user.click(screen.getByRole('button', { name: '질문 보내기' }));
@@ -139,4 +185,27 @@ test('AI 응답을 기다리는 동안 직접 답변이 바뀌면 늦게 도착�
       .disabled,
   ).toBe(true);
   expect(onApplied).not.toHaveBeenCalled();
+});
+
+test('입력 모드를 바꿔도 직접 답변과 AI 질문 초안이 각각 보존되고 입력창은 하나만 보인다', async () => {
+  setup('보존할 직접 답변');
+  const user = userEvent.setup();
+  const card = screen.getByRole('form', { name: '인터뷰 입력' });
+  expect(within(card).getAllByRole('textbox')).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+  await user.type(
+    screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }),
+    '보존할 질문',
+  );
+  await user.click(screen.getByRole('button', { name: '답변 작성' }));
+  expect((screen.getByRole('textbox', { name: '직접 답변' }) as HTMLInputElement).value).toBe(
+    '보존할 직접 답변',
+  );
+  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+  expect(
+    (screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }) as HTMLTextAreaElement)
+      .value,
+  ).toBe('보존할 질문');
+  expect(within(card).getAllByRole('textbox')).toHaveLength(1);
+  expect(requestJson).not.toHaveBeenCalled();
 });
