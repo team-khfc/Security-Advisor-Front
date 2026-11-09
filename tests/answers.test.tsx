@@ -31,6 +31,37 @@ function answer(overrides: Partial<Answer> = {}): Answer {
 }
 
 describe('답변의 출처와 입력 보존', () => {
+  test('반환된 사용자 답변은 담당자가 원문을 바꾸지 않고 명시적으로 재확인한다', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AnswerEditor
+        answers={[answer({ needsReview: true, revision: 7 })]}
+        revision={4}
+        actor={infra}
+        onSave={onSave}
+      />,
+    );
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: '사업 목적 (필수)' }).readOnly,
+    ).toBe(true);
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: '이 항목의 내용을 확인했습니다' })
+        .checked,
+    ).toBe(false);
+    await user.click(screen.getByRole('button', { name: '답변 저장' }));
+    expect(onSave).toHaveBeenLastCalledWith(4, []);
+    await user.click(screen.getByRole('checkbox', { name: '이 항목의 내용을 확인했습니다' }));
+    await user.click(screen.getByRole('button', { name: '답변 저장' }));
+    expect(onSave).toHaveBeenLastCalledWith(4, [
+      expect.objectContaining({
+        key: 'purpose',
+        value: '합성 시험 사업',
+        confirmed: true,
+        expectedRevision: 7,
+      }),
+    ]);
+  });
   test('AI 추론은 근거와 미확정을 표시하며 HTML을 실행 가능한 노드로 만들지 않는다', () => {
     const value = '<img src=x onerror=alert(1)>';
     const { container } = render(

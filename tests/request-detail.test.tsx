@@ -94,6 +94,55 @@ beforeEach(() => {
   controls.loading = false;
 });
 
+test('정보보안 화면은 선행 확인 전 최종 확인·확정을 막고 완료한 확인은 반복하지 않는다', () => {
+  selectRole('SECURITY');
+  const security = actor('SECURITY');
+  controls.request = {
+    ...request(),
+    stage: 4,
+    status: 'SUBMITTED',
+    currentSubmissionId: 'latest',
+    requiredReviewFields: ['INFRA', 'SECURITY'],
+    allowedActions: ['FINAL_CONFIRM', 'FINALIZE'],
+    finalConfirmations: [],
+    assignments: [
+      {
+        id: 'security',
+        field: 'SECURITY',
+        assigneeId: security.id,
+        assigneeName: security.displayName,
+        active: true,
+        reason: null,
+        assignedAt: request().updatedAt,
+      },
+    ],
+  };
+  const view = render(<RequestDetail id={request().id} />);
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '제출본 최종 확인' }).disabled).toBe(
+    true,
+  );
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '서류 확정' }).disabled).toBe(true);
+  expect(
+    screen.getByText('ICT인프라 담당자의 최종 확인 후 정보보안 담당자가 확인할 수 있습니다.'),
+  ).toBeTruthy();
+  controls.request = {
+    ...request(),
+    finalConfirmations: (['INFRA', 'SECURITY'] as const).map((field) => ({
+      id: field,
+      field,
+      submissionId: 'latest',
+      actorName: '합성 담당자',
+      confirmedAt: request().updatedAt,
+    })),
+  };
+  view.rerender(<RequestDetail id={request().id} />);
+  expect(
+    screen.getByRole<HTMLButtonElement>('button', { name: '담당 분야 최종 확인 완료' }).disabled,
+  ).toBe(true);
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '서류 확정' }).disabled).toBe(false);
+  expect(screen.queryByRole('textbox', { name: '검토 의견' })).toBeNull();
+});
+
 afterEach(() => vi.restoreAllMocks());
 
 test('제출 후 하위 자원 조회로 작업 영역이 재생성되어도 완료 안내와 초점을 유지한다', async () => {

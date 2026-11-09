@@ -21,6 +21,7 @@ import {
   type BusinessCase,
   type SecurityRequest,
 } from '../types';
+import { submissionBlockers } from '../readiness';
 
 type Publication = z.infer<typeof publicationDto>;
 const statusMap = {
@@ -98,7 +99,7 @@ export function actionCandidates(stage: number, status: string, role?: Role): st
       ...(stage <= 3 ? ['SAVE_ANSWERS', 'EDIT_CASE', 'EDIT_ANSWERS'] : []),
       ...(stage === 1 ? ['REQUEST_REVIEW'] : []),
       ...(stage === 2 ? ['ANSWER_SUPPLEMENT'] : []),
-      ...(stage === 3 ? ['SUBMIT', 'RETURN', 'ANSWER_SUPPLEMENT', 'GENERATE_DRAFT'] : []),
+      ...(stage === 3 ? ['SUBMIT', 'ANSWER_SUPPLEMENT', 'GENERATE_DRAFT'] : []),
     ];
   if (role === 'ADMIN') return ['DOWNLOAD', 'REASSIGN'];
   if (role === 'INFRA' || role === 'SECURITY')
@@ -117,9 +118,8 @@ export function actionCandidates(stage: number, status: string, role?: Role): st
             ...(role === 'INFRA' ? ['COMPLETE_ALLOCATION'] : []),
           ]
         : []),
-      ...(stage === 4
-        ? ['RETURN', 'FINAL_CONFIRM', ...(role === 'SECURITY' ? ['FINALIZE'] : [])]
-        : []),
+      ...(stage === 3 ? ['RETURN'] : []),
+      ...(stage === 4 ? ['RETURN', 'FINAL_CONFIRM', 'FINALIZE'] : []),
     ];
   return ['DOWNLOAD'];
 }
@@ -169,7 +169,7 @@ export interface RequestParts {
   finalConfirmations: z.infer<typeof finalConfirmationDto>[];
 }
 
-/** 독립 조회 결과를 조립하며 누락된 서버 권한이나 제출 조건은 추정하지 않는다. */
+/** 독립 조회 결과와 게시본을 조립한다. 최종 권한·전이 검사는 서버가 수행한다. */
 export function adaptRequest(
   value: z.infer<typeof requestDto>,
   businessCase: BusinessCase,
@@ -207,17 +207,31 @@ export function adaptRequest(
     revision: v.revision,
     checklist: v.checklist,
   }));
-  const latestReturn = [...parts.returns].sort((a, b) =>
-    b.returnedAt.localeCompare(a.returnedAt),
-  )[0];
-  return {
+  const configuredFields = publication.fieldSchema.docTypes?.find(
+    (type) => type.code === value.docType,
+  )?.reviewFields;
+  const requiredReviewFields = configuredFields?.length
+    ? configuredFields
+    : (['INFRA', 'SECURITY'] as const);
+  const applicableKeys = new Set(
+    publication.fieldSchema.fields
+      .filter((field) => !field.docTypes.length || field.docTypes.includes(value.docType))
+      .map((field) => field.key),
+  );
+  const adapted: SecurityRequest = {
     ...base,
     createdAt: value.createdAt,
     caseRevision: businessCase.revision,
     publicationVersion: publication.version,
-    commonAnswers: businessCase.answers,
+    commonAnswers: businessCase.answers.filter((answer) => applicableKeys.has(answer.key)),
     answers: adaptAnswers(value.answers, publication, 'REQUEST', value.docType),
     reviews,
+    requiredReviewFields: [...requiredReviewFields],
+    allowedActions: base.allowedActions.filter(
+      (action) =>
+        action !== 'FINALIZE' ||
+        role === (requiredReviewFields.includes('SECURITY') ? 'SECURITY' : 'INFRA'),
+    ),
     assignments: parts.assignments.map((v) => ({
       id: String(v.assignmentId),
       field: v.field,
@@ -311,13 +325,10 @@ export function adaptRequest(
     })),
     currentSubmissionId: parts.submissions.find((v) => v.latest)?.submissionId.toString() ?? null,
     changedCommonFields: businessCase.answers.filter((a) => a.needsReview).map((a) => a.key),
-    highlightedFields: [
-      ...new Set([
-        ...value.answers.filter((a) => a.needsReview).map((a) => a.fieldKey),
-        ...(latestReturn?.fieldKeys ?? []),
-      ]),
-    ],
+    highlightedFields: value.answers.filter((a) => a.needsReview).map((a) => a.fieldKey),
   };
+  if (adapted.stage === 3) adapted.blockers = submissionBlockers(adapted);
+  return adapted;
 }
 
 /** HTTP 추적 ID와 업무 대상 식별자를 분리한다. */
