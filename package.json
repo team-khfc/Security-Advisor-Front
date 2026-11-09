@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "node tools/runNext.mjs dev mock",
     "dev:api": "node tools/runNext.mjs dev api",
+    "test:server": "node tools/runBackendTestServer.mjs",
+    "test:connection": "node tools/checkBackendConnection.mjs",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "format": "prettier --write app components features lib mocks styles tests tools *.ts *.mjs *.json .github/workflows/*.yml",

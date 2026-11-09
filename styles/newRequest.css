@@ -820,3 +820,66 @@ progress.prog::-moz-progress-bar {
 .case-analysis[open] > summary {
   margin-bottom: 1.2rem;
 }
+
+/* 시안의 작업 영역에 기존 대화·질문 높이와 내부 스크롤을 유지한다. */
+.case-work .chatp,
+.case-work .infop {
+  height: auto;
+  overflow: hidden;
+}
+.case-work .chatp-h,
+.case-work .infop-h,
+.case-work .infop-f {
+  flex-shrink: 0;
+}
+.case-work .conversation-body {
+  flex: 0 0 auto;
+  height: clamp(48rem, 65dvh, 100rem);
+}
+.case-work .conversation-log,
+.case-work .chat-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+.case-work .interview-question {
+  max-height: none;
+}
+.case-work form.interview-question {
+  min-height: clamp(40rem, 42dvh, 56rem);
+}
+.case-work .interview-question textarea {
+  height: clamp(20rem, 24dvh, 32rem);
+  min-height: 20rem;
+  max-height: 52rem;
+}
+.case-work .infop-b {
+  height: 0;
+}
+.interview-complete-actions {
+  align-items: stretch;
+}
+.interview-complete-actions > .btn {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.8rem 1.6rem;
+  white-space: normal;
+  text-align: center;
+}
+@media (max-width: 1023px) {
+  .case-work .infop {
+    height: max(50rem, 60dvh);
+  }
+}
+@media (max-width: 767px) {
+  .case-work .conversation-body {
+    height: clamp(40rem, 58dvh, 64rem);
+  }
+  .case-work form.interview-question {
+    min-height: auto;
+  }
+  .case-work .interview-question textarea {
+    height: 20rem;
+    max-height: 40rem;
+  }
+}

@@ -4,8 +4,19 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { GET, POST } from '@/app/api/[...path]/route';
 import { ApiError, requestJson } from '@/lib/httpClient';
 import { forwardApiRequest, readLimitedBody } from '@/lib/serverProxy';
-import type { Actor, PageResponse, Session } from '@/lib/types';
-import type { BusinessCase, CaseAnalysis, SecurityRequest } from '@/features/request';
+import type { Actor, PageResponse } from '@/lib/types';
+import type { BusinessCase, SecurityRequest } from '@/features/request';
+import { z } from 'zod';
+import {
+  answerDto,
+  analysisDto,
+  applicationDto,
+  caseDto,
+  pageDto,
+  requestListDto,
+  reviewDto,
+  submissionDto,
+} from '@/features/request/apiTypes';
 import { createMockApi, type MockApiOptions } from '@/mocks/server';
 
 const ORIGIN = 'https://security-advisor.example';
@@ -65,8 +76,10 @@ test('업무 API는 미인증을 거부하고 모의 세션 쿠키는 HttpOnly·
   expect(cookie).toContain('HttpOnly');
   expect(cookie).toContain('Secure');
   expect(cookie).toContain('SameSite=Lax');
-  const session = (await login.json()) as Session;
-  expect(session.member.role).toBe('APPLICANT');
+  const session = await login.json();
+  expect(session.role).toBe('APPLICANT');
+  expect(session.department).toBe('합성 디지털사업팀');
+  expect(session.expiresAt).toEqual(expect.any(String));
   expect(session).not.toHaveProperty('password');
 });
 
@@ -193,16 +206,24 @@ test('다른 신청자의 상세·다운로드는 404이며 클라이언트 역�
   const list = (await (
     await client.send('/api/security-requests?size=100')
   ).json()) as PageResponse<SecurityRequest>;
-  expect(list.content.every((request) => request.ownerId === 'demo-applicant')).toBe(true);
+  const wireList = pageDto(requestListDto).parse(list);
+  expect(wireList.content.every((request) => request.applicantUsername === 'applicant')).toBe(true);
   const other = makeClient(handler);
   await other.send('/api/installation');
   await other.send('/api/demo-sessions', 'POST', { username: 'applicant2' });
   expect((await other.send('/api/security-requests/demo-request-1')).status).toBe(404);
   expect((await other.send('/api/security-requests/demo-request-1/documents')).status).toBe(404);
-  const review = list.content.find((request) => request.id === 'demo-request-1')?.reviews[0];
+  const reviews = z
+    .array(reviewDto)
+    .parse(
+      await (
+        await client.send(`/api/security-requests/${wireList.content[0].securityRequestId}/reviews`)
+      ).json(),
+    );
+  const review = reviews[0];
   expect(review).toBeDefined();
   const forged = await client.send(
-    `/api/reviews/${review?.id}/completion`,
+    `/api/reviews/${review?.reviewId}/completion`,
     'PUT',
     { expectedRevision: 1 },
     { 'X-Role': 'INFRA' },
@@ -231,43 +252,58 @@ test('오래된 공통 정보 저장은 409와 최신 revision을 반환하고 �
   const latest = (await (
     await client.send('/api/business-cases/demo-case-1')
   ).json()) as BusinessCase;
-  expect(latest.answers.find((answer) => answer.key === 'purpose')?.value).toBe(
-    '새로 저장한 합성 목적',
-  );
+  expect(
+    caseDto.parse(latest).caseAnswers.find((answer) => answer.fieldKey === 'purpose')?.value,
+  ).toBe('새로 저장한 합성 목적');
 });
 
 test('모의 분석은 미확정 출처·근거를 남기며 오래된 분석 적용과 위장 파일을 거부한다', async () => {
   const { client } = await setup();
-  const analysis = await client.send('/api/business-cases/demo-case-1/analysis-jobs', 'POST', {
-    expectedRevision: 1,
-    text: '합성 공공자료 검색 서비스',
+  const created = caseDto.parse(
+    await (
+      await client.send('/api/business-cases', 'POST', {
+        title: '합성 분석 시험',
+        department: '합성 부서',
+        summary: '',
+        docTypes: ['FIREWALL'],
+      })
+    ).json(),
+  );
+  const base = `/api/business-cases/${created.businessCaseId}`;
+  const form = new FormData();
+  form.set(
+    'file',
+    new File(['합성 공공자료 검색 서비스'], 'synthetic.txt', { type: 'text/plain' }),
+  );
+  const upload = await client.send(`${base}/uploaded-files`, 'POST', form);
+  expect(upload.status).toBe(201);
+  const { uploadedFileId } = await upload.json();
+  const analysis = await client.send(`${base}/analysis-jobs`, 'POST', {
+    uploadedFileId,
   });
   expect(analysis.status).toBe(202);
-  const job = (await analysis.json()) as CaseAnalysis;
-  expect(job.mode).toBe('EXAMPLE');
-  expect(job.provider).toContain('LLM 미사용');
-  const applied = await client.send(`/api/analysis-jobs/${job.id}/applications`, 'POST', {
-    expectedRevision: 1,
-  });
+  const job = analysisDto.parse(await analysis.json());
+  expect(job.status).toBe('NEEDS_REVIEW');
+  expect(job.modelReference).toBe('synthetic-fixture-v1');
+  const applied = await client.send(
+    `/api/analysis-jobs/${job.analysisJobId}/applications`,
+    'POST',
+    { expectedRevision: 1 },
+  );
   expect(applied.status).toBe(201);
-  const businessCase = (await applied.json()) as BusinessCase;
-  expect(businessCase.answers.find((answer) => answer.key === 'purpose')).toMatchObject({
-    source: 'AI_INFERRED',
+  applicationDto.parse(await applied.json());
+  const businessCase = caseDto.parse(await (await client.send(base)).json());
+  expect(businessCase.caseAnswers.find((a) => a.fieldKey === 'purpose')).toMatchObject({
+    valueSource: 'AI_INFERRED',
     confirmed: false,
   });
-  const stale = await client.send(`/api/analysis-jobs/${job.id}/applications`, 'POST', {
+  const stale = await client.send(`/api/analysis-jobs/${job.analysisJobId}/applications`, 'POST', {
     expectedRevision: 1,
   });
   expect(stale.status).toBe(409);
-  const form = new FormData();
-  form.set('text', '합성 문서');
-  form.set('expectedRevision', String(businessCase.revision));
-  form.set('file', new File(['executable data'], 'synthetic.pdf', { type: 'application/pdf' }));
-  const disguised = await client.send(
-    '/api/business-cases/demo-case-1/analysis-jobs',
-    'POST',
-    form,
-  );
+  const invalid = new FormData();
+  invalid.set('file', new File(['executable data'], 'synthetic.pdf', { type: 'application/pdf' }));
+  const disguised = await client.send(`${base}/uploaded-files`, 'POST', invalid);
   expect(disguised.status).toBe(400);
   expect(await disguised.json()).toHaveProperty('code', 'INVALID_FILE_SIGNATURE');
 });
@@ -288,15 +324,36 @@ test('다운로드는 실제 JSON과 불변 제출본 데이터를 제공하고 
   const list = (await (
     await client.send('/api/security-requests?size=100')
   ).json()) as PageResponse<SecurityRequest>;
-  const submitted = list.content.find((request) => request.currentSubmissionId);
+  const submitted = pageDto(requestListDto)
+    .parse(list)
+    .content.find((request) => request.status === 'SUBMITTED');
   expect(submitted).toBeDefined();
-  const response = await client.send(`/api/security-requests/${submitted?.id}/documents`);
+  const response = await client.send(
+    `/api/security-requests/${submitted?.securityRequestId}/documents`,
+  );
   expect(response.status).toBe(200);
   expect(response.headers.get('Content-Type')).toContain('application/json');
   expect(response.headers.get('Content-Disposition')).toMatch(/\.json"$/);
   const document = await response.json();
   expect(document.documentKind).toBe('SUBMISSION');
-  expect(document.commonAnswers).toEqual(submitted?.submissions[0].commonAnswers);
+  const submissions = z
+    .array(submissionDto)
+    .parse(
+      await (
+        await client.send(`/api/security-requests/${submitted?.securityRequestId}/submissions`)
+      ).json(),
+    );
+  const snapshot = z.object({ answers: z.array(answerDto) }).parse(submissions[0].snapshot);
+  expect(
+    document.commonAnswers.map((a: { key: string; value: string }) => ({
+      fieldKey: a.key,
+      value: a.value,
+    })),
+  ).toEqual(
+    snapshot.answers
+      .filter((a) => a.scope === 'CASE')
+      .map((a) => ({ fieldKey: a.fieldKey, value: a.value })),
+  );
 });
 
 test('프록시는 고정 Back origin만 사용하고 세션·CSRF·Location을 같은 출처에 맞게 전달한다', async () => {
@@ -394,4 +451,71 @@ test('HTTP 클라이언트는 실패를 ApiError로 보존하고 외부 경로�
   });
   await expect(requestJson('https://unrelated.example/api/data')).rejects.toBeInstanceOf(ApiError);
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+test('실제 계약의 사업 생성·답변별 저장·확인·충돌·세션 연장을 모의 서버에서도 검증한다', async () => {
+  const { client } = await setup();
+  const created = await client.send('/api/business-cases', 'POST', {
+    title: '계약 검증용 합성 사업',
+    department: '합성 부서',
+    summary: '합성 개요',
+    docTypes: ['FIREWALL'],
+  });
+  expect(created.status).toBe(201);
+  const businessCase = caseDto.parse(await created.json());
+  expect(businessCase.businessCaseId).toEqual(expect.any(Number));
+  const base = `/api/business-cases/${businessCase.businessCaseId}`;
+  const answer = businessCase.caseAnswers.find((a) => a.fieldKey === 'purpose')!;
+  const saved = await client.send(`${base}/answers`, 'PATCH', {
+    answers: [
+      { fieldKey: answer.fieldKey, value: '수정한 합성 목적', expectedRevision: answer.revision },
+    ],
+  });
+  expect(saved.status).toBe(200);
+  const changed = z.array(answerDto).parse(await saved.json())[0];
+  expect(changed.confirmed).toBe(true);
+  const confirmed = await client.send(`${base}/answers/${answer.fieldKey}/confirmation`, 'PUT', {
+    expectedRevision: changed.revision,
+  });
+  expect(confirmed.status).toBe(422);
+  expect(await confirmed.json()).toHaveProperty('code', 'AI_CONFIRMATION_REQUIRED');
+  const stale = await client.send(`${base}/answers`, 'PATCH', {
+    answers: [{ fieldKey: answer.fieldKey, value: '오래된 값', expectedRevision: answer.revision }],
+  });
+  expect(stale.status).toBe(409);
+  const renewal = await client.send('/api/sessions/current/renewals', 'POST');
+  expect(renewal.status).toBe(201);
+  expect(await renewal.json()).toEqual({ expiresAt: expect.any(String) });
+});
+
+test('확인된 사업 개요는 분석 제안으로 덮어쓰지 않고 경고를 반환한다', async () => {
+  const { client } = await setup();
+  const before = caseDto.parse(await (await client.send('/api/business-cases/demo-case-1')).json());
+  const form = new FormData();
+  form.set('file', new File(['합성 개요'], 'sample.txt', { type: 'text/plain' }));
+  const uploaded = await (
+    await client.send(`/api/business-cases/${before.businessCaseId}/uploaded-files`, 'POST', form)
+  ).json();
+  const job = analysisDto.parse(
+    await (
+      await client.send(`/api/business-cases/${before.businessCaseId}/analysis-jobs`, 'POST', {
+        uploadedFileId: uploaded.uploadedFileId,
+      })
+    ).json(),
+  );
+  const result = applicationDto.parse(
+    await (
+      await client.send(`/api/analysis-jobs/${job.analysisJobId}/applications`, 'POST', {
+        expectedRevision: before.revision,
+      })
+    ).json(),
+  );
+  expect(result.warnings).toHaveLength(1);
+  expect(result.summaryProposal).toBeNull();
+  const after = caseDto.parse(
+    await (await client.send(`/api/business-cases/${before.businessCaseId}`)).json(),
+  );
+  expect(after.caseAnswers.find((a) => a.fieldKey === 'purpose')).toEqual(
+    before.caseAnswers.find((a) => a.fieldKey === 'purpose'),
+  );
 });

@@ -17,7 +17,7 @@ import { useRequests } from './useRequests';
 
 /** 보완 답변은 신청 상세의 한 입력 영역으로 모아 중복 수정을 피한다. */
 export function SupplementList() {
-  const query = useRequests();
+  const query = useRequests(true);
   if (query.isPending) return <LoadingState />;
   if (query.error)
     return (
@@ -59,7 +59,7 @@ export function SupplementList() {
               <div className="card-h">
                 <div>
                   <span className="p-id">
-                    {request.id} · {DOCUMENT_LABELS[request.docType]}
+                    {request.id} · {DOCUMENT_LABELS[request.docType] ?? request.docType}
                   </span>
                   <h3 className="h-panel">
                     <Link className="plain" href={`/requests/${request.id}`}>
@@ -67,7 +67,7 @@ export function SupplementList() {
                     </Link>
                   </h3>
                 </div>
-                <Badge tone="warning">{STATUS_LABELS[request.status]}</Badge>
+                <Badge tone="warning">{request.statusLabel ?? STATUS_LABELS[request.status]}</Badge>
               </div>
               {open
                 .filter((item) => item.request === request)
@@ -162,7 +162,7 @@ function isMissing(answer: { value: string; notApplicable: boolean } | undefined
 
 /** 기재된 통신 사실만 보여 주며 변경은 배정된 신청 상세에서 처리한다. */
 export function NetworkList() {
-  const query = useRequests();
+  const query = useRequests(true);
   const session = useSession();
   const [search, setSearch] = useState('');
   if (query.isPending || session.isPending) return <LoadingState />;
@@ -247,7 +247,7 @@ export function NetworkList() {
                   <tr key={request.id}>
                     <td>
                       <div className="p-id">
-                        {request.id} · {DOCUMENT_LABELS[request.docType]}
+                        {request.id} · {DOCUMENT_LABELS[request.docType] ?? request.docType}
                       </div>
                       <div className="p-name">
                         <Link href={`/requests/${request.id}`}>{request.caseTitle}</Link>
@@ -269,7 +269,9 @@ export function NetworkList() {
                       <Badge tone={allocated ? 'info' : 'neutral'}>
                         {allocated ? '할당 완료' : '할당 대기'}
                       </Badge>
-                      <span className="turn">{STATUS_LABELS[request.status]}</span>
+                      <span className="turn">
+                        {request.statusLabel ?? STATUS_LABELS[request.status]}
+                      </span>
                       {missingCount > 0 && (
                         <span className="network-missing">
                           <strong>담당자 확인 필요</strong> <span>· 미입력 {missingCount}개</span>

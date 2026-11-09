@@ -57,8 +57,8 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
   const selectFile = (next?: File) => {
     setFileError('');
     if (!next) return;
-    if (!/\.(pdf|hwp|hwpx|docx)$/i.test(next.name) || next.size > 10 * 1024 * 1024) {
-      setFileError('PDF, HWP, HWPX, DOCX 파일을 10MB 이하로 선택해 주세요.');
+    if (!/\.(pdf|hwpx|docx|txt)$/i.test(next.name) || next.size > 10 * 1024 * 1024) {
+      setFileError('PDF, HWPX, DOCX, TXT 파일을 10MB 이하로 선택해 주세요.');
       return;
     }
     update({ file: next });
@@ -206,7 +206,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
             <input
               ref={inputRef}
               type="file"
-              accept=".pdf,.hwp,.hwpx,.docx"
+              accept=".pdf,.hwpx,.docx,.txt"
               className="sr-only"
               tabIndex={-1}
               aria-label="기획서 파일"
@@ -223,7 +223,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
               파일 선택
             </button>
             <p className="help" id="file-help">
-              PDF, HWP, HWPX, DOCX 파일, 파일 1개, 최대 10MB
+              PDF, HWPX, DOCX, TXT 파일, 파일 1개, 최대 10MB
             </p>
             {fileError && (
               <p className="ferr" role="alert">

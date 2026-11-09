@@ -1006,6 +1006,8 @@ export function applyAnalysis(
       'ANALYSIS_EVIDENCE_REQUIRED',
       '분석 후보에는 값과 원문 근거가 필요합니다.',
     );
+    if ((answer.key === 'project.summary' || answer.key === 'purpose') && answer.confirmed)
+      continue;
     if (answer.value !== suggestion.value || answer.notApplicable) changed.push(answer.key);
     answer.value = suggestion.value;
     answer.source = 'AI_INFERRED';

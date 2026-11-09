@@ -4,12 +4,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { ApiError, requestJson } from '@/lib/httpClient';
 import type { Actor, PageResponse, Role, Session } from '@/lib/types';
-import { actorSchema, sessionSchema, type LoginInput, type SignupInput } from './types';
+import { sessionSchema, type LoginInput, type SignupInput } from './types';
 
 const liveMemberSchema = z.object({
   username: z.string(),
   displayName: z.string(),
   role: z.enum(['APPLICANT', 'INFRA', 'SECURITY', 'ADMIN']),
+  department: z.string().nullable(),
+  email: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+  mock: z.boolean().optional(),
 });
 
 function readSession(value: unknown): Session {
@@ -20,11 +24,11 @@ function readSession(value: unknown): Session {
     member: {
       ...member,
       id: member.username,
-      department: '',
+      department: member.department ?? '',
       active: true,
     },
-    expiresAt: null,
-    mock: false,
+    expiresAt: member.expiresAt,
+    mock: member.mock ?? false,
   };
 }
 
@@ -65,7 +69,7 @@ export function useDemoLogin() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (username: string) =>
-      sessionSchema.parse(
+      readSession(
         await requestJson<unknown>('/api/demo-sessions', { method: 'POST', body: { username } }),
       ),
     onSuccess: async (session) => {
@@ -102,10 +106,13 @@ export function useExtendSession() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async () =>
-      sessionSchema.parse(
-        await requestJson<unknown>('/api/sessions/current/renewals', { method: 'POST' }),
+      z
+        .object({ expiresAt: z.string() })
+        .parse(await requestJson<unknown>('/api/sessions/current/renewals', { method: 'POST' })),
+    onSuccess: (renewal) =>
+      client.setQueryData<Session | null>(['session'], (session) =>
+        session ? { ...session, expiresAt: renewal.expiresAt } : session,
       ),
-    onSuccess: (session) => client.setQueryData(['session'], session),
   });
 }
 
@@ -115,7 +122,10 @@ export function useMembers() {
     queryKey: ['members'],
     queryFn: async ({ signal }) => {
       const page = await requestJson<PageResponse<unknown>>('/api/members?size=100', { signal });
-      return z.array(actorSchema).parse(page.content);
+      return z
+        .array(liveMemberSchema.omit({ expiresAt: true }).extend({ active: z.boolean() }))
+        .parse(Array.isArray(page) ? page : page.content)
+        .map((member) => ({ ...member, id: member.username, department: member.department ?? '' }));
     },
     retry: false,
   });
@@ -130,16 +140,21 @@ export function useUpdateMember() {
       role,
       active,
       reason,
+      previousRole,
     }: {
       id: string;
       role: Role;
+      previousRole?: Role;
       active: boolean;
       reason: string;
     }) =>
-      requestJson<Actor>(`/api/members/${encodeURIComponent(id)}/role-assignments`, {
-        method: 'POST',
-        body: { role, active, reason },
-      }),
+      requestJson<Actor>(
+        `/api/members/${encodeURIComponent(id)}/${previousRole === role ? 'activation' : 'role-assignments'}`,
+        {
+          method: previousRole === role ? 'PUT' : 'POST',
+          body: previousRole === role ? { active, reason } : { role, active, reason },
+        },
+      ),
     onSuccess: async () => {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['members'] }),

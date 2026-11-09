@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   EmptyState,
   ErrorState,
@@ -64,7 +64,7 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
         <input
           id="analysis-file"
           type="file"
-          accept=".pdf,.hwp,.hwpx,.docx"
+          accept=".pdf,.hwpx,.docx,.txt"
           onChange={(e) => {
             const selected = e.target.files?.[0];
             setFileError('');
@@ -72,9 +72,13 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
             setApplied(false);
             if (
               selected &&
-              (!/\.(pdf|hwp|hwpx|docx)$/i.test(selected.name) || selected.size > 10 * 1024 * 1024)
+              (!/\.(pdf|hwpx|docx|txt)$/i.test(selected.name) || selected.size > 10 * 1024 * 1024)
             ) {
-              setFileError('허용된 문서 형식으로 10MB 이하의 파일을 선택해 주세요.');
+              setFileError(
+                /\.hwp$/i.test(selected.name)
+                  ? 'HWPX 로 변환해 올려 주세요.'
+                  : '허용된 문서 형식으로 10MB 이하의 파일을 선택해 주세요.',
+              );
               return;
             }
             if (!selected) forgetUpload(actorId, businessCase.id);
@@ -124,9 +128,7 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
       )}
       {analysis.data && !analysis.error && (
         <div className="analysis-result">
-          <Badge tone="warning">
-            {analysis.data.mode === 'EXAMPLE' ? '모의 AI 제안' : 'AI 제안'} · 미확정
-          </Badge>
+          <Badge tone="warning">{session.data?.mock ? '모의 AI 제안' : 'AI 제안'} · 미확정</Badge>
           <p className="help">이 제안을 적용해도 확인 완료로 바뀌지 않습니다.</p>
           {analysis.data.suggestions.map((suggestion) => (
             <div className="candidate" key={suggestion.key}>
@@ -140,7 +142,14 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
             </Notice>
           )}
           {apply.error && <Notice tone="danger">{apply.error.message}</Notice>}
-          {applied ? (
+          {apply.data?.warnings.map((warning) => (
+            <Notice key={warning} tone="warning">
+              {warning}
+            </Notice>
+          ))}
+          {analysis.data.summaryOnly ? (
+            <p role="status">사업 개요를 저장했습니다.</p>
+          ) : applied ? (
             <p role="status" className="save-success">
               제안을 미확정 상태로 적용했습니다. 아래 답변에서 확인해 주세요.
             </p>
@@ -212,17 +221,41 @@ function InterviewWorkspace({
   const questions = businessCase.answers.filter((answer) => answer.ownerRole === 'APPLICANT');
   const { draft, saveDraft, clearDraft } = useInputDraft<{
     questionIndex: number;
-    answers: Record<string, { value: string; revision: number }>;
+    answers: Record<string, { value: string; revision: number; answerRevision?: number }>;
   }>(actor.id, `case:${businessCase.id}:interview`);
   const [questionIndex, setQuestionIndex] = useState(() => draft?.questionIndex ?? 0);
   const [chat, setChat] = useState<{ question: string; answer: string }[]>([]);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const latestMessageRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(380);
   const [error, setError] = useState('');
+
+  useLayoutEffect(() => {
+    const conversation = conversationRef.current;
+    const latestMessage = latestMessageRef.current;
+    if (!conversation || !latestMessage) return;
+
+    // AI 제안 패널이 펼쳐져 있어도 마지막 답변이 보이도록 대화 영역만 이동한다.
+    const contentTop = conversation.getBoundingClientRect().top + conversation.clientTop;
+    const paddingBottom = Number.parseFloat(getComputedStyle(conversation).paddingBottom) || 0;
+    conversation.scrollTop = Math.max(
+      0,
+      conversation.scrollTop +
+        latestMessage.getBoundingClientRect().bottom -
+        contentTop -
+        conversation.clientHeight +
+        paddingBottom,
+    );
+  }, [chat.length]);
+
   const question = questions[questionIndex];
   const draftAnswer = question ? draft?.answers[question.key] : undefined;
   const answerText = draftAnswer?.value ?? question?.value ?? '';
   const answerRevision = draftAnswer?.revision ?? businessCase.revision;
-  const conflict = Boolean(draftAnswer && answerRevision !== businessCase.revision);
+  const conflict = Boolean(
+    draftAnswer &&
+    (answerRevision !== businessCase.revision || draftAnswer.answerRevision !== question?.revision),
+  );
   const goToQuestion = (next: number) => {
     setQuestionIndex(next);
     if (draft) saveDraft({ ...draft, questionIndex: next });
@@ -258,8 +291,8 @@ function InterviewWorkspace({
         {requests.map((request) => (
           <Link className="case-document-link" key={request.id} href={`/requests/${request.id}`}>
             <Icon name="file" />
-            <strong>{DOCUMENT_LABELS[request.docType]}</strong>
-            <Badge>{STATUS_LABELS[request.status]}</Badge>
+            <strong>{DOCUMENT_LABELS[request.docType] ?? request.docType}</strong>
+            <Badge>{request.statusLabel ?? STATUS_LABELS[request.status]}</Badge>
             <Icon name="arrowRight" size={18} />
           </Link>
         ))}
@@ -270,7 +303,7 @@ function InterviewWorkspace({
           <AnalysisPanel businessCase={businessCase} />
         </details>
       )}
-      <div className="work" style={viewStyle}>
+      <div className="work case-work" style={viewStyle}>
         <section className="chatp" aria-labelledby="chat-heading">
           <div className="chatp-h">
             <div className="ttl">
@@ -283,31 +316,43 @@ function InterviewWorkspace({
             </div>
             <span className="meta">업무를 설명해 주시면 필요한 보안정보를 함께 정리해요.</span>
           </div>
-          <div className="msgs" role="log" aria-label="대화 내용" tabIndex={0}>
-            <div className="m-ai">
-              <span className="av" aria-hidden="true">
-                <Icon name="sparkles" size={18} />
-              </span>
-              <div className="body">
-                <div className="bubble">
-                  <p>안녕하세요. 사업 목적과 처리하는 정보부터 살펴볼게요.</p>
-                  <p>서버·IP·포트처럼 확인이 필요한 정보는 ICT인프라 담당자에게 연결합니다.</p>
-                </div>
-              </div>
-            </div>
-            {chat.map((item, index) => (
-              <Fragment key={`${index}-${item.question}`}>
-                <div className="m-ai">
-                  <span className="av" aria-hidden="true">
-                    <Icon name="sparkles" size={18} />
-                  </span>
-                  <div className="body">
-                    <div className="bubble">{item.question}</div>
+          <div
+            className="msgs conversation-body"
+            ref={conversationRef}
+            role="region"
+            aria-label="인터뷰 대화"
+            tabIndex={0}
+          >
+            <div className="conversation-log" role="log" aria-label="대화 내용">
+              <div className="m-ai">
+                <span className="av" aria-hidden="true">
+                  <Icon name="sparkles" size={18} />
+                </span>
+                <div className="body">
+                  <div className="bubble">
+                    <p>안녕하세요. 사업 목적과 처리하는 정보부터 살펴볼게요.</p>
+                    <p>서버·IP·포트처럼 확인이 필요한 정보는 ICT인프라 담당자에게 연결합니다.</p>
                   </div>
                 </div>
-                <p className="m-me">{item.answer}</p>
-              </Fragment>
-            ))}
+              </div>
+              {chat.map((item, index) => (
+                <div
+                  className="chat-pair"
+                  key={`${index}-${item.question}`}
+                  ref={index === chat.length - 1 ? latestMessageRef : null}
+                >
+                  <div className="m-ai">
+                    <span className="av" aria-hidden="true">
+                      <Icon name="sparkles" size={18} />
+                    </span>
+                    <div className="body">
+                      <div className="bubble">{item.question}</div>
+                    </div>
+                  </div>
+                  <p className="m-me">{item.answer}</p>
+                </div>
+              ))}
+            </div>
             {!editable && (
               <Notice>
                 이 사업 건은 현재 읽기 전용입니다. 서류별 상세에서 진행 상황을 확인하세요.
@@ -316,7 +361,7 @@ function InterviewWorkspace({
           </div>
           {editable && question && (
             <form
-              className="qcard"
+              className="qcard interview-question"
               onSubmit={async (event) => {
                 event.preventDefault();
                 setError('');
@@ -327,6 +372,7 @@ function InterviewWorkspace({
                     answers: [
                       {
                         key: question.key,
+                        expectedRevision: draftAnswer?.answerRevision ?? question.revision,
                         value,
                         confirmed: Boolean(value.trim()),
                         notApplicable: false,
@@ -361,7 +407,7 @@ function InterviewWorkspace({
               <textarea
                 className="input"
                 id="interview-answer"
-                rows={3}
+                rows={8}
                 maxLength={4000}
                 value={answerText}
                 disabled={save.isPending}
@@ -370,7 +416,11 @@ function InterviewWorkspace({
                     questionIndex,
                     answers: {
                       ...draft?.answers,
-                      [question.key]: { value: e.target.value, revision: answerRevision },
+                      [question.key]: {
+                        value: e.target.value,
+                        revision: answerRevision,
+                        answerRevision: draftAnswer?.answerRevision ?? question.revision,
+                      },
                     },
                   })
                 }
@@ -394,7 +444,11 @@ function InterviewWorkspace({
                           ...draft,
                           answers: {
                             ...draft.answers,
-                            [question.key]: { value: answerText, revision: businessCase.revision },
+                            [question.key]: {
+                              value: answerText,
+                              revision: businessCase.revision,
+                              answerRevision: question.revision,
+                            },
                           },
                         });
                     }}
@@ -427,30 +481,30 @@ function InterviewWorkspace({
             </form>
           )}
           {editable && !question && (
-            <div className="qcard">
+            <div className="qcard interview-question">
               <h3 className="qtitle">공통 정보를 정리했습니다</h3>
               <p>서류별 상세 화면에서 추가 항목을 확인하고 담당자에게 협의를 요청해 주세요.</p>
-              <div className="btn-row">
+              <div className="btn-row interview-complete-actions">
                 {requests.map((request, index) => (
                   <Link
                     className={`btn ${index === 0 ? 'btn-primary' : ''}`}
                     key={request.id}
                     href={`/requests/${request.id}`}
                   >
-                    {DOCUMENT_LABELS[request.docType]} 작성
+                    {DOCUMENT_LABELS[request.docType] ?? request.docType} 작성
                     <Icon name="arrowRight" />
                   </Link>
                 ))}
+                <button
+                  type="button"
+                  className="btn btn-tertiary"
+                  onClick={() => {
+                    goToQuestion(0);
+                  }}
+                >
+                  공통 질문 다시 보기
+                </button>
               </div>
-              <button
-                type="button"
-                className="btn btn-tertiary"
-                onClick={() => {
-                  goToQuestion(0);
-                }}
-              >
-                공통 질문 다시 보기
-              </button>
             </div>
           )}
         </section>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useSession } from '@/features/auth';
 import { Badge, EmptyState, ErrorState, Icon, LoadingState, PageHeading } from '@/components/ui';
 import type { Actor } from '@/lib/types';
@@ -211,15 +211,23 @@ function Deadline({
 
 function RequestListView({ options }: { options: ListOptions }) {
   const session = useSession();
-  const requests = useRequests();
+  const requests = useRequests(true);
   const router = useRouter();
   const [search, setSearch] = useState(options.search);
+  const [previousSearch, setPreviousSearch] = useState(options.search);
+  const composing = useRef(false);
   const [period, setPeriod] = useState(options.period);
   const [from, setFrom] = useState(options.from);
   const [to, setTo] = useState(options.to);
   const [periodError, setPeriodError] = useState('');
   const [today] = useState(() => dateKey(new Date()));
   const actor = session.data?.member;
+  const searchQuery = options.search.trim();
+
+  if (previousSearch !== options.search) {
+    setPreviousSearch(options.search);
+    setSearch(options.search);
+  }
 
   function apply(next: Partial<ListOptions>) {
     const values = { ...options, ...next };
@@ -230,11 +238,13 @@ function RequestListView({ options }: { options: ListOptions }) {
     if (values.period === 'custom' && values.from) params.set('from', values.from);
     if (values.period === 'custom' && values.to) params.set('to', values.to);
     if (values.page > 1) params.set('page', String(values.page));
-    router.replace(`/requests${params.size ? `?${params.toString()}` : ''}`, { scroll: false });
+    const url = `/requests${params.size ? `?${params.toString()}` : ''}`;
+    router.replace(url, { scroll: false });
   }
 
   function submitFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (composing.current) return;
     if (period === 'custom' && !from && !to) {
       setPeriodError('시작일이나 종료일을 하나 이상 입력해 주세요.');
       return;
@@ -281,7 +291,7 @@ function RequestListView({ options }: { options: ListOptions }) {
       count: all.length,
     },
   ] as const;
-  const query = options.search.toLocaleLowerCase('ko-KR');
+  const query = searchQuery.toLocaleLowerCase('ko-KR');
   const fromDate =
     options.period === 'custom'
       ? options.from
@@ -300,7 +310,7 @@ function RequestListView({ options }: { options: ListOptions }) {
       if (options.filter === 'done' && request.status !== 'FINALIZED') return false;
       if (
         query &&
-        !`${request.caseTitle} ${request.id} ${request.department} ${request.ownerName} ${DOCUMENT_LABELS[request.docType]}`
+        !`${request.caseTitle} ${request.id} ${request.department} ${request.ownerName} ${DOCUMENT_LABELS[request.docType] ?? request.docType}`
           .toLocaleLowerCase('ko-KR')
           .includes(query)
       )
@@ -321,7 +331,7 @@ function RequestListView({ options }: { options: ListOptions }) {
   const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const pageStart = Math.max(1, Math.min(currentPage - 3, pages - 6));
   const pageNumbers = Array.from({ length: Math.min(7, pages) }, (_, index) => pageStart + index);
-  const isFiltered = options.filter !== 'all' || options.search !== '' || options.period !== 'all';
+  const isFiltered = options.filter !== 'all' || searchQuery !== '' || options.period !== 'all';
   const cols = isApplicant ? [30, 22, 16, 16, 16] : [32, 16, 18, 18, 16];
 
   return (
@@ -455,7 +465,23 @@ function RequestListView({ options }: { options: ListOptions }) {
                   className="input"
                   type="search"
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setSearch(event.currentTarget.value);
+                  }}
+                  onCompositionStart={() => {
+                    composing.current = true;
+                  }}
+                  onCompositionEnd={(event) => {
+                    composing.current = false;
+                    setSearch(event.currentTarget.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === 'Enter' &&
+                      (composing.current || event.nativeEvent.isComposing)
+                    )
+                      event.preventDefault();
+                  }}
                   placeholder={isApplicant ? '사업명·신청번호 검색' : '사업명·부서·신청자 검색'}
                 />
                 <button type="submit" className="sbtn" aria-label="신청 검색">
@@ -472,7 +498,7 @@ function RequestListView({ options }: { options: ListOptions }) {
         </form>
         <p className="filter-state" role="status">
           {filters.find((filter) => filter.key === options.filter)?.label} 결과 {filtered.length}건
-          {options.search && ` · 검색어 “${options.search}”`}
+          {searchQuery && ` · 검색어 “${searchQuery}”`}
           {fromDate || toDate ? ` · ${fromDate || '처음'} ~ ${toDate || '오늘'}` : ''}
           {pages > 1 && ` · ${currentPage} / ${pages}페이지`}
           {isFiltered && (
@@ -532,7 +558,7 @@ function RequestListView({ options }: { options: ListOptions }) {
                             {request.id}
                             <span className="request-type">
                               {' '}
-                              · {DOCUMENT_LABELS[request.docType]}
+                              · {DOCUMENT_LABELS[request.docType] ?? request.docType}
                             </span>
                           </div>
                           <div className="p-name">
@@ -572,7 +598,7 @@ function RequestListView({ options }: { options: ListOptions }) {
                         </td>
                         <td>
                           <Badge tone={statusTones[request.status]}>
-                            {STATUS_LABELS[request.status]}
+                            {request.statusLabel ?? STATUS_LABELS[request.status]}
                           </Badge>
                           {action ? (
                             <span className="turn me">{action}</span>
@@ -694,7 +720,12 @@ function RequestListQuery() {
     to: /^\d{4}-\d{2}-\d{2}$/.test(params.get('to') ?? '') ? (params.get('to') ?? '') : '',
     page: Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 1,
   };
-  return <RequestListView key={params.toString()} options={options} />;
+  return (
+    <RequestListView
+      key={`${options.filter}:${options.period}:${options.from}:${options.to}`}
+      options={options}
+    />
+  );
 }
 
 /** 목록 조건을 URL에 보존하여 상세 조회 후 같은 문맥으로 돌아오게 한다. */

@@ -43,7 +43,7 @@ test('지원하지 않는 형식과 10MB 초과 파일은 파일 영역 안의 �
   render(<NewRequest />);
   await user.upload(fileInput(), new File(['x'], 'synthetic.exe'));
   expect(screen.getByRole('alert').textContent).toBe(
-    'PDF, HWP, HWPX, DOCX 파일을 10MB 이하로 선택해 주세요.',
+    'PDF, HWPX, DOCX, TXT 파일을 10MB 이하로 선택해 주세요.',
   );
   expect(screen.queryByRole('list', { name: '분석 전 파일' })).toBeNull();
   const big = new File(['x'], 'synthetic.pdf');
@@ -51,6 +51,21 @@ test('지원하지 않는 형식과 10MB 초과 파일은 파일 영역 안의 �
   await user.upload(fileInput(), big);
   expect(screen.getByRole('alert')).toBeTruthy();
   expect(screen.queryByRole('list', { name: '분석 전 파일' })).toBeNull();
+});
+
+test('현재 API 허용 형식에 따라 HWP는 거부하고 TXT는 분석 전 파일로 선택한다', async () => {
+  const user = userEvent.setup({ applyAccept: false });
+  render(<NewRequest />);
+
+  await user.upload(fileInput(), new File(['synthetic'], '합성기획서.hwp'));
+  expect(screen.getByRole('alert')).toBeTruthy();
+  expect(screen.queryByRole('list', { name: '분석 전 파일' })).toBeNull();
+
+  await user.upload(fileInput(), new File(['synthetic'], '합성기획서.txt', { type: 'text/plain' }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(
+    within(screen.getByRole('list', { name: '분석 전 파일' })).getByText('합성기획서.txt'),
+  ).toBeTruthy();
 });
 
 test('끌어다 놓은 파일을 분석 전 목록에 표시하고 선택 취소 시 파일 선택 버튼으로 초점을 옮긴다', async () => {
