@@ -13,10 +13,23 @@
 | `GET /api/auth/me` | 현재 사용자, 인증 없으면 401 | 세션 조회 및 CSRF 쿠키 초기화 요청 |
 | `POST /api/members` | 회원가입, 생성 시 201·Location | 가입 훅 |
 | `GET /api/installation` | 공개 설치 정보 `{name, code}` | 내부 기관 정보 DTO와 `mode=api`로 변환 |
-| `GET /api/business-cases` | 사업 건 페이지와 하위 신청 요약 | 기본 API 연결 검사. 화면 DTO 어댑터는 후속 |
+| `GET /api/business-cases` | 내 사업 건 페이지와 하위 신청 요약 | 신청자 신청 현황. 모든 페이지를 읽고 하위 신청을 펼침 |
+| `GET /api/reviews` | 본인에게 활성 배정된 협의 요청함 배열 | INFRA·SECURITY 신청 현황. 형제 신청을 본문 목록에 추가하지 않음 |
+| `GET /api/security-requests/{id}` 및 하위 조회 | 신청 상세·배정·협의·기한·반환·제출본 | 목록의 실제 접수일·담당자·진행 정보를 조회해 목록 전용 모델로 변환 |
+| `GET /api/submissions/{id}/final-confirmations` | 제출본의 분야별 최종 확인 기록 | 최신 제출본의 확인 상태만 목록에 표시 |
 | `PUT /api/business-cases/{id}/answers/{key}` | 필드별 공통 답변 저장 | 현재 일괄 PATCH 훅을 전환해야 함 |
 
 기존 절차 목록(`/api/procedures`) 확인 기록은 초기 Back 기준이었다. 최신 계약의 게시본·서류 유형·질문 스키마와 연결할 때는 위 OpenAPI를 원본으로 사용한다.
+
+### 신청 현황 연결
+
+실제 Back에는 전체 `GET /api/security-requests`가 없다. [목록 전용 훅](../features/request/useRequestList.ts)은 서버 세션에서 확인한 실행 모드와 역할로 실제·모의 조회를 분리한다. [실제 목록 어댑터](../features/request/requestListApi.ts)는 Back `DRAFTING`·`IN_REVIEW`·`CONFIRMED`를 화면의 작성 중·협의 중·확정 상태로 변환하고, 유효한 초기 `revision=0`을 허용한다. 기존 상세 모델을 채우기 위해 답변·게시 버전·허용 동작을 만들어 넣지 않는다.
+
+담당자 이름은 Back이 제공하는 `assigneeUsername`, 담당자 요청함의 신청자는 `applicantUsername`을 표시한다. 사업 건 생성일을 신청 접수일로 대신하지 않고 신청 상세의 `createdAt`을 사용한다. 목록의 다음 업무 안내는 표시용이며 수정 권한은 서버가 판단한다. 메타데이터 조회 실패는 빈 목록이나 모의 데이터로 바꾸지 않는다.
+
+현재 Back에는 ADMIN의 기관 전체 신청 목록 API가 없다. 관리자 화면은 이를 준비 중으로 안내하며 관리자 본인 사업 건이나 제출본 일부를 전체 신청이라고 표시하지 않는다. 목록에 필요한 여러 자원을 조회하므로 신청 수가 많아지면 응답 시간이 늘어날 수 있다. 신청별 동시 조회를 제한하며, 향후 조회를 묶는 계약은 Back에서 정해야 한다.
+
+이 연결은 `/requests` 목록 범위다. 다른 화면의 기존 `useRequests`·상세·생성·저장 훅을 실제 계약으로 바꾸는 작업은 별도다.
 
 ### 현행 인증 경로의 예외
 
@@ -60,10 +73,10 @@
 | 사용자·설치 | [lib/types.ts](../lib/types.ts)의 `Actor`, `Session`, `Installation`. 모든 계정은 설치 기관 하나에 속하며 기관 ID를 입력받지 않음 |
 | 사업·신청 | [features/request/types.ts](../features/request/types.ts)의 Zod 스키마와 타입. BusinessCase 1:N SecurityRequest |
 | 답변 출처 | `source`, `evidence`, `confirmed`, `confirmation`, CASE/REQUEST scope. 근거·사람의 확인 없는 AI 값은 미확정 |
-| 응답 권한 표시 | 서버가 `allowedActions`·`blockers`를 계산. 클라이언트 표시와 별개로 mutation 시 서버가 다시 검사 |
+| 응답 권한 표시 | 모의 서버는 `allowedActions`·`blockers`를 계산. 실제 Back은 이 필드를 반환하지 않으며 목록의 업무 안내와 별개로 mutation 시 서버가 권한을 검사 |
 | 수정 충돌 | 변경 요청의 `expectedRevision`, 충돌 시 409와 최신 revision 정보. 입력 보존 후 사용자가 갱신 판단 |
 | 제출 중복 | `Idempotency-Key`와 제출 스냅샷. 답변·설정 게시본 버전을 당시 값으로 고정 |
-| 목록 | `{content, page, size, totalElements}`. 현재 훅은 첫 최대 100건을 받아 화면에서 필터·페이지 처리 |
+| 목록 | `/requests`는 사업 건의 전체 페이지 또는 담당자 요청함 배열을 목록 전용 모델로 변환해 검색·5개 단위 페이지 처리. 다른 화면의 기존 상세 목록 훅은 첫 최대 100건인 모의 계약 유지 |
 | 오류 | [ProblemDetail 처리](../lib/problem.ts)와 [HTTP 클라이언트](../lib/httpClient.ts). 400·401·403·404·409·422를 구분 |
 | 다운로드 | `application/json`, `Content-Disposition: attachment`, `.json` 파일명. 정식 HWP·PDF 파일이 아님 |
 

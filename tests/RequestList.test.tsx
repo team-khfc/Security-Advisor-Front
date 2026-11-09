@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { RequestList } from '@/features/request/RequestList';
+import { toMockRequestListItem, type RequestListItem } from '@/features/request/requestListModel';
 import type { SecurityRequest } from '@/features/request/types';
 import type { Session } from '@/lib/types';
 import { createMockState, MOCK_MEMBERS } from '@/mocks/seed';
@@ -9,6 +10,7 @@ import { createMockState, MOCK_MEMBERS } from '@/mocks/seed';
 const controls = vi.hoisted(() => ({
   session: null as Session | null,
   requests: [] as SecurityRequest[],
+  listItems: undefined as RequestListItem[] | undefined,
   replace: vi.fn(),
   listeners: new Set<() => void>(),
 }));
@@ -34,8 +36,15 @@ vi.mock('@/features/auth', () => ({
   useSession: () => ({ data: controls.session, isPending: false }),
 }));
 
-vi.mock('@/features/request/useRequests', () => ({
-  useRequests: () => ({ data: controls.requests, isPending: false, isError: false }),
+vi.mock('@/features/request/useRequestList', () => ({
+  useRequestList: () => ({
+    data:
+      controls.listItems ??
+      controls.requests.map((request) => toMockRequestListItem(request, controls.session!.member)),
+    isPending: false,
+    isError: false,
+    unavailable: controls.session?.mock === false && controls.session.member.role === 'ADMIN',
+  }),
 }));
 
 function searchInput() {
@@ -62,6 +71,7 @@ beforeEach(() => {
   controls.requests = createMockState().requests.filter(
     (request) => request.ownerId === applicant.id,
   );
+  controls.listItems = undefined;
   controls.listeners.clear();
   controls.replace.mockReset().mockImplementation((href: string) => {
     window.history.replaceState(null, '', href);
@@ -291,4 +301,76 @@ test('외부 URL의 검색어 변경과 조건 초기화를 입력창 및 결과
   expect(screen.getByRole('status').textContent).toContain('결과 6건');
   expect(window.location.search).toBe('');
   expect(searchInput()).toBe(input);
+});
+
+test('실제 목록 모델만으로 접수일과 협의 상태를 표시하며 할당을 협의 완료로 바꾸지 않는다', () => {
+  controls.session = { ...controls.session!, mock: false };
+  controls.listItems = [
+    {
+      id: '201',
+      caseTitle: '합성 연동 시험 사업',
+      department: '합성 시험 부서',
+      ownerName: '합성 신청자',
+      docType: 'FIREWALL',
+      stage: 2,
+      status: 'CONSULTING',
+      createdAt: '2026-11-09T01:00:00Z',
+      assignments: [{ field: 'INFRA', assigneeName: 'synthetic-infra', active: true }],
+      reviews: [{ field: 'INFRA', status: 'ALLOCATED', allocationCompleted: true }],
+      deadlines: [{ field: 'INFRA', dueAt: '2026-11-20', active: true, timing: 'WITHIN' }],
+      finalConfirmations: [],
+      currentSubmissionId: null,
+      returnNotice: '반환 이력 있음',
+      nextAction: null,
+    },
+  ];
+  render(<RequestList />);
+  expect(screen.getByRole('status').textContent).toContain('결과 1건');
+  expect(screen.getByRole('link', { name: '합성 연동 시험 사업' }).getAttribute('href')).toBe(
+    '/requests/201',
+  );
+  expect(screen.getByText('접수일 2026.11.09')).toBeTruthy();
+  expect(screen.getByText('synthetic-infra')).toBeTruthy();
+  expect(screen.getByText('할당 완료')).toBeTruthy();
+  expect(screen.queryByText('협의 완료')).toBeNull();
+  expect(screen.queryByText('관리자 배정 필요')).toBeNull();
+  expect(screen.getByText('2026.11.20')).toBeTruthy();
+  expect(screen.getByText('반환 이력 있음')).toBeTruthy();
+});
+
+test('실제 관리자 전체 조회가 제공되지 않으면 준비 중 안내를 보이고 전체 0건으로 표시하지 않는다', () => {
+  controls.session = {
+    member: MOCK_MEMBERS.find((member) => member.role === 'ADMIN')!,
+    mock: false,
+    expiresAt: null,
+  };
+  render(<RequestList />);
+  expect(screen.getByRole('heading', { name: '기관 전체 신청 현황은 준비 중입니다' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /전체 신청/ })).toBeNull();
+  expect(screen.queryByRole('table')).toBeNull();
+});
+
+test('서버 접수 시각의 소수초 자릿수가 달라도 실제 최신순으로 정렬한다', () => {
+  controls.session = { ...controls.session!, mock: false };
+  const base = toMockRequestListItem(controls.requests[0], controls.session.member);
+  controls.listItems = [
+    {
+      ...base,
+      id: '101',
+      caseTitle: '합성 시간 정렬 이전 신청',
+      createdAt: '2026-11-09T01:02:03Z',
+    },
+    {
+      ...base,
+      id: '102',
+      caseTitle: '합성 시간 정렬 최신 신청',
+      createdAt: '2026-11-09T01:02:03.100Z',
+    },
+  ];
+  render(<RequestList />);
+  expect(
+    screen
+      .getAllByRole('link', { name: /합성 시간 정렬/ })
+      .map((link) => link.getAttribute('href')),
+  ).toEqual(['/requests/102', '/requests/101']);
 });

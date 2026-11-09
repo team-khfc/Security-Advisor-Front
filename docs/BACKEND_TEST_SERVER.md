@@ -6,7 +6,7 @@
 
 실제 Spring Boot 백엔드, PostgreSQL 17, 이 Front의 Next.js 서버를 함께 실행하는 개발용 구성이다. Back 소스와 DB 정의는 Back 저장소가 소유하고, 이 저장소의 Compose 파일은 Back의 기존 `compose.yaml`에 Front와 테스트 설정을 추가한다. 완성본 배포 저장소를 대체하지 않는다.
 
-**서버 기동과 모든 업무 화면의 연동 완료는 별개다.** 현재 인증·세션·CSRF 프록시와 기관 정보 응답 변환을 제공한다. 사업·신청 DTO, 답변 저장, 협의, 제출, 문서 등의 연결 차이는 아래 표에 기록했다. 테스트 서버가 시작되어도 이 영역의 화면은 오류를 표시할 수 있다. API 실패를 모의 성공으로 바꾸지 않는다.
+**서버 기동과 모든 업무 화면의 연동 완료는 별개다.** 현재 인증·세션·CSRF 프록시, 기관 정보 응답 변환, 신청자·담당자의 신청 목록 조회 어댑터를 제공한다. 사업·신청 상세·생성, 답변 저장, 협의, 제출, 문서 등의 연결 차이는 아래 표에 기록했다. 목록에서 상세로 이동한 뒤에도 이 영역의 화면은 오류를 표시할 수 있다. API 실패를 모의 성공으로 바꾸지 않는다.
 
 ## 준비
 
@@ -75,7 +75,7 @@ npm run test:server -- --backend "$env:USERPROFILE\Desktop\repo\Security-Advisor
 | 기관 정보 | 내부적으로 `institutionName`, `institutionCode`, `mode` 사용 | `{name, code}`를 실제 API 모드로 변환하는 어댑터 반영 |
 | 인증 | `/api/auth/login`, `/me`, `/logout`, CSRF 쿠키/헤더 | 프록시·사용자 응답 어댑터 사용. 실제 실행 결과는 연결 검사에서 확인 |
 | 사업 건 | 모의 `id`, `answers`, `requestIds` 등을 요구 | `businessCaseId`, `caseAnswers`, 하위 `requests` 등으로 응답. 목록·상세를 구분한 DTO 연결 필요 |
-| 신청 현황 | `GET /api/security-requests`와 통합 화면 DTO 기대 | 사업 건의 하위 신청, 담당자 `/api/reviews` 등 역할별 조회를 사용하도록 연결 필요 |
+| 신청 현황 | 실제·모의 계약을 목록 전용 모델로 변환 | 신청자는 `/api/business-cases`의 모든 페이지와 하위 신청, 담당자는 `/api/reviews` 배열 사용. 실제 접수일·배정·협의·기한·반환·최종 확인도 조회. ADMIN 전체 목록 API는 없어 준비 중으로 안내 |
 | 공통 답변 저장 | `PATCH /api/business-cases/{id}`로 일괄 저장 | 필드별 `PUT /api/business-cases/{id}/answers/{key}`와 확인 API, 각 revision 처리 필요 |
 | 분석 | 파일·텍스트를 분석 요청에 함께 전달 | 업로드 → 분석 작업 생성 → 작업 조회 순서 연결 필요 |
 | 협의·문서·관리 | Front 모의 경로·통합 응답 기반 | OpenAPI의 개별 자원·상태·생성 문서·제출본·회원 관리 계약에 맞춘 후속 연결 필요 |

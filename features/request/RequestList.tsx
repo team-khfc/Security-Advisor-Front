@@ -6,7 +6,8 @@ import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useSession } from '@/features/auth';
 import { Badge, EmptyState, ErrorState, Icon, LoadingState, PageHeading } from '@/components/ui';
 import type { Actor } from '@/lib/types';
-import { useRequests } from './useRequests';
+import { useRequestList } from './useRequestList';
+import type { RequestListItem } from './requestListModel';
 import {
   DOCUMENT_LABELS,
   FIELD_LABELS,
@@ -14,7 +15,6 @@ import {
   STATUS_LABELS,
   type RequestStatus,
   type ReviewField,
-  type SecurityRequest,
 } from './types';
 
 type ListFilter = 'all' | 'mine' | 'staff' | 'done';
@@ -61,39 +61,11 @@ function shortDate(value: string) {
   return dateKey(new Date(value)).replaceAll('-', '.');
 }
 
-function isMyTurn(request: SecurityRequest, actor: Actor) {
-  if (terminalStates.includes(request.status)) return false;
-  if (actor.role === 'APPLICANT') {
-    return (
-      request.ownerId === actor.id &&
-      ['DRAFT', 'SUPPLEMENT_REQUESTED', 'FINAL_REVIEW'].includes(request.status)
-    );
-  }
-  if (actor.role === 'ADMIN') {
-    return (
-      request.stage >= 2 &&
-      ['INFRA', 'SECURITY'].some(
-        (field) =>
-          !request.assignments.some(
-            (assignment) => assignment.active && assignment.field === field,
-          ),
-      )
-    );
-  }
-  return [
-    'COMPLETE_ALLOCATION',
-    'COMPLETE_REVIEW',
-    'FINAL_CONFIRM',
-    'FINALIZE',
-    'RESOLVE_SUPPLEMENT',
-  ].some((action) => request.allowedActions.includes(action));
-}
-
-function isStaffTurn(request: SecurityRequest) {
+function isStaffTurn(request: RequestListItem) {
   return request.status === 'CONSULTING' || request.status === 'SUBMITTED';
 }
 
-function activeDeadline(request: SecurityRequest, role?: Actor['role']) {
+function activeDeadline(request: RequestListItem, role?: Actor['role']) {
   const active = request.deadlines.filter((deadline) => deadline.active);
   const relevant =
     role === 'INFRA' || role === 'SECURITY'
@@ -104,23 +76,7 @@ function activeDeadline(request: SecurityRequest, role?: Actor['role']) {
   )[0];
 }
 
-function nextAction(request: SecurityRequest, actor: Actor) {
-  if (!isMyTurn(request, actor)) return '';
-  const actions = request.allowedActions;
-  if (actor.role === 'ADMIN') return '담당자 배정 확인';
-  if (actor.role === 'APPLICANT') {
-    if (request.status === 'DRAFT') return '인터뷰 이어서 작성';
-    if (request.status === 'SUPPLEMENT_REQUESTED') return '보완 답변 등록';
-    return '최종 초안 확인·제출';
-  }
-  if (actions.includes('FINALIZE')) return '서류 확정';
-  if (actions.includes('FINAL_CONFIRM')) return '제출본 최종 확인';
-  if (actions.includes('COMPLETE_ALLOCATION')) return '통신 정보 할당';
-  if (actions.includes('RESOLVE_SUPPLEMENT')) return '보완 답변 재검토';
-  return '담당 분야 협의';
-}
-
-function reviewState(request: SecurityRequest, field: ReviewField) {
+function reviewState(request: RequestListItem, field: ReviewField) {
   if (terminalStates.includes(request.status) && request.status !== 'FINALIZED')
     return { kind: 'wait', label: '종료' };
   if (request.stage === 4) {
@@ -140,6 +96,7 @@ function reviewState(request: SecurityRequest, field: ReviewField) {
   if (field === 'INFRA' && review.allocationCompleted) return { kind: 'now', label: '할당 완료' };
   if (
     field === 'SECURITY' &&
+    request.reviews.some((item) => item.field === 'INFRA') &&
     !request.reviews.some((item) => item.field === 'INFRA' && item.allocationCompleted)
   )
     return { kind: 'wait', label: '할당 대기' };
@@ -149,11 +106,17 @@ function reviewState(request: SecurityRequest, field: ReviewField) {
   };
 }
 
-function Assignees({ request }: { request: SecurityRequest }) {
+function Assignees({ request }: { request: RequestListItem }) {
   if (request.stage === 1) return <span className="asg-none">협의 요청 후 배정</span>;
+  const fields = (['INFRA', 'SECURITY'] as const).filter(
+    (field) =>
+      request.reviews.some((review) => review.field === field) ||
+      request.assignments.some((assignment) => assignment.active && assignment.field === field),
+  );
+  if (fields.length === 0) return <span className="asg-none">협의 정보 없음</span>;
   return (
     <ul className="asg">
-      {(['INFRA', 'SECURITY'] as const).map((field) => {
+      {fields.map((field) => {
         const assignment = request.assignments.find((item) => item.active && item.field === field);
         const state = reviewState(request, field);
         return (
@@ -175,7 +138,7 @@ function Deadline({
   actor,
   today,
 }: {
-  request: SecurityRequest;
+  request: RequestListItem;
   actor: Actor;
   today: string;
 }) {
@@ -183,7 +146,11 @@ function Deadline({
   if (!deadline || terminalStates.includes(request.status))
     return (
       <span className="help">
-        {terminalStates.includes(request.status) ? '종료' : '협의 요청 후 산정'}
+        {terminalStates.includes(request.status)
+          ? '종료'
+          : request.stage === 1
+            ? '협의 요청 후 산정'
+            : '진행 중인 기한 없음'}
       </span>
     );
   const diff = Math.round(
@@ -210,7 +177,7 @@ function Deadline({
 
 function RequestListView({ options }: { options: ListOptions }) {
   const session = useSession();
-  const requests = useRequests();
+  const requests = useRequestList();
   const router = useRouter();
   const [search, setSearch] = useState(options.search);
   const [previousSearch, setPreviousSearch] = useState(options.search);
@@ -256,6 +223,16 @@ function RequestListView({ options }: { options: ListOptions }) {
     apply({ search: search.trim(), period, from, to, page: 1 });
   }
 
+  if (requests.unavailable)
+    return (
+      <>
+        <PageHeading title="신청 현황" />
+        <EmptyState
+          title="기관 전체 신청 현황은 준비 중입니다"
+          description="현재 연결된 서비스에서는 신청자의 내 신청과 담당자의 협의 요청함을 조회할 수 있습니다."
+        />
+      </>
+    );
   if (requests.isPending || session.isPending) return <LoadingState />;
   if (requests.isError)
     return (
@@ -269,7 +246,7 @@ function RequestListView({ options }: { options: ListOptions }) {
   if (!actor) return <LoadingState />;
 
   const all = requests.data ?? [];
-  const mine = all.filter((request) => isMyTurn(request, actor));
+  const mine = all.filter((request) => request.nextAction !== null);
   const staff = all.filter(isStaffTurn);
   const done = all.filter((request) => request.status === 'FINALIZED');
   const isApplicant = actor.role === 'APPLICANT';
@@ -285,7 +262,7 @@ function RequestListView({ options }: { options: ListOptions }) {
     { key: 'done', label: '서류 확정', icon: 'check', count: done.length },
     {
       key: 'all',
-      label: isApplicant ? '내 신청 전체' : '전체 신청',
+      label: isApplicant ? '내 신청 전체' : isStaff ? '내게 배정된 신청' : '전체 신청',
       icon: 'file',
       count: all.length,
     },
@@ -304,7 +281,7 @@ function RequestListView({ options }: { options: ListOptions }) {
   const toDate = options.period === 'custom' ? options.to : options.period === 'all' ? '' : today;
   const filtered = all
     .filter((request) => {
-      if (options.filter === 'mine' && !isMyTurn(request, actor)) return false;
+      if (options.filter === 'mine' && request.nextAction === null) return false;
       if (options.filter === 'staff' && !isStaffTurn(request)) return false;
       if (options.filter === 'done' && request.status !== 'FINALIZED') return false;
       if (
@@ -323,7 +300,7 @@ function RequestListView({ options }: { options: ListOptions }) {
         const rightDue = activeDeadline(right, actor.role)?.dueAt ?? '9999';
         if (leftDue !== rightDue) return leftDue.localeCompare(rightDue);
       }
-      return right.createdAt.localeCompare(left.createdAt);
+      return Date.parse(right.createdAt) - Date.parse(left.createdAt);
     });
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.max(1, Math.min(options.page, pages));
@@ -546,7 +523,7 @@ function RequestListView({ options }: { options: ListOptions }) {
                 <tbody>
                   {visible.map((request) => {
                     const stopped = request.status === 'CLOSED' || request.status === 'WITHDRAWN';
-                    const action = nextAction(request, actor);
+                    const action = request.nextAction;
                     const overdue =
                       activeDeadline(request, actor.role)?.timing === 'OVERDUE' &&
                       !terminalStates.includes(request.status);
@@ -586,8 +563,8 @@ function RequestListView({ options }: { options: ListOptions }) {
                             {STAGE_LABELS[request.stage - 1]}
                             {stopped ? ', 종료' : ''}
                           </span>
-                          {request.returns.length > 0 && request.highlightedFields.length > 0 && (
-                            <span className="table-subtitle">반환됨 · 보완 항목 확인</span>
+                          {request.returnNotice && (
+                            <span className="table-subtitle">{request.returnNotice}</span>
                           )}
                         </td>
                         <td>
