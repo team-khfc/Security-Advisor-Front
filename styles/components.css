@@ -469,3 +469,64 @@
   color: var(--sf-warning-text);
   font-weight: 700;
 }
+
+/* UI 통합 Stage 4-A (prototype-soo 563dd7e supplements·documents·network·history 기준) */
+.sec-head.sec-head-first {
+  margin-top: 0;
+}
+.card-h .p-id {
+  display: block;
+}
+.card-h .h-panel {
+  margin: 0;
+}
+.card > .supp:last-of-type {
+  margin-bottom: 1.6rem;
+}
+.supp p {
+  margin: 0.6rem 0 0;
+}
+.document-filter .field > label {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--sf-muted);
+}
+.network-table td > div + div {
+  margin-top: 0.4rem;
+}
+.network-table .turn {
+  display: block;
+}
+/* 감사 A02: 빈 통신 값은 칸마다 필드 이름 배지로, 담당자 확인 필요는 행마다 한 번만 */
+.network-table .network-missing {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--sf-warning-text);
+  font-size: 1.5rem;
+}
+.network-table .network-missing > span {
+  white-space: nowrap;
+}
+.audit-actor {
+  white-space: nowrap;
+}
+
+/* UI 통합 Stage 4-B (prototype-soo 563dd7e policies 기준): 데이터 연결 전 정책 화면의 비활성 표시 */
+.stat.stat-disabled {
+  cursor: default;
+  color: var(--sf-muted);
+  background: var(--sf-background);
+}
+.stat.stat-disabled:hover {
+  border-color: var(--sf-border);
+}
+.stat.stat-disabled .stat-num {
+  color: var(--sf-muted);
+}
+.pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.pill:disabled:hover {
+  background: inherit;
+}

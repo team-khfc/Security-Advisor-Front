@@ -153,3 +153,64 @@
 .inner-tbl td.nowrap {
   white-space: nowrap;
 }
+
+/* UI 통합 Stage 2 (prototype-soo 563dd7e request-detail 기준)
+ * 시안의 .stepper·.consult·.review·.dl 모양을 Front 신청 상세에 맞춘다. 업무 상태·행위는 바꾸지 않는다. */
+.stepper li .badge {
+  margin-top: 0.6rem;
+}
+.stepper.is-terminal li[aria-current='step'] {
+  border-color: var(--sf-border-strong);
+  color: var(--sf-muted);
+}
+.consult .consult-name {
+  font-weight: 700;
+  color: var(--sf-text);
+}
+.review .deadline-line:first-of-type {
+  margin-top: 1.6rem;
+}
+.review-actions {
+  border-top: 1px solid var(--sf-line);
+  margin-top: 2rem;
+  padding-top: 2rem;
+}
+.review-actions > .h-panel {
+  margin-bottom: 0.4rem;
+}
+
+/* 사업 정보 등 값 목록을 시안의 라벨·값 표(.dl, 라벨 14rem)로 표시 */
+.detail-content .answer-item {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: 0.4rem 2.4rem;
+  padding: 0.6rem 0;
+  border-bottom: 0;
+}
+.detail-content .answer-item dt {
+  font-weight: 400;
+  color: var(--sf-muted);
+  margin: 0;
+}
+.detail-content .answer-item dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.8rem;
+}
+.detail-content .answer-item dd > p {
+  margin: 0;
+}
+.detail-content .answer-item .evidence {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+.detail-content .answer-item.needs-supplement {
+  padding: 1.2rem;
+  margin: 0.4rem 0;
+}
+@media (max-width: 767px) {
+  .detail-content .answer-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

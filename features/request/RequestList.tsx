@@ -6,6 +6,7 @@ import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useSession } from '@/features/auth';
 import { Badge, EmptyState, ErrorState, Icon, LoadingState, PageHeading } from '@/components/ui';
 import type { Actor } from '@/lib/types';
+import { waitingLine } from './turns';
 import { useRequests } from './useRequests';
 import {
   DOCUMENT_LABELS,
@@ -553,14 +554,17 @@ function RequestListView({ options }: { options: ListOptions }) {
                     return (
                       <tr key={request.id} className={overdue ? 'overdue' : undefined}>
                         <td>
-                          <div className="p-id">{request.id}</div>
+                          <div className="p-id">
+                            {request.id}
+                            <span className="request-type">
+                              {' '}
+                              · {DOCUMENT_LABELS[request.docType] ?? request.docType}
+                            </span>
+                          </div>
                           <div className="p-name">
                             <Link href={`/requests/${encodeURIComponent(request.id)}`}>
                               {request.caseTitle}
                             </Link>
-                          </div>
-                          <div className="request-type">
-                            {DOCUMENT_LABELS[request.docType] ?? request.docType}
                           </div>
                           <div className="p-meta">접수일 {shortDate(request.createdAt)}</div>
                         </td>
@@ -596,7 +600,14 @@ function RequestListView({ options }: { options: ListOptions }) {
                           <Badge tone={statusTones[request.status]}>
                             {request.statusLabel ?? STATUS_LABELS[request.status]}
                           </Badge>
-                          {action && <span className="turn me">{action}</span>}
+                          {action ? (
+                            <span className="turn me">{action}</span>
+                          ) : (
+                            !isApplicant &&
+                            waitingLine(request) && (
+                              <span className="turn">{waitingLine(request)}</span>
+                            )
+                          )}
                         </td>
                         <td>
                           <Deadline request={request} actor={actor} today={today} />

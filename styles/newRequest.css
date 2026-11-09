@@ -649,3 +649,237 @@ body.resizing {
   width: min(100%, 64rem);
   text-align: left;
 }
+
+/* UI 통합 Stage 3 (prototype-soo 563dd7e new-request 시작 화면 기준)
+ * 사업 정보 입력 카드(D3, 업무 필수)가 위에 있으므로 파일 영역 높이는 작업 영역 전체 대신 고정 최소 높이로 둔다. */
+.new-case-intake {
+  margin-bottom: 2.4rem;
+}
+.new-case-intake .dropzone {
+  min-height: 36rem;
+}
+.new-case-intake .dropzone > .help,
+.new-case-intake .dropzone > .ferr {
+  margin: 0;
+  max-width: 66ch;
+}
+.new-case-intake .dz-ic svg {
+  width: 3.2rem;
+  height: 3.2rem;
+}
+.new-case-actions {
+  align-items: center;
+}
+.new-case-actions > .help {
+  margin: 0 auto 0 0;
+}
+@media (max-width: 767px) {
+  .new-case-intake .dropzone {
+    min-height: 32rem;
+    padding: 2.4rem 1.6rem;
+  }
+  .new-case-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .new-case-actions > .help {
+    margin: 0;
+  }
+  .new-case-intake .pend li {
+    flex-wrap: wrap;
+  }
+  .new-case-intake .pend .pn {
+    flex: 1 1 calc(100% - 3rem);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* UI 통합 Stage 4-A (prototype-soo 563dd7e 대화·수집 정보 작업 영역 기준)
+ * 사업 건 화면(/cases/[id])이 시안의 .work·.chatp·.infop 구조를 쓰도록 맞춘 보정. 업무 로직과 무관하다. */
+.chatp-h .ttl .h-panel {
+  margin: 0;
+}
+.av svg {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+.bubble p {
+  margin: 0;
+}
+.bubble p + p {
+  margin-top: 0.8rem;
+}
+p.m-me {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.msgs > .sub-block,
+.msgs > .notice {
+  margin: 0;
+}
+.qnum {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+label.qtitle,
+h3.qtitle {
+  display: block;
+}
+.qcard textarea {
+  min-height: 9rem;
+  max-height: 20rem;
+}
+.qcard .btn-row {
+  margin-top: 1.6rem;
+}
+progress.prog {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 0.6rem;
+  border: 0;
+  overflow: hidden;
+  background: var(--sf-background);
+}
+progress.prog::-webkit-progress-bar {
+  background: var(--sf-background);
+  border-radius: 3px;
+}
+progress.prog::-webkit-progress-value {
+  background: var(--sf-primary);
+  border-radius: 3px;
+}
+progress.prog::-moz-progress-bar {
+  background: var(--sf-primary);
+  border-radius: 3px;
+}
+.infop-b > .help {
+  margin: 0.8rem 0 0;
+}
+/* 수집 정보 값 목록은 시안 .irow(라벨 9.6rem · 값 · 출처) 한 줄 구성 */
+.infop-b .answer-item {
+  display: grid;
+  grid-template-columns: 9.6rem minmax(0, 1fr);
+  gap: 0.4rem 0.8rem;
+  align-items: baseline;
+  padding: 1rem 0.4rem;
+  border-bottom: 1px solid var(--sf-line);
+  font-size: 1.5rem;
+}
+.infop-b .answer-item dt {
+  font-weight: 400;
+  color: var(--sf-muted);
+  margin: 0;
+}
+.infop-b .answer-item dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.8rem;
+}
+.infop-b .answer-item dd > p {
+  margin: 0;
+}
+.infop-b .answer-item .evidence {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+@media (max-width: 767px) {
+  .infop-b .answer-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* 문서 분석은 시안처럼 작업 영역 위 문서 막대(.docbar)에 둔다 */
+.case-analysis > summary {
+  cursor: pointer;
+  color: var(--sf-primary-text);
+  font-weight: 700;
+  min-height: 4.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  list-style: none;
+}
+.case-analysis > summary::-webkit-details-marker {
+  display: none;
+}
+.case-analysis > summary::before {
+  content: '';
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+.case-analysis[open] > summary::before {
+  transform: rotate(45deg);
+}
+.case-analysis[open] > summary {
+  margin-bottom: 1.2rem;
+}
+
+/* 시안의 작업 영역에 기존 대화·질문 높이와 내부 스크롤을 유지한다. */
+.case-work .chatp,
+.case-work .infop {
+  height: auto;
+  overflow: hidden;
+}
+.case-work .chatp-h,
+.case-work .infop-h,
+.case-work .infop-f {
+  flex-shrink: 0;
+}
+.case-work .conversation-body {
+  flex: 0 0 auto;
+  height: clamp(48rem, 65dvh, 100rem);
+}
+.case-work .conversation-log,
+.case-work .chat-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+.case-work .interview-question {
+  max-height: none;
+}
+.case-work form.interview-question {
+  min-height: clamp(40rem, 42dvh, 56rem);
+}
+.case-work .interview-question textarea {
+  height: clamp(20rem, 24dvh, 32rem);
+  min-height: 20rem;
+  max-height: 52rem;
+}
+.case-work .infop-b {
+  height: 0;
+}
+.interview-complete-actions {
+  align-items: stretch;
+}
+.interview-complete-actions > .btn {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.8rem 1.6rem;
+  white-space: normal;
+  text-align: center;
+}
+@media (max-width: 1023px) {
+  .case-work .infop {
+    height: max(50rem, 60dvh);
+  }
+}
+@media (max-width: 767px) {
+  .case-work .conversation-body {
+    height: clamp(40rem, 58dvh, 64rem);
+  }
+  .case-work form.interview-question {
+    min-height: auto;
+  }
+  .case-work .interview-question textarea {
+    height: 20rem;
+    max-height: 40rem;
+  }
+}

@@ -54,7 +54,10 @@ export function AnswerView({
             )}
           </dt>
           <dd>
-            <p>{answer.notApplicable ? '미해당' : answer.value || '담당자 확인 필요'}</p>
+            {/* 값도 출처도 없으면 출처 배지가 같은 '담당자 확인 필요'를 알리므로 글자를 반복하지 않는다. */}
+            {(answer.notApplicable || answer.value || answer.source) && (
+              <p>{answer.notApplicable ? '미해당' : answer.value || '담당자 확인 필요'}</p>
+            )}
             <SourceBadge answer={answer} />
             {answer.evidence && (
               <details className="evidence">

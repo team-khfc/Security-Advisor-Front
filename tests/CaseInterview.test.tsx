@@ -55,13 +55,9 @@ function mockConversationLayout(body: HTMLElement, { pairHeight = 240 } = {}) {
   const gap = 24;
   let scrollTop = 0;
   const pairs = () => Array.from(body.querySelectorAll<HTMLElement>('.chat-pair'));
-  const scrollHeight = () =>
-    introHeight +
-    pairs().length * (pairHeight + gap) +
-    (body.querySelector('details')?.open ? 900 : 48) +
-    24;
+  const scrollHeight = () => introHeight + pairs().length * (pairHeight + gap) + 24;
 
-  // jsdom에는 배치 엔진이 없어 저장된 대화와 열린 분석 패널의 크기만 합성한다.
+  // jsdom에는 배치 엔진이 없어 저장된 대화 크기를 합성한다. 분석 패널은 대화 밖에 있다.
   body.style.paddingBottom = '24px';
   Object.defineProperties(body, {
     clientTop: { configurable: true, value: 0 },
@@ -146,13 +142,17 @@ test('답변 저장과 마지막 공통 답변 저장 후 새 답변의 끝을 �
   expect(scrollPage).not.toHaveBeenCalled();
 });
 
-test('대화 아래의 분석 패널이 열려 있어도 패널 끝 대신 새로 저장한 답변을 보여 준다', async () => {
+test('대화 밖의 분석 패널이 열려 있어도 대화 영역에서 새로 저장한 답변을 보여 준다', async () => {
   const user = userEvent.setup();
   render(<CaseInterview id={controls.businessCase!.id} />);
   const body = conversation();
   mockConversationLayout(body);
-  await user.click(screen.getByText('기획서로 시작하거나 AI 제안 받기'));
-  expect(body.querySelector('details')?.open).toBe(true);
+  const analysisToggle = screen.getByText('기획서로 시작하거나 AI 제안 받기');
+  const analysisPanel = analysisToggle.closest('details');
+  await user.click(analysisToggle);
+  expect(analysisPanel?.open).toBe(true);
+  expect(body.contains(analysisPanel)).toBe(false);
+  expect(screen.getByRole('textbox', { name: '분석할 사업 개요' })).toBeTruthy();
 
   await fillAnswer(user, '사업 목적', '첫 번째 합성 인터뷰 답변입니다.');
   await user.click(screen.getByRole('button', { name: '답변 저장하고 다음' }));
@@ -160,15 +160,15 @@ test('대화 아래의 분석 패널이 열려 있어도 패널 끝 대신 새�
   expectLatestAnswerVisible(body, true);
   expect(body.scrollTop).toBeLessThan(body.scrollHeight - body.clientHeight);
 
-  // 분석 패널을 읽으려고 내려간 상태에서도 다음 저장은 최신 답변으로 돌아온다.
-  body.scrollTop = body.scrollHeight - body.clientHeight;
-  const analysisScrollTop = body.scrollTop;
+  // 앞선 대화를 읽으려고 위로 이동해도 다음 저장은 최신 답변으로 돌아온다.
+  body.scrollTop = 0;
   await fillAnswer(user, '처리하는 정보', '두 번째 합성 인터뷰 답변입니다.');
-  expect(body.scrollTop).toBe(analysisScrollTop);
+  expect(body.scrollTop).toBe(0);
   await user.click(screen.getByRole('button', { name: '답변 저장하고 다음' }));
   await within(body).findByText('두 번째 합성 인터뷰 답변입니다.');
   expectLatestAnswerVisible(body, true);
-  expect(body.scrollTop).toBeLessThan(analysisScrollTop);
+  expect(body.scrollTop).toBeGreaterThan(0);
+  expect(analysisPanel?.open).toBe(true);
 });
 
 test('입력 중이거나 저장 실패 또는 나중에 입력을 선택하면 읽던 대화 위치를 유지한다', async () => {

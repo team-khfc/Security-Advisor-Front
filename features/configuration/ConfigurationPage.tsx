@@ -16,18 +16,19 @@ export function ConfigurationPage() {
     return <Notice tone="warning">기관 관리자만 설정을 확인할 수 있습니다.</Notice>;
   return (
     <>
-      <PageHeading
-        title="기관 설정"
-        description={`${installation.data?.institutionName ?? '운영 기관'}의 질문·양식·절차 기준을 확인합니다.`}
-      />
-      <Notice>
-        <strong>게시본 1개로 운영하는 1차 개발 범위입니다.</strong>
-        <p>
-          아래는 기능 명세의 기준 정보입니다. 설정 편집·게시 관리 화면은 P2 구현 예정이며 실제 게시
-          이력은 아직 연결되지 않았습니다.
+      <PageHeading title="기관 설정" />
+      <div className="org-bar">
+        <div className="verbar">
+          <Badge tone="success">게시본 v1</Badge>
+          <Badge>모의 seed 게시본 · 읽기 전용</Badge>
+        </div>
+        <p className="help">
+          {installation.data?.institutionName ?? '운영 기관'}의 질문·양식·절차 기준(기능 명세 기준
+          정보)입니다. 설정 편집·게시 관리는 P2 구현 예정이며 실제 게시 이력은 아직 연결되지
+          않았습니다.
         </p>
-      </Notice>
-      <div className="tabs" role="tablist" aria-label="설정 항목">
+      </div>
+      <div className="tabs" role="tablist" aria-label="기관 설정 항목">
         {tabs.map((tab, index) => (
           <button
             type="button"
@@ -58,7 +59,7 @@ export function ConfigurationPage() {
         ))}
       </div>
       <section
-        className="card"
+        className="tabpanel card"
         role="tabpanel"
         tabIndex={0}
         aria-labelledby={`setting-tab-${active}`}
@@ -66,7 +67,7 @@ export function ConfigurationPage() {
       >
         {active === 0 && (
           <>
-            <h2 className="h-sec">공통 정보와 서류별 질문</h2>
+            <h2 className="h-panel">공통 정보와 서류별 질문</h2>
             <div className="settings-two">
               <div>
                 <h3 className="h-panel">사업 공통 정보 · CASE</h3>
@@ -89,13 +90,15 @@ export function ConfigurationPage() {
         )}
         {active === 1 && (
           <>
-            <h2 className="h-sec">담당자 검토 순서</h2>
+            <h2 className="h-panel">기관 검토 절차</h2>
             <p>
               <Badge tone="info">INFRA 선행 고정</Badge>
             </p>
-            <ol className="settings-steps">
+            <h3 className="h-panel settings-flow-title">새 신청에 적용하는 흐름</h3>
+            <ol className="flow">
+              <li>작성</li>
               <li>ICT인프라 자원 할당</li>
-              <li>각 분야 협의 완료 (할당과 별도)</li>
+              <li>분야별 협의 완료 (할당과 별도)</li>
               <li>사용자 최종 검토·제출</li>
               <li>INFRA 최종 확인 → SECURITY 최종 확인 → SECURITY 확정</li>
             </ol>
@@ -104,7 +107,7 @@ export function ConfigurationPage() {
         )}
         {active === 2 && (
           <>
-            <h2 className="h-sec">신청 서류 2종</h2>
+            <h2 className="h-panel">신청 서류 2종</h2>
             <p>방화벽신청서 / 보안성검토 신청서</p>
             <p>
               프론트는 검토용 JSON과 제출 스냅샷을 제공합니다. 기관 양식에 맞춘 정식 HWP·PDF 출력은
@@ -115,7 +118,7 @@ export function ConfigurationPage() {
         )}
         {active === 3 && (
           <>
-            <h2 className="h-sec">기한과 감사 기준</h2>
+            <h2 className="h-panel">기한과 감사 기준</h2>
             <p>
               협의·보완 응답·최종 확정은 기본 5영업일입니다. 서버가 주말·게시본 공휴일을 제외하고
               기한을 계산합니다.
@@ -128,8 +131,32 @@ export function ConfigurationPage() {
         )}
         {active === 4 && (
           <>
-            <h2 className="h-sec">설정 게시본</h2>
-            <Badge tone="info">모의 seed 게시본 v1</Badge>
+            <h2 className="h-panel">게시 이력</h2>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <caption className="sr-only">설정 게시 이력</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">버전</th>
+                    <th scope="col">상태</th>
+                    <th scope="col">출처</th>
+                    <th scope="col">비고</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <strong>v1</strong>
+                    </td>
+                    <td>
+                      <Badge tone="success">현재 게시본</Badge>
+                    </td>
+                    <td>모의 seed</td>
+                    <td>실제 게시 이력 API 연결 전</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <p>
               사업 건 생성 시 게시본 버전을 고정합니다. 새 게시본은 새 신청에만 적용되며, 기존
               신청의 제출본은 바뀌지 않습니다.
@@ -140,6 +167,34 @@ export function ConfigurationPage() {
           </>
         )}
       </section>
+      {active !== 4 && (
+        <div className="actions">
+          <button
+            type="button"
+            className="btn btn-tertiary"
+            disabled
+            aria-describedby="settings-disabled"
+          >
+            초안 변경 취소
+          </button>
+          <span className="help" id="settings-disabled">
+            설정 편집·초안 저장·게시는 P2 구현 예정이라 사용할 수 없습니다.
+          </span>
+          <div className="btn-row">
+            <button type="button" className="btn" disabled aria-describedby="settings-disabled">
+              설정 초안 저장
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled
+              aria-describedby="settings-disabled"
+            >
+              변경 검토·게시
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

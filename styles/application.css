@@ -78,8 +78,7 @@
   flex-shrink: 0;
 }
 .form-two,
-.settings-two,
-.supplement-grid {
+.settings-two {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2.4rem;
@@ -121,66 +120,6 @@
   color: var(--sf-primary-text);
   text-decoration: underline;
 }
-.stage-stepper {
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 1px solid var(--sf-border);
-  background: var(--sf-surface);
-  padding: 2rem 2.4rem;
-  margin: 0 0 2.4rem;
-  border-radius: var(--r-card);
-  gap: 1.2rem;
-}
-.stage-stepper li {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  color: var(--sf-muted);
-  font-size: 1.5rem;
-  flex-wrap: wrap;
-}
-.stage-stepper .current {
-  color: var(--sf-text);
-  font-weight: 700;
-}
-.step-number {
-  display: inline-grid;
-  place-items: center;
-  width: 3.2rem;
-  height: 3.2rem;
-  border-radius: 50%;
-  background: var(--sf-background);
-  color: var(--sf-muted);
-  border: 1px solid var(--sf-border);
-  flex-shrink: 0;
-}
-.current .step-number {
-  color: var(--sf-on-primary);
-  border-color: transparent;
-}
-.current .stage-1 {
-  background: var(--st1);
-}
-.current .stage-2 {
-  background: var(--st2);
-}
-.current .stage-3 {
-  background: var(--st3);
-}
-.current .stage-4 {
-  background: var(--st4);
-}
-.done .step-number {
-  color: var(--sf-primary-text);
-  background: var(--sf-primary-soft);
-  border-color: var(--sf-primary);
-}
-.is-terminal .step-number {
-  background: var(--sf-background);
-  color: var(--sf-muted);
-  border-color: var(--sf-border);
-}
 .detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(34rem, 40rem);
@@ -189,30 +128,6 @@
 }
 .detail-content {
   min-width: 0;
-}
-.review-panel {
-  position: sticky;
-  top: 2.4rem;
-  min-width: 0;
-}
-.review-panel .card {
-  padding: 2.4rem;
-}
-.review-status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-  margin: 1.6rem 0;
-}
-.review-person {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.8rem;
-  background: var(--sf-background);
-  border-radius: var(--r-ctl);
-  padding: 1.2rem;
-  font-size: 1.5rem;
 }
 .deadline-line {
   display: flex;
@@ -485,54 +400,6 @@
   font-size: 1.5rem;
   margin-top: 0.4rem;
 }
-.upload-zone {
-  background: var(--sf-surface);
-  min-height: 36rem;
-  border: 2px dashed var(--sf-border-strong);
-  border-radius: var(--r-panel);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 3.2rem;
-  margin-bottom: 2.4rem;
-}
-.upload-zone.dragging {
-  background: var(--sf-primary-soft);
-  border-color: var(--sf-primary);
-}
-.upload-zone .h-sec {
-  margin: 1.6rem 0 0.8rem;
-}
-.upload-zone > p {
-  max-width: 66ch;
-  margin: 0.8rem 0;
-}
-.upload-zone > .btn {
-  margin: 1.6rem 0 0.8rem;
-}
-.upload-icon {
-  width: 7.2rem;
-  height: 7.2rem;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--sf-primary-soft);
-  color: var(--sf-primary-text);
-}
-.selected-file {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1.2rem;
-  width: min(100%, 80rem);
-  padding: 1.6rem;
-  border: 1px solid var(--sf-border);
-  border-radius: var(--r-ctl);
-  margin: 1.6rem 0;
-  text-align: left;
-}
 .file-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -540,13 +407,6 @@
   max-width: 100%;
   flex: 1;
   min-width: 0;
-}
-.new-request-actions {
-  display: flex;
-  gap: 2rem;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 2.4rem;
 }
 .case-document-tabs {
   display: flex;
@@ -568,164 +428,6 @@
 .case-document-link:hover {
   border-color: var(--sf-primary);
   background: var(--sf-primary-soft);
-}
-.interview-workspace {
-  display: grid;
-  grid-template-columns: minmax(40rem, 1fr) 1.6rem minmax(0, var(--info-w, 380px));
-  gap: 0.8rem;
-  align-items: stretch;
-}
-.conversation-panel,
-.collected-panel {
-  background: var(--sf-surface);
-  border: 1px solid var(--sf-border);
-  border-radius: var(--r-panel);
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
-.conversation-heading {
-  flex-shrink: 0;
-  padding: 2rem 2.4rem;
-  border-bottom: 1px solid var(--sf-line);
-  display: flex;
-  align-items: center;
-  gap: 1.2rem;
-}
-.conversation-heading h2,
-.conversation-heading p {
-  margin: 0;
-}
-.assistant-avatar {
-  width: 4.8rem;
-  height: 4.8rem;
-  display: grid;
-  place-items: center;
-  background: var(--sf-primary-soft);
-  color: var(--sf-primary-text);
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.conversation-body {
-  flex: 0 0 auto;
-  height: clamp(48rem, 65dvh, 100rem);
-  padding: 2.4rem;
-  overflow-y: auto;
-}
-.ai-message {
-  background: var(--sf-background);
-  padding: 1.6rem;
-  border-radius: 0 var(--r-card) var(--r-card);
-}
-.ai-message p {
-  margin: 0;
-}
-.ai-message p + p {
-  margin-top: 0.8rem;
-}
-.chat-pair {
-  margin: 1.6rem 0;
-}
-.chat-question {
-  margin: 0 0 0.6rem;
-  color: var(--sf-muted);
-  font-size: 1.5rem;
-}
-.user-message {
-  margin-left: 4rem;
-  background: var(--sf-primary-soft);
-  color: var(--sf-text);
-  padding: 1.2rem 1.6rem;
-  border-radius: var(--r-card) 0 var(--r-card) var(--r-card);
-}
-.interview-question {
-  flex-shrink: 0;
-  padding: 2.4rem;
-  border-top: 2px solid var(--sf-primary);
-  background: var(--sf-surface);
-}
-form.interview-question {
-  min-height: clamp(40rem, 42dvh, 56rem);
-}
-.interview-question label {
-  display: block;
-}
-.interview-question .btn-row {
-  margin-top: 1.6rem;
-}
-.interview-complete-actions {
-  align-items: stretch;
-}
-.interview-complete-actions > .btn {
-  min-width: 0;
-  max-width: 100%;
-  padding: 0.8rem 1.6rem;
-  white-space: normal;
-  text-align: center;
-}
-.interview-question textarea {
-  height: clamp(20rem, 24dvh, 32rem);
-  min-height: 20rem;
-  max-height: 52rem;
-}
-.question-progress {
-  display: flex;
-  justify-content: space-between;
-  color: var(--sf-primary-text);
-  font-size: 1.3rem;
-  margin-bottom: 0.8rem;
-}
-.collected-head {
-  flex-shrink: 0;
-  padding: 2.4rem;
-  border-bottom: 1px solid var(--sf-line);
-}
-.collected-head .h-panel {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  margin: 0;
-}
-.collected-head p {
-  margin: 1.2rem 0 0.8rem;
-  font-size: 1.5rem;
-  display: flex;
-  justify-content: space-between;
-}
-.collected-head progress {
-  width: 100%;
-  height: 0.8rem;
-  accent-color: var(--sf-primary);
-  display: block;
-}
-.collected-body {
-  flex: 1;
-  /* 수집 내용의 길이 대신 왼쪽 대화 패널 높이에 맞춰 내부에서 스크롤한다. */
-  height: 0;
-  min-height: 0;
-  padding: 2.4rem;
-  overflow-y: auto;
-}
-.collected-body .answer-item {
-  font-size: 1.5rem;
-}
-.collected-body .h-panel:not(:first-child) {
-  border-top: 1px solid var(--sf-border);
-  padding-top: 2.4rem;
-  margin-top: 2.4rem;
-}
-.panel-resizer {
-  cursor: col-resize;
-  display: grid;
-  place-items: center;
-  touch-action: none;
-}
-.panel-resizer span {
-  width: 0.4rem;
-  height: 4rem;
-  border-radius: 0.2rem;
-  background: var(--sf-border-strong);
 }
 .manual-editor {
   margin-top: 2.4rem;
@@ -756,12 +458,10 @@ form.interview-question {
 .candidate small {
   color: var(--sf-muted);
 }
-.settings-two ul,
-.settings-steps {
+.settings-two ul {
   padding-left: 2.4rem;
 }
-.settings-two li,
-.settings-steps li {
+.settings-two li {
   margin: 1.2rem 0;
 }
 
@@ -928,13 +628,6 @@ form.interview-question {
   .detail-layout {
     grid-template-columns: minmax(0, 1fr);
   }
-  .review-panel {
-    position: static;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2.4rem;
-    align-items: start;
-  }
   .auth-layout {
     gap: 2.4rem;
   }
@@ -946,22 +639,6 @@ form.interview-question {
   }
 }
 @media (max-width: 1023px) {
-  .interview-workspace {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2.4rem;
-  }
-  .panel-resizer {
-    display: none;
-  }
-  .collected-panel {
-    height: max(50rem, 60dvh);
-  }
-  .stage-stepper {
-    padding: 1.6rem;
-  }
-  .stage-stepper li {
-    font-size: 1.3rem;
-  }
   .auth-layout {
     grid-template-columns: minmax(0, 1fr);
     max-width: 60rem;
@@ -975,33 +652,8 @@ form.interview-question {
 }
 @media (max-width: 767px) {
   .form-two,
-  .settings-two,
-  .supplement-grid,
-  .review-panel {
+  .settings-two {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .stage-stepper {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.6rem;
-  }
-  .stage-stepper li {
-    font-size: 1.5rem;
-  }
-  .step-number {
-    width: 2.8rem;
-    height: 2.8rem;
-  }
-  .new-request-actions {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 0.8rem;
-  }
-  .upload-zone {
-    padding: 2.4rem 1.6rem;
-    min-height: 32rem;
-  }
-  .upload-zone .h-sec {
-    font-size: 2.2rem;
   }
   .document-option {
     min-width: 100%;
@@ -1009,30 +661,6 @@ form.interview-question {
   .case-document-link {
     width: 100%;
     flex-wrap: wrap;
-  }
-  .conversation-heading,
-  .conversation-body,
-  .interview-question,
-  .collected-head,
-  .collected-body {
-    padding: 1.6rem;
-  }
-  .conversation-body {
-    height: clamp(40rem, 58dvh, 64rem);
-  }
-  form.interview-question {
-    min-height: auto;
-  }
-  .interview-question textarea {
-    height: 20rem;
-    max-height: 40rem;
-  }
-  .conversation-heading .help {
-    font-size: 1.3rem;
-  }
-  .assistant-avatar {
-    width: 3.6rem;
-    height: 3.6rem;
   }
   .doc-icon {
     padding: 1rem;
