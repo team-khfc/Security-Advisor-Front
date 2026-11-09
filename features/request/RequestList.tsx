@@ -598,7 +598,7 @@ function RequestListView({ options }: { options: ListOptions }) {
                         </td>
                         <td>
                           <Badge tone={statusTones[request.status]}>
-                            {request.statusLabel ?? STATUS_LABELS[request.status]}
+                            {STATUS_LABELS[request.status]}
                           </Badge>
                           {action ? (
                             <span className="turn me">{action}</span>

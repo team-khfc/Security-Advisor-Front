@@ -292,3 +292,24 @@ test('외부 URL의 검색어 변경과 조건 초기화를 입력창 및 결과
   expect(window.location.search).toBe('');
   expect(searchInput()).toBe(input);
 });
+
+test.each([
+  ['DRAFT', 'DRAFTING', '작성 중'],
+  ['CONSULTING', 'IN_REVIEW', '협의 중'],
+  ['SUPPLEMENT_REQUESTED', 'SUPPLEMENT_REQUESTED', '보완 요청'],
+  ['FINAL_REVIEW', 'FINAL_REVIEW', '최종 검토 중'],
+  ['SUBMITTED', 'SUBMITTED', '제출됨'],
+  ['FINALIZED', 'CONFIRMED', '확정'],
+  ['CLOSED', 'CLOSED', '종결(반려)'],
+  ['WITHDRAWN', 'WITHDRAWN', '철회'],
+] as const)(
+  '서버 표시명이 %s의 영문 코드여도 목록에는 %s 대신 %s를 표시한다',
+  (status, rawLabel, label) => {
+    controls.requests = [{ ...controls.requests[0], status, statusLabel: rawLabel }];
+    const { container } = render(<RequestList />);
+
+    const badge = container.querySelector('.request-table .badge');
+    expect(badge?.textContent).toBe(label);
+    expect(container.textContent).not.toContain(rawLabel);
+  },
+);

@@ -67,7 +67,7 @@ export function SupplementList() {
                     </Link>
                   </h3>
                 </div>
-                <Badge tone="warning">{request.statusLabel ?? STATUS_LABELS[request.status]}</Badge>
+                <Badge tone="warning">{STATUS_LABELS[request.status]}</Badge>
               </div>
               {open
                 .filter((item) => item.request === request)
@@ -269,9 +269,7 @@ export function NetworkList() {
                       <Badge tone={allocated ? 'info' : 'neutral'}>
                         {allocated ? '할당 완료' : '할당 대기'}
                       </Badge>
-                      <span className="turn">
-                        {request.statusLabel ?? STATUS_LABELS[request.status]}
-                      </span>
+                      <span className="turn">{STATUS_LABELS[request.status]}</span>
                       {missingCount > 0 && (
                         <span className="network-missing">
                           <strong>담당자 확인 필요</strong> <span>· 미입력 {missingCount}개</span>

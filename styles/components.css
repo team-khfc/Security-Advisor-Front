@@ -72,7 +72,7 @@
   border: 1px solid var(--sf-border-strong);
   background: var(--sf-surface);
   cursor: pointer;
-  font-size: 1.6rem;
+  font-size: 1.7rem;
 }
 .pill:hover {
   background: var(--sf-background);
@@ -164,12 +164,12 @@
   border-radius: var(--r-ctl);
 }
 .doc-dl dt {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   color: var(--sf-muted);
 }
 .doc-dl dd {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .docs {
   display: grid;
@@ -179,7 +179,7 @@
 .docpre {
   white-space: pre-wrap;
   font-family: inherit;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   background: var(--sf-background);
   border: 1px solid var(--sf-line);
   border-radius: var(--r-ctl);
@@ -354,7 +354,7 @@
   position: relative;
   min-height: 2.4rem;
   padding: 0 0.8rem;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   margin-left: 0.8rem;
   vertical-align: middle;
 }
@@ -371,7 +371,7 @@
 }
 .src-ev {
   display: block;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   color: var(--sf-muted);
   margin-top: 0.2rem;
 }
@@ -487,7 +487,7 @@
   margin: 0.6rem 0 0;
 }
 .document-filter .field > label {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   font-weight: 400;
   color: var(--sf-muted);
 }

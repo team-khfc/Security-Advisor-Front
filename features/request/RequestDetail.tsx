@@ -24,6 +24,7 @@ import { waitingLine } from './turns';
 import {
   DOCUMENT_LABELS,
   FIELD_LABELS,
+  REVIEW_STATUS_LABELS,
   STAGE_LABELS,
   STATUS_LABELS,
   type CommandAction,
@@ -185,7 +186,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                       : 'info'
               }
             >
-              {request.statusLabel ?? STATUS_LABELS[request.status]}
+              {STATUS_LABELS[request.status]}
             </Badge>
           </div>
         }
@@ -220,8 +221,8 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
       </ol>
       {terminal && (
         <Notice tone={request.status === 'FINALIZED' ? 'success' : 'warning'}>
-          <strong>{request.statusLabel ?? STATUS_LABELS[request.status]}된 신청입니다.</strong>{' '}
-          내용은 읽기 전용이며 기록과 제출본을 보존합니다.
+          <strong>{STATUS_LABELS[request.status]}된 신청입니다.</strong> 내용은 읽기 전용이며 기록과
+          제출본을 보존합니다.
           {request.status === 'FINALIZED' ? (
             <p>서류 확정은 방화벽 장비 적용을 의미하지 않습니다.</p>
           ) : (
@@ -468,18 +469,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                 const assignment = request.assignments.find(
                   (item) => item.active && item.field === field,
                 );
-                const status =
-                  review?.status === 'COMPLETE'
-                    ? '협의 완료'
-                    : review?.status === 'ALLOCATED'
-                      ? '할당 완료'
-                      : review?.status === 'RECHECK'
-                        ? '재검토'
-                        : review?.status === 'SUPPLEMENT_REQUESTED'
-                          ? '보완 요청'
-                          : review?.status === 'IN_REVIEW'
-                            ? '검토 중'
-                            : '검토 대기';
+                const status = review ? REVIEW_STATUS_LABELS[review.status] : '검토 대기';
                 return (
                   <div key={field}>
                     <span
@@ -503,7 +493,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                               : 'neutral'
                       }
                     >
-                      {review?.statusLabel ?? status}
+                      {status}
                     </Badge>
                   </div>
                 );
@@ -541,7 +531,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                   {panelTitle}
                 </h2>
                 <p className="review-status">
-                  {waitingLine(request) || request.statusLabel || STATUS_LABELS[request.status]}
+                  {waitingLine(request) || STATUS_LABELS[request.status]}
                   입니다.
                   {actor.role === 'APPLICANT' && request.stage === 2
                     ? ' 보완 요청이 오면 답변해 주세요.'

@@ -340,7 +340,7 @@ function InterviewWorkspace({
           <Link className="case-document-link" key={request.id} href={`/requests/${request.id}`}>
             <Icon name="file" />
             <strong>{DOCUMENT_LABELS[request.docType] ?? request.docType}</strong>
-            <Badge>{request.statusLabel ?? STATUS_LABELS[request.status]}</Badge>
+            <Badge>{STATUS_LABELS[request.status]}</Badge>
             <Icon name="arrowRight" size={18} />
           </Link>
         ))}

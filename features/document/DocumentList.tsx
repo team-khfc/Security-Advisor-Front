@@ -202,7 +202,7 @@ export function DocumentList() {
                 <h2 className="doc-t">{request.caseTitle}</h2>
                 <p className="help">
                   {DOCUMENT_LABELS[request.docType] ?? request.docType} ·{' '}
-                  {request.statusLabel ?? STATUS_LABELS[request.status]}
+                  {STATUS_LABELS[request.status]}
                 </p>
                 <dl className="doc-dl">
                   <div>

@@ -45,7 +45,7 @@
   color: var(--sf-muted);
 }
 .prog-l {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   margin-bottom: 0.6rem;
   white-space: nowrap;
 }
@@ -78,7 +78,7 @@
   display: flex;
   gap: 0.4rem 1.6rem;
   flex-wrap: wrap;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   color: var(--sf-muted);
 }
 .st-legend li {
@@ -155,7 +155,7 @@
 .turn {
   display: block;
   margin-top: 0.6rem;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   color: var(--sf-muted);
 }
 .turn.me {
@@ -178,7 +178,7 @@
   grid-template-columns: 7.2rem auto 1fr;
   align-items: center;
   gap: 0.8rem;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .asg-f {
   color: var(--sf-muted);
