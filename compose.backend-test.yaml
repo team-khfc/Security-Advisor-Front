@@ -37,5 +37,5 @@ services:
       app:
         condition: service_started
     ports:
-      - '127.0.0.1:${SECURITYADVISOR_FRONTEND_PORT:-3001}:3000'
+      - '0.0.0.0:${SECURITYADVISOR_FRONTEND_PORT:-3001}:3000'
     restart: unless-stopped
