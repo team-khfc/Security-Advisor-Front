@@ -36,6 +36,8 @@ export const publicationDto = z.object({
       z.object({
         key: z.string(),
         label: z.string(),
+        type: z.enum(['TEXT', 'LONG_TEXT', 'BOOLEAN', 'DATE_RANGE', 'NUMBER']).optional(),
+        hint: z.string().nullable().optional(),
         scope: z.enum(['CASE', 'REQUEST']),
         docTypes: z.array(z.string()),
         required: z.boolean(),

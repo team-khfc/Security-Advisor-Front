@@ -96,7 +96,7 @@ test('시안처럼 질문 제목과 도움말을 분리하고 선택형 답변�
   const user = userEvent.setup();
   render(<CaseInterview id={controls.businessCase!.id} />);
   const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
-  expect(within(card).getByText(/남은 질문 \d+개/)).toBeTruthy();
+  expect(within(card).getByText(/필수 항목|선택 항목/)).toBeTruthy();
   expect(
     within(card).getByText(
       '사업 목적을 한두 문장으로 적어 주세요. 신청서의 신청 사유로 들어갑니다.',
@@ -147,3 +147,8 @@ test('선택형 저장 실패 시 선택한 답변을 입력란에 보존하고 
     }),
   );
 });
+vi.mock('@/features/request/useInterview', () => ({
+  useInterviewTurns: () => ({ data: [] }),
+  useInterviewStaffCheck: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/features/request/InterviewAssistance', () => ({ InterviewAssistance: () => null }));

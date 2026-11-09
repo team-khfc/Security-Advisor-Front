@@ -1,4 +1,5 @@
 import { ContractMapper } from './contractMapper';
+import type { InterviewTurn } from '@/features/request/useInterview';
 import { compare, hash } from 'bcryptjs';
 import { z } from 'zod';
 import { loginInputSchema, signupInputSchema } from '@/features/auth';
@@ -66,6 +67,7 @@ interface MockRuntime {
   sessions: Map<string, StoredSession>;
   attempts: Map<string, LoginAttempt>;
   analyses: Map<string, CaseAnalysis>;
+  interviewTurns: Map<number, { turn: InterviewTurn; fingerprint: string }>;
   dummyHash: string;
 }
 export interface MockApiOptions {
@@ -194,6 +196,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
     sessions: new Map(),
     attempts: new Map(),
     analyses: new Map(),
+    interviewTurns: new Map(),
     dummyHash: await hash(crypto.randomUUID(), 10),
   };
 }
@@ -1018,6 +1021,141 @@ async function dispatchContract(
     request.headers.get('content-type')?.includes('application/json')
   )
     body = parse(z.record(z.string(), z.unknown()), await bodyJson(request));
+  if (resource === 'field-help' && method === 'GET') {
+    const publication = wire.publication(runtime.state.cases, runtime.state.requests);
+    const fields = publication.fieldSchema.fields as {
+      key: string;
+      label: string;
+      hint?: string;
+      required: boolean;
+      askRole: string;
+    }[];
+    const field = fields.find((f) => f.key === numericId);
+    if (!field) fail(404, 'FIELD_NOT_FOUND', '항목을 찾을 수 없습니다.');
+    return json({
+      fieldKey: field.key,
+      label: field.label,
+      required: field.required,
+      askRole: field.askRole,
+      whyAsked: field.hint ?? '사업의 보안 검토 범위를 확인하기 위한 항목입니다. (모의 안내)',
+      snippets: [],
+    });
+  }
+  if (resource === 'business-cases' && sub === 'interview-turns') {
+    const c = getCase(runtime, id, actor!);
+    if (actor!.role !== 'APPLICANT' || c.ownerId !== actor!.id)
+      fail(403, 'FORBIDDEN', '신청자 본인만 이용할 수 있습니다.');
+    if (method === 'GET' && !fieldKey)
+      return json(
+        [...runtime.interviewTurns.values()]
+          .map((v) => v.turn)
+          .filter((t) => t.businessCaseId === Number(numericId))
+          .slice(-30),
+      );
+    if (
+      !runtime.state.requests.some(
+        (r) =>
+          r.caseId === id &&
+          r.stage < 4 &&
+          !['CLOSED', 'WITHDRAWN', 'FINALIZED'].includes(r.status),
+      )
+    )
+      fail(422, 'NOT_EDITABLE', '작성 가능한 신청이 없습니다.');
+    const fingerprint = JSON.stringify([c.revision, c.answers]);
+    if (method === 'POST' && !fieldKey) {
+      const input = parse(
+        z.object({
+          fieldKey: z.string().min(1).max(100),
+          mode: z.enum(['ASK', 'SUGGEST']),
+          text: z.string().trim().min(1).max(4000),
+          draft: z.string().max(4000).optional(),
+          expectedRevision: z.number().int().nonnegative(),
+        }),
+        body,
+      );
+      if (input.expectedRevision !== c.revision)
+        fail(409, 'REVISION_CONFLICT', '최신 사업 정보를 확인해 주세요.');
+      const field = c.answers.find((a) => a.key === input.fieldKey);
+      if (!field) fail(404, 'FIELD_NOT_FOUND', '항목을 찾을 수 없습니다.');
+      if (input.mode === 'SUGGEST' && field.ownerRole !== 'APPLICANT')
+        fail(422, 'STAFF_FIELD', '담당자 항목은 추천하지 않습니다.');
+      const turn: InterviewTurn = {
+        interviewTurnId: runtime.interviewTurns.size + 1,
+        businessCaseId: Number(numericId),
+        fieldKey: field.key,
+        mode: input.mode,
+        question: input.text,
+        reply: '합성 AI 설명입니다. 알고 있는 사업 사실을 확인해 입력해 주세요.',
+        proposedValue: input.mode === 'SUGGEST' ? '합성 사업 추천답변입니다.' : null,
+        evidence: [{ tag: 'F', label: `모의 게시본 · ${field.label}` }],
+        basedRevision: c.revision,
+        answerRevision: field.revision ?? c.revision,
+        modelReference: 'fake/offline',
+        flagged: false,
+        applied: false,
+        createdAt: new Date(now).toISOString(),
+      };
+      runtime.interviewTurns.set(turn.interviewTurnId, { turn, fingerprint });
+      return json(turn, 201);
+    }
+    if (method === 'POST' && parts[5] === 'applications') {
+      const entry = runtime.interviewTurns.get(Number(fieldKey));
+      if (!entry || entry.turn.businessCaseId !== Number(numericId))
+        fail(404, 'NOT_FOUND', '추천답변을 찾을 수 없습니다.');
+      if (entry.turn.applied) return json(entry.turn);
+      const input = parse(z.object({ expectedRevision: z.number().int().nonnegative() }), body);
+      if (input.expectedRevision !== c.revision || fingerprint !== entry.fingerprint)
+        fail(409, 'REVISION_CONFLICT', '입력이 변경되었습니다. 다시 추천받아 주세요.');
+      const a = runtime.state.cases
+        .find((v) => v.id === id)!
+        .answers.find((a) => a.key === entry.turn.fieldKey)!;
+      if (a.confirmed || !entry.turn.proposedValue || entry.turn.flagged)
+        fail(422, 'INVALID_PROPOSAL', '적용할 수 없는 제안입니다.');
+      Object.assign(a, {
+        value: entry.turn.proposedValue,
+        source: 'AI_INFERRED',
+        confirmed: false,
+        confirmation: null,
+        evidence: entry.turn.evidence.map((e) => e.label).join('; '),
+        revision: (a.revision ?? c.revision) + 1,
+      });
+      entry.turn.applied = true;
+      return json(entry.turn);
+    }
+    fail(404, 'NOT_FOUND', '인터뷰 자원을 찾을 수 없습니다.');
+  }
+  if (
+    resource === 'business-cases' &&
+    sub === 'answers' &&
+    parts[5] === 'staff-check' &&
+    method === 'PUT'
+  ) {
+    const c = getCase(runtime, id, actor!);
+    if (actor!.role !== 'APPLICANT' || c.ownerId !== actor!.id)
+      fail(403, 'FORBIDDEN', '신청자 본인만 요청할 수 있습니다.');
+    if (
+      !runtime.state.requests.some(
+        (r) =>
+          r.caseId === id &&
+          r.stage < 4 &&
+          !['CLOSED', 'WITHDRAWN', 'FINALIZED'].includes(r.status),
+      )
+    )
+      fail(422, 'NOT_EDITABLE', '작성 가능한 신청이 없습니다.');
+    const a = runtime.state.cases.find((v) => v.id === id)!.answers.find((a) => a.key === fieldKey);
+    if (!a) fail(404, 'NOT_FOUND', '항목을 찾을 수 없습니다.');
+    const input = parse(z.object({ expectedRevision: z.number() }), body);
+    if (input.expectedRevision !== (a.revision ?? c.revision))
+      fail(409, 'REVISION_CONFLICT', '최신 답변을 확인해 주세요.');
+    Object.assign(a, {
+      source: null,
+      confirmed: false,
+      confirmation: null,
+      evidence: null,
+      revision: input.expectedRevision + 1,
+    });
+    return json(wire.answer(a, id, c.revision));
+  }
   if (resource === 'business-cases' && numericId && !sub && method === 'PUT') {
     const c = getCase(runtime, id, actor!);
     if (c.ownerId !== actor!.id) fail(403, 'FORBIDDEN', '신청자만 개요를 수정할 수 있습니다.');

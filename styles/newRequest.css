@@ -915,6 +915,7 @@ progress.prog::-moz-progress-bar {
 }
 .case-work .interview-question .qrow .btn {
   flex-shrink: 0;
+  align-self: flex-end;
 }
 .case-work .interview-question .qchips {
   margin-top: 0;
@@ -968,5 +969,69 @@ progress.prog::-moz-progress-bar {
   }
   .case-work .interview-question .qrow .btn {
     white-space: normal;
+  }
+}
+/* 항목별 도움말·AI 대화와 공식 답변을 시각적으로 구분한다. */
+.interview-assistance {
+  display: grid;
+  gap: 1.2rem;
+  margin: 1.8rem 0;
+  padding: 1.8rem;
+  border: 1px solid var(--sf-line);
+  border-radius: var(--r-panel);
+  background: var(--sf-background);
+}
+.interview-assistance label {
+  font-weight: 600;
+}
+.interview-prompt-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.interview-prompt-row .input {
+  flex: 1;
+  min-width: 0;
+}
+.interview-prompt-row .btn {
+  flex-shrink: 0;
+}
+.interview-ai-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.interview-proposal {
+  display: grid;
+  gap: 1.2rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--sf-line);
+}
+.interview-proposal .btn {
+  justify-self: start;
+}
+.interview-evidence {
+  margin: 0;
+  padding-left: 22px;
+}
+.interview-help {
+  padding: 12px 0;
+  line-height: 1.7;
+}
+.interview-help blockquote {
+  margin: 1.2rem 0;
+  padding: 1.2rem 1.6rem;
+  border-left: 3px solid var(--sf-line);
+}
+.interview-help cite {
+  font-size: 0.9em;
+}
+@media (max-width: 640px) {
+  .interview-assistance {
+    padding: 14px;
+  }
+  .interview-prompt-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

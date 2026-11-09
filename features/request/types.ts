@@ -23,6 +23,8 @@ export const answerSchema = z.object({
   needsReview: z.boolean().optional(),
   key: z.string(),
   label: z.string(),
+  inputType: z.enum(['TEXT', 'LONG_TEXT', 'BOOLEAN', 'DATE_RANGE', 'NUMBER']).optional(),
+  hint: z.string().nullable().optional(),
   scope: z.enum(['CASE', 'REQUEST']),
   ownerRole: roleSchema,
   required: z.boolean(),
@@ -57,6 +59,7 @@ const summaryShape = {
 export const requestSummarySchema = z.object(summaryShape);
 export const businessCaseSchema = z.object({
   id: z.string(),
+  publicationId: z.number().optional(),
   title: z.string(),
   department: z.string(),
   description: z.string(),
