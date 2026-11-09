@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: team-khfc/Security-Advisor-Back
-          ref: 12d89eda4e1c785dd09f67bdeb85cee3ccc8507c
+          ref: c6cfccd63bac4e96f376d9b6e18f3b9a16de10e3
           path: .test-backend
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
