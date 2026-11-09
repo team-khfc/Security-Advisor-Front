@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, test, vi } from 'vitest';
+import { beforeAll, afterAll, beforeEach, afterEach, expect, test, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NewRequest } from '@/features/request/NewRequest';
@@ -38,6 +38,35 @@ vi.mock('@/features/request/useRequests', () => ({
   useApplyAnalysis: () => ({ mutateAsync: controls.apply, reset: vi.fn(), isPending: false }),
 }));
 
+const dialogMethods = {
+  showModal: Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal'),
+  close: Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'close'),
+};
+
+beforeAll(() => {
+  Object.defineProperties(HTMLDialogElement.prototype, {
+    showModal: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.open = true;
+      },
+    },
+    close: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.open = false;
+      },
+    },
+  });
+});
+
+afterAll(() => {
+  for (const [name, descriptor] of Object.entries(dialogMethods)) {
+    if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, name, descriptor);
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, name);
+  }
+});
+
 const applicant = MOCK_MEMBERS[0];
 const otherApplicant = MOCK_MEMBERS[1];
 
@@ -69,14 +98,15 @@ test('실제 API 모드에서 담당 부서는 필수이며 비어 있는 부서
   controls.session = { member: { ...applicant, department: '' }, mock: false, expiresAt: null };
   const user = userEvent.setup();
   render(<NewRequest />);
+  await user.click(screen.getByRole('button', { name: '기획서 없이 대화로 시작' }));
   await user.type(screen.getByLabelText('사업명 (필수)'), '합성 새 사업');
   const department = screen.getByLabelText('담당 부서 (필수)') as HTMLInputElement;
   expect(department.required).toBe(true);
   expect(department.value).toBe('');
-  await user.click(screen.getByRole('button', { name: '기획서 없이 대화로 시작' }));
+  await user.click(screen.getByRole('button', { name: '인터뷰 시작' }));
   expect(controls.create).not.toHaveBeenCalled();
   await user.type(department, '입력한 합성 부서');
-  await user.click(screen.getByRole('button', { name: '기획서 없이 대화로 시작' }));
+  await user.click(screen.getByRole('button', { name: '인터뷰 시작' }));
   await waitFor(() =>
     expect(controls.create).toHaveBeenCalledWith(
       expect.objectContaining({ department: '입력한 합성 부서' }),
@@ -88,10 +118,12 @@ test('실제 API 모드에서 담당 부서는 필수이며 비어 있는 부서
 test('새 신청 입력은 화면 복귀 시 복원하며 다른 계정의 새 신청에는 표시하지 않는다', async () => {
   const user = userEvent.setup();
   const first = render(<NewRequest />);
+  await user.click(screen.getByRole('button', { name: '기획서 없이 대화로 시작' }));
   await user.type(screen.getByLabelText('사업명 (필수)'), '저장 전 합성 사업');
   first.unmount();
   controls.session = { member: otherApplicant, mock: true, expiresAt: null };
   const second = render(<NewRequest />);
+  await user.click(screen.getByRole('button', { name: '기획서 없이 대화로 시작' }));
   expect((screen.getByLabelText('사업명 (필수)') as HTMLInputElement).value).toBe('');
   expect((screen.getByLabelText('담당 부서 (필수)') as HTMLInputElement).value).toBe(
     otherApplicant.department,
@@ -99,6 +131,7 @@ test('새 신청 입력은 화면 복귀 시 복원하며 다른 계정의 새 �
   second.unmount();
   controls.session = { member: applicant, mock: true, expiresAt: null };
   render(<NewRequest />);
+  await user.click(screen.getByRole('button', { name: '기획서 없이 대화로 시작' }));
   expect((screen.getByLabelText('사업명 (필수)') as HTMLInputElement).value).toBe(
     '저장 전 합성 사업',
   );

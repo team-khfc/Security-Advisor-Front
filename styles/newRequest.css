@@ -650,48 +650,108 @@ body.resizing {
   text-align: left;
 }
 
-/* UI 통합 Stage 3 (prototype-soo 563dd7e new-request 시작 화면 기준)
- * 사업 정보 입력 카드(D3, 업무 필수)가 위에 있으므로 파일 영역 높이는 작업 영역 전체 대신 고정 최소 높이로 둔다. */
-.new-case-intake {
+/* 새 신청 시작 화면은 prototype-soo 563dd7e의 본문 폭·배율·높이를 따른다.
+ * root 9px × main zoom .9와 같은 실효 크기를 이 화면의 wrapper .81로 적용한다.
+ * viewport 높이도 .81로 나누어 계산하므로 사업 건의 .case-work 높이에는 영향이 없다. */
+main:has(.new-request-page) {
+  padding: 2.592rem 3.24rem 5.184rem;
+}
+.new-request-page {
+  --r-sm: 4.444444px;
+  --r-ctl: 6.666667px;
+  --r-card: 11.111111px;
+  --r-panel: 13.333333px;
+  --work-h: clamp(60rem, calc(100dvh / 0.81 - 30rem), 120rem);
+  min-width: 0;
+  font-size: 1.7rem;
+  zoom: 0.81;
+}
+.new-request-page .page-head {
   margin-bottom: 2.4rem;
 }
-.new-case-intake .dropzone {
-  min-height: 36rem;
+.new-request-page .new-case-intake {
+  margin: 0;
+  width: 100%;
 }
-.new-case-intake .dropzone > .help,
-.new-case-intake .dropzone > .ferr {
+.new-request-page .new-case-intake .dropzone {
+  justify-content: center;
+  min-height: calc(var(--work-h) - 6.8rem);
+  padding: 5.6rem 2.4rem;
+  border-width: 2.222222px;
+}
+.new-request-page .dropzone > .help,
+.new-request-page .dropzone > .ferr {
   margin: 0;
   max-width: 66ch;
 }
-.new-case-intake .dz-ic svg {
-  width: 3.2rem;
-  height: 3.2rem;
+.new-request-page .dz-ic svg {
+  /* 시안의 40px 아이콘 × zoom .9 = 화면상 36px. */
+  width: 44.444444px;
+  height: 44.444444px;
+  stroke-width: 1.6;
 }
-.new-case-actions {
+.new-request-page .new-case-actions {
+  justify-content: flex-end;
   align-items: center;
+  gap: 0.8rem;
+  margin-top: 2rem;
 }
-.new-case-actions > .help {
-  margin: 0 auto 0 0;
+.new-request-page .btn {
+  border-width: 1.111111px;
+  max-width: 100%;
+}
+.new-request-page .new-case-actions .btn {
+  white-space: normal;
+  text-align: center;
+}
+.new-case-start-form .new-case-basics {
+  border: 0;
+  padding: 0;
+  margin: 0 0 2.4rem;
+}
+.new-case-start-form .new-case-basics > .h-panel {
+  margin-bottom: 1.6rem;
+}
+.new-case-start-form .document-option {
+  min-width: 0;
+  flex: 1 1 22rem;
+}
+.new-case-start-form .document-choice {
+  margin-bottom: 1.6rem;
+}
+.new-case-start-form .sub-block {
+  margin-top: 1.6rem;
+}
+.new-case-start-form .sub-block[open] > summary {
+  margin-bottom: 1.2rem;
+}
+.new-case-start-form .field:last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 1023px) {
+  main:has(.new-request-page) {
+    padding: 1.944rem 1.944rem 3.888rem;
+  }
 }
 @media (max-width: 767px) {
-  .new-case-intake .dropzone {
-    min-height: 32rem;
-    padding: 2.4rem 1.6rem;
+  main:has(.new-request-page) {
+    padding: 1.296rem 1.296rem 3.24rem;
   }
-  .new-case-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .new-case-actions > .help {
-    margin: 0;
-  }
-  .new-case-intake .pend li {
+  .new-request-page .pend li {
     flex-wrap: wrap;
   }
-  .new-case-intake .pend .pn {
+  .new-request-page .pend .pn {
     flex: 1 1 calc(100% - 3rem);
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+}
+@media print {
+  main:has(.new-request-page) {
+    padding: 0;
+  }
+  .new-request-page {
+    zoom: 1;
   }
 }
 
