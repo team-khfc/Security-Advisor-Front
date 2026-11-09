@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CaseInterview } from '@/features/request/CaseInterview';
 import { clearInputDraft } from '@/lib/inputDrafts';
@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 test('작업 영역은 대화 영역·질문 카드·수집 정보 영역과 서류별 신청 링크를 표시한다', () => {
-  render(<CaseInterview id={controls.businessCase!.id} />);
+  renderForEditing(controls.businessCase!.id);
   expect(screen.getByRole('heading', { name: '보안정보 도우미' })).toBeTruthy();
   expect(screen.getByRole('log', { name: '대화 내용' })).toBeTruthy();
   expect(screen.getByText(/공통 질문 1 \/ \d+/)).toBeTruthy();
@@ -62,7 +62,7 @@ test('작업 영역은 대화 영역·질문 카드·수집 정보 영역과 서
 
 test('답변을 저장하면 같은 저장 요청을 보내고 대화 영역에 내 답변을 남긴 뒤 다음 질문으로 넘어간다', async () => {
   const user = userEvent.setup();
-  render(<CaseInterview id={controls.businessCase!.id} />);
+  renderForEditing(controls.businessCase!.id);
   const firstLabel = screen.getByLabelText('사업 목적');
   await user.clear(firstLabel);
   await user.type(firstLabel, '작업 영역 검증용 합성 답변');
@@ -86,7 +86,7 @@ test('답변을 저장하면 같은 저장 요청을 보내고 대화 영역에 
 
 test('다른 사용자가 열면 읽기 전용 안내만 보이고 질문 카드와 문서 분석 막대는 표시하지 않는다', () => {
   controls.session = { member: MOCK_MEMBERS[1], mock: true, expiresAt: null };
-  render(<CaseInterview id={controls.businessCase!.id} />);
+  renderForEditing(controls.businessCase!.id);
   expect(screen.getByText(/이 사업 건은 현재 읽기 전용입니다/)).toBeTruthy();
   expect(screen.queryByText(/공통 질문 1 \//)).toBeNull();
   expect(screen.queryByText('기획서로 시작하거나 AI 제안 받기')).toBeNull();
@@ -94,7 +94,7 @@ test('다른 사용자가 열면 읽기 전용 안내만 보이고 질문 카드
 
 test('질문 안내는 대화창에 표시하고 입력 카드의 선택형 답변은 같은 항목에 저장한다', async () => {
   const user = userEvent.setup();
-  render(<CaseInterview id={controls.businessCase!.id} />);
+  renderForEditing(controls.businessCase!.id);
   const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
   const conversation = screen.getByRole('region', { name: '인터뷰 대화' });
   expect(within(conversation).getByText(/필수 항목|선택 항목/)).toBeTruthy();
@@ -128,7 +128,7 @@ test('질문 안내는 대화창에 표시하고 입력 카드의 선택형 답�
 test('선택형 저장 실패 시 선택한 답변을 입력란에 보존하고 직접 수정해 재시도한다', async () => {
   const user = userEvent.setup();
   controls.save.mockRejectedValueOnce(new Error('저장 실패. 다시 시도해 주세요.'));
-  render(<CaseInterview id={controls.businessCase!.id} />);
+  renderForEditing(controls.businessCase!.id);
   await user.click(screen.getByRole('button', { name: '나중에 입력' }));
   await user.click(screen.getByRole('button', { name: '공개 자료만 다뤄요' }));
   await screen.findByText('저장 실패. 다시 시도해 주세요.');
@@ -168,3 +168,11 @@ vi.mock('@/features/request/useInterviewAssistance', () => ({
     isStale: () => false,
   }),
 }));
+
+// 기존 합성 자료는 완료된 답변이다. 재작성 검사는 사용자가 다시 보기로 여는 흐름을 따른다.
+function renderForEditing(id: string) {
+  const view = render(<CaseInterview id={id} />);
+  const restart = screen.queryByRole('button', { name: '공통 질문 다시 보기' });
+  if (restart) fireEvent.click(restart);
+  return view;
+}
