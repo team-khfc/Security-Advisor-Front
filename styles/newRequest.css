@@ -650,21 +650,13 @@ body.resizing {
   text-align: left;
 }
 
-/* 새 신청 시작 화면은 prototype-soo 563dd7e의 본문 폭·배율·높이를 따른다.
- * root 9px × main zoom .9와 같은 실효 크기를 이 화면의 wrapper .81로 적용한다.
- * viewport 높이도 .81로 나누어 계산하므로 사업 건의 .case-work 높이에는 영향이 없다. */
+/* 디자인 기준 본문 17px·도움말 15px을 화면 축소 없이 표시한다. */
 main:has(.new-request-page) {
   padding: 2.592rem 3.24rem 5.184rem;
 }
 .new-request-page {
-  --r-sm: 4.444444px;
-  --r-ctl: 6.666667px;
-  --r-card: 11.111111px;
-  --r-panel: 13.333333px;
-  --work-h: clamp(60rem, calc(100dvh / 0.81 - 30rem), 120rem);
   min-width: 0;
   font-size: 1.7rem;
-  zoom: 0.81;
 }
 .new-request-page .page-head {
   margin-bottom: 2.4rem;
@@ -677,7 +669,7 @@ main:has(.new-request-page) {
   justify-content: center;
   min-height: calc(var(--work-h) - 6.8rem);
   padding: 5.6rem 2.4rem;
-  border-width: 2.222222px;
+  border-width: 2px;
 }
 .new-request-page .dropzone > .help,
 .new-request-page .dropzone > .ferr {
@@ -685,9 +677,8 @@ main:has(.new-request-page) {
   max-width: 66ch;
 }
 .new-request-page .dz-ic svg {
-  /* 시안의 40px 아이콘 × zoom .9 = 화면상 36px. */
-  width: 44.444444px;
-  height: 44.444444px;
+  width: 4rem;
+  height: 4rem;
   stroke-width: 1.6;
 }
 .new-request-page .new-case-actions {
@@ -697,7 +688,7 @@ main:has(.new-request-page) {
   margin-top: 2rem;
 }
 .new-request-page .btn {
-  border-width: 1.111111px;
+  border-width: 1px;
   max-width: 100%;
 }
 .new-request-page .new-case-actions .btn {
@@ -762,9 +753,6 @@ main:has(.new-request-page) {
 @media print {
   main:has(.new-request-page) {
     padding: 0;
-  }
-  .new-request-page {
-    zoom: 1;
   }
 }
 
@@ -839,7 +827,7 @@ progress.prog::-moz-progress-bar {
   align-items: baseline;
   padding: 1rem 0.4rem;
   border-bottom: 1px solid var(--sf-line);
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .infop-b .answer-item dt {
   font-weight: 400;

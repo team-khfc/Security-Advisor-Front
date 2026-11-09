@@ -110,7 +110,7 @@
   flex-wrap: wrap;
   gap: 0.8rem 1.6rem;
   align-items: center;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   margin: -1.2rem 0 2.4rem;
 }
 .sibling-links a {
@@ -134,7 +134,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   border-top: 1px solid var(--sf-line);
   padding-top: 1rem;
   margin-top: 1rem;
@@ -161,7 +161,7 @@
   margin-top: 1.6rem;
 }
 .final-confirmations p {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   display: flex;
   gap: 0.8rem;
   align-items: center;
@@ -193,7 +193,7 @@
   white-space: pre-wrap;
 }
 .badge.src {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   display: inline-flex;
   gap: 0.3rem;
   flex-wrap: wrap;
@@ -242,7 +242,7 @@
   background: var(--sf-background);
 }
 .answer-editor .check-row {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .answer-editor .btn-row {
   margin-top: 1.6rem;
@@ -271,7 +271,7 @@
   gap: 0.8rem;
 }
 .supplement-answer-form label span {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .document-detail-card {
   display: flex;
@@ -423,7 +423,7 @@
   border-radius: var(--r-ctl);
   background: var(--sf-surface);
   text-decoration: none;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .case-document-link:hover {
   border-color: var(--sf-primary);

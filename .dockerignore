@@ -9,3 +9,4 @@ coverage
 *.tsbuildinfo
 .openai
 .test-backend
+secret/

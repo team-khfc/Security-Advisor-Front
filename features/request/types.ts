@@ -310,6 +310,14 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   CLOSED: '종결(반려)',
   WITHDRAWN: '철회',
 };
+export const REVIEW_STATUS_LABELS: Record<Review['status'], string> = {
+  PENDING: '검토 대기',
+  ALLOCATED: '할당 완료',
+  IN_REVIEW: '검토 중',
+  SUPPLEMENT_REQUESTED: '보완 요청',
+  COMPLETE: '협의 완료',
+  RECHECK: '재검토',
+};
 export const STAGE_LABELS = ['작성', '담당자 협의', '사용자 최종 검토', '확정·관리'] as const;
 export const FIELD_LABELS: Record<ReviewField, string> = {
   INFRA: 'ICT인프라',

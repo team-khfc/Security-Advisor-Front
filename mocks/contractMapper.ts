@@ -1,4 +1,5 @@
 import type { Actor, Session } from '@/lib/types';
+import { REVIEW_STATUS_LABELS, STATUS_LABELS } from '@/features/request/types';
 import type {
   Answer,
   BusinessCase,
@@ -83,12 +84,7 @@ export class ContractMapper {
             string
           >
         )[r.status] ?? r.status,
-      statusLabel:
-        r.statusLabel ??
-        ({ DRAFT: '작성 중', CONSULTING: '협의 중', FINALIZED: '확정' } as Record<string, string>)[
-          r.status
-        ] ??
-        r.status,
+      statusLabel: STATUS_LABELS[r.status],
       revision: r.revision,
       updatedAt: r.updatedAt,
     };
@@ -120,7 +116,7 @@ export class ContractMapper {
             string
           >
         )[v.status] ?? v.status,
-      statusLabel: v.status,
+      statusLabel: REVIEW_STATUS_LABELS[v.status],
       allocated: v.allocationCompleted,
       opinion: v.comment,
       completedBy: this.username(v.completedBy),

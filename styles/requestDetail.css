@@ -18,12 +18,12 @@
 .stepper li {
   border-top: 4px solid var(--sf-border);
   padding-top: 1.2rem;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   color: var(--sf-muted);
 }
 .stepper li .n {
   display: block;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
 }
 .stepper li.done {
   color: var(--sf-text);
@@ -67,7 +67,7 @@
   gap: 1rem;
   padding: 0.8rem 0;
   border-bottom: 1px solid var(--sf-line);
-  font-size: 1.6rem;
+  font-size: 1.7rem;
 }
 .hist {
   list-style: none;
@@ -80,9 +80,10 @@
   gap: 1.6rem;
   padding: 1rem 0;
   border-bottom: 1px solid var(--sf-line);
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .hist time {
+  font-size: 1.5rem;
   color: var(--sf-muted);
 }
 .inner-tbl {
@@ -90,7 +91,7 @@
 }
 .inner-tbl td {
   padding: 1.2rem 1.2rem;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 .inner-tbl thead th {
   padding: 1.2rem;
@@ -147,7 +148,7 @@
     gap: 0.2rem;
   }
   .stepper li {
-    font-size: 1.3rem;
+    font-size: 1.5rem;
   }
 }
 .inner-tbl td.nowrap {
@@ -215,21 +216,14 @@
   }
 }
 
-/* 신청 상세만 prototype-soo 563dd7e의 본문 배율과 카드 구성을 적용한다.
- * 시안 root 9px × main zoom .9 = 8.1px/rem. 이 화면의 wrapper만 .81로
- * 표시해 공통 root 10px과 다른 화면은 유지하고, 글자 크기 설정은 계속 반영한다. */
+/* 공통 글자 크기 설정을 그대로 적용해 상세 정보의 가독성을 유지한다. */
 main:has(.request-detail-page) {
   padding: 2.592rem 3.24rem 5.184rem;
 }
 
 .request-detail-page {
-  --r-sm: 4.444444px;
-  --r-ctl: 6.666667px;
-  --r-card: 11.111111px;
-  --r-panel: 13.333333px;
   min-width: 0;
   font-size: 1.7rem;
-  zoom: 0.81;
 }
 
 .request-detail-page .crumb {
@@ -297,7 +291,7 @@ main:has(.request-detail-page) {
 
 .request-detail-page .detail-content .answer-item .evidence {
   margin-top: 0.2rem;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
 }
 
 .request-detail-page .detail-content .answer-item.needs-supplement {
@@ -331,7 +325,7 @@ main:has(.request-detail-page) {
 .request-detail-page .detail-content .src-ev {
   display: block;
   margin: 0.2rem 0 0;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   color: var(--sf-muted);
 }
 
@@ -340,7 +334,7 @@ main:has(.request-detail-page) {
   min-height: 2.4rem;
   padding: 0 0.8rem;
   margin-left: 0.8rem;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   vertical-align: middle;
 }
 
@@ -385,7 +379,6 @@ main:has(.request-detail-page) {
 }
 
 .request-detail-page .flowbox svg {
-  /* SVG의 px 좌표는 root 크기와 무관하므로 시안의 zoom .9에 맞춘다. */
   max-width: 800px;
 }
 
@@ -401,7 +394,10 @@ main:has(.request-detail-page) {
 .request-detail-page .inner-tbl thead th,
 .request-detail-page .inner-tbl td {
   padding: 1.2rem;
-  font-size: 1.5rem;
+}
+
+.request-detail-page .inner-tbl td {
+  font-size: 1.7rem;
 }
 
 .request-detail-page .inner-tbl .rule-value {
@@ -491,10 +487,6 @@ main:has(.request-detail-page) {
 @media print {
   main:has(.request-detail-page) {
     padding: 0;
-  }
-
-  .request-detail-page {
-    zoom: 1;
   }
 
   .request-detail-page .detail.detail-layout {

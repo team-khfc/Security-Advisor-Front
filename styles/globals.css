@@ -126,13 +126,13 @@
 
 .request-type {
   color: var(--sf-muted);
-  font-size: 1.3rem;
+  font-size: 1.5rem;
 }
 
 .req-date {
   display: block;
   margin-top: 0.3rem;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   white-space: nowrap;
 }
 
@@ -165,7 +165,7 @@
 }
 
 .request-table .turn {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 
 .request-table th {
@@ -174,7 +174,7 @@
 
 .table-subtitle {
   color: var(--sf-muted);
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   margin-top: 0.5rem;
 }
 

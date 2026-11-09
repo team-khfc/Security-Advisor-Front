@@ -285,3 +285,28 @@ test('알 수 없는 서버 권한만 있으면 담당자 역할만으로 검토
   expect(panel.queryByRole('textbox', { name: /검토 의견/ })).toBeNull();
   expect(controls.mutate).not.toHaveBeenCalled();
 });
+
+test.each([
+  ['PENDING', 'WAITING', '검토 대기'],
+  ['ALLOCATED', 'ALLOCATED', '할당 완료'],
+  ['IN_REVIEW', 'IN_PROGRESS', '검토 중'],
+  ['SUPPLEMENT_REQUESTED', 'SUPPLEMENT_REQUESTED', '보완 요청'],
+  ['COMPLETE', 'COMPLETED', '협의 완료'],
+  ['RECHECK', 'RECHECK', '재검토'],
+] as const)(
+  '서버 협의 표시명이 %s의 영문 코드여도 %s 대신 %s를 표시한다',
+  (status, rawLabel, label) => {
+    controls.request = {
+      ...request(),
+      statusLabel: 'IN_REVIEW',
+      reviews: request().reviews.map((review) => ({ ...review, status, statusLabel: rawLabel })),
+    };
+    const { container } = render(<RequestDetail id={request().id} />);
+
+    const panel = reviewPanel('현재 처리 상황');
+    expect(panel.getAllByText(label, { exact: true })).toHaveLength(2);
+    expect(container.textContent).not.toContain(rawLabel);
+    expect(container.textContent).not.toContain('IN_REVIEW');
+    expect(container.querySelector('.page-head .badge')?.textContent).toBe('협의 중');
+  },
+);
