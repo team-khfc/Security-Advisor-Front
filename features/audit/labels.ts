@@ -44,6 +44,8 @@ const actionLabels: Record<string, string> = {
   CLOSED: '신청 종결(반려)',
   WITHDRAWN: '신청 철회',
   FINAL_DRAFT_GENERATED: 'AI 최종 초안 생성',
+  FINAL_DRAFT_CREATED: '최종 보고서 초안 작성',
+  FINAL_DRAFT_CONFIRMED: '최종 보고서 사용자 확인',
   DRAFT_GENERATED: 'AI 최종 초안 생성',
   ANALYSIS_COMPLETED: '문서 분석 완료',
   MEMBER_CREATED: '계정 생성',

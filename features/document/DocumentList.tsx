@@ -1,5 +1,8 @@
 'use client';
 
+import { PdfDownloadButton } from './PdfDownloadButton';
+import { FinalReportText } from './FinalReportText';
+
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import {
@@ -249,14 +252,15 @@ export function DocumentList() {
                     <Icon name="file" size={18} />
                     미리보기
                   </button>
-                  <a
-                    className="btn btn-tertiary btn-sm"
-                    href={`/api/security-requests/${encodeURIComponent(request.id)}/documents`}
-                    download
-                  >
-                    <Icon name="download" size={18} />
-                    미리보기 데이터 (JSON)
-                  </a>
+                  <PdfDownloadButton
+                    requestId={request.id}
+                    submissionId={request.currentSubmissionId ?? undefined}
+                    disabled={
+                      (request.stage === 4 && !request.currentSubmissionId) ||
+                      (!!request.currentSubmissionId &&
+                        !request.submissions.some((s) => s.id === request.currentSubmissionId))
+                    }
+                  />
                   <Link
                     className="link-more"
                     href={`/requests/${encodeURIComponent(request.id)}#documents`}
@@ -358,19 +362,20 @@ export function DocumentList() {
               </p>
             </Notice>
             <pre className="docpre">{documentText(selected)}</pre>
-            <p className="help">
-              내려받기는 합성 데이터의 JSON 미리보기 형식입니다. 정식 신청서 파일은 백엔드 문서
-              렌더링 연동 후 제공됩니다.
-            </p>
+            <FinalReportText
+              request={selected}
+              submission={selected.submissions.find((s) => s.id === selected.currentSubmissionId)}
+            />
             <div className="doc-actions">
-              <a
-                className="btn"
-                href={`/api/security-requests/${encodeURIComponent(selected.id)}/documents`}
-                download
-              >
-                <Icon name="download" />
-                미리보기 데이터 내려받기 (JSON)
-              </a>
+              <PdfDownloadButton
+                requestId={selected.id}
+                submissionId={selected.currentSubmissionId ?? undefined}
+                disabled={
+                  (selected.stage === 4 && !selected.currentSubmissionId) ||
+                  (!!selected.currentSubmissionId &&
+                    !selected.submissions.some((s) => s.id === selected.currentSubmissionId))
+                }
+              />
               <button type="button" className="btn btn-tertiary" onClick={() => setSelected(null)}>
                 닫기
               </button>

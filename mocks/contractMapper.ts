@@ -197,6 +197,7 @@ export class ContractMapper {
       submittedBy: this.username(r.ownerId),
       submittedAt: v.createdAt,
       snapshot: {
+        ...(v.snapshot && typeof v.snapshot === 'object' ? v.snapshot : {}),
         answers: [
           ...v.commonAnswers.map((a) => this.answer(a, r.caseId, v.caseRevision)),
           ...v.answers.map((a) => this.answer(a, r.id, v.requestRevision)),

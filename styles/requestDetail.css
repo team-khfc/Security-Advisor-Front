@@ -493,3 +493,22 @@ main:has(.request-detail-page) {
     display: block;
   }
 }
+/* 최종 서술은 넓은 본문에서 읽고 확인하며 좁은 화면에서도 입력 폭을 유지한다. */
+.final-draft-panel textarea {
+  width: 100%;
+  min-height: 14rem;
+  resize: vertical;
+  margin-top: 0.6rem;
+}
+
+.final-draft-panel .btn-row,
+.final-report-preview {
+  margin-block: 1rem;
+}
+
+.pdf-download {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}

@@ -18,6 +18,8 @@ import { RequestDocument } from '@/features/document/RequestDocument';
 import { useAudit } from '@/lib/queries';
 import type { Actor } from '@/lib/types';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
+import { FinalDraftPanel } from './FinalDraftPanel';
+import { useFinalDraft } from './useFinalDraft';
 import { RequestTechnicalDetails } from './RequestTechnicalDetails';
 import { getRequestDetailData } from './requestDetailData';
 import { waitingLine } from './turns';
@@ -94,6 +96,10 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
   const [message, setMessage] = useState('');
   const [failure, setFailure] = useState('');
   const [comment, setComment] = useState('');
+  const [finalDraftDirty, setFinalDraftDirty] = useState(false);
+  const finalDraft = useFinalDraft(request.id, request.stage === 3);
+  const finalDraftReady =
+    !!finalDraft.data?.confirmed && !finalDraft.data.stale && !finalDraftDirty;
   const [reviewDraft, setReviewDraft] = useState<{
     reviewId: string;
     revision: number | undefined;
@@ -423,6 +429,19 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
               ))}
             </section>
           )}
+          {has('GENERATE_DRAFT') &&
+            (finalDraft.isPending ? (
+              <LoadingState />
+            ) : finalDraft.error ? (
+              <ErrorState error={finalDraft.error} onRetry={() => void finalDraft.refetch()} />
+            ) : (
+              <FinalDraftPanel
+                request={request}
+                actorId={actor.id}
+                draft={finalDraft.data ?? null}
+                onDirtyChange={setFinalDraftDirty}
+              />
+            ))}
           <RequestDocument request={request} />
           <RequestTechnicalDetails request={request}>
             {detail.additionalAnswers.length > 0 && (
@@ -639,22 +658,17 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                   </>
                 )}
                 {has('GENERATE_DRAFT') && (
-                  <button
-                    className="btn full-width"
-                    disabled={command.isPending}
-                    onClick={() => {
-                      void invoke('GENERATE_DRAFT');
-                    }}
-                  >
-                    <Icon name="sparkles" />
-                    AI 최종 초안 제안
-                  </button>
+                  <a className="btn full-width" href="#final-draft-heading">
+                    최종 초안 작성·확인으로 이동
+                  </a>
                 )}
                 {has('SUBMIT') && (
                   <>
                     <button
                       className="btn btn-primary full-width"
-                      disabled={command.isPending || request.blockers.length > 0}
+                      disabled={
+                        command.isPending || request.blockers.length > 0 || !finalDraftReady
+                      }
                       onClick={() => setDialogAction('SUBMIT')}
                     >
                       최종 제출
@@ -662,6 +676,11 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                     </button>
                     {request.blockers.length > 0 && (
                       <p className="help">위 확인 사항을 해결하면 최종 제출할 수 있습니다.</p>
+                    )}
+                    {!finalDraftReady && (
+                      <p className="help">
+                        최종 보고서 초안을 작성하고 내용을 확인하면 제출할 수 있습니다.
+                      </p>
                     )}
                   </>
                 )}
@@ -896,8 +915,8 @@ function CommandForm({
       )}
       {action === 'SUBMIT' && (
         <Notice>
-          현재 답변과 설정 버전을 제출본으로 고정합니다. 제출 후 수정은 담당자의 4→3 반환을 통해
-          진행합니다.
+          현재 답변, 확인한 최종 보고서와 설정 버전을 제출본으로 고정합니다. 제출 후 수정은 담당자의
+          4→3 반환을 통해 진행합니다.
         </Notice>
       )}
       {action === 'FINALIZE' && (
