@@ -15,6 +15,8 @@ import { useSession } from '@/features/auth';
 import { useInputDraft } from '@/lib/inputDrafts';
 import { forgetUpload, getUpload } from '@/lib/uploadDraft';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
+import { InterviewAssistance } from './InterviewAssistance';
+import { useInterviewStaffCheck, useInterviewTurns } from './useInterview';
 import { DOCUMENT_LABELS, STATUS_LABELS, type BusinessCase, type Answer } from './types';
 import { useAnalysis, useApplyAnalysis, useCase, useRequests, useSaveCase } from './useRequests';
 
@@ -114,7 +116,7 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
         }}
       >
         <Icon name="sparkles" />
-        {analysis.isPending ? '분석 요청 중…' : '분석 요청'}
+        {analysis.isPending ? '처리 중…' : file ? '문서 분석 요청' : '사업 개요 저장'}
       </button>
       {analysis.isPending && (
         <p role="status">
@@ -128,8 +130,14 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
       )}
       {analysis.data && !analysis.error && (
         <div className="analysis-result">
-          <Badge tone="warning">{session.data?.mock ? '모의 AI 제안' : 'AI 제안'} · 미확정</Badge>
-          <p className="help">이 제안을 적용해도 확인 완료로 바뀌지 않습니다.</p>
+          {!analysis.data.summaryOnly && (
+            <>
+              <Badge tone="warning">
+                {session.data?.mock ? '모의 AI 제안' : 'AI 제안'} · 미확정
+              </Badge>
+              <p className="help">이 제안을 적용해도 확인 완료로 바뀌지 않습니다.</p>
+            </>
+          )}
           {analysis.data.suggestions.map((suggestion) => (
             <div className="candidate" key={suggestion.key}>
               <p>{suggestion.value}</p>
@@ -227,9 +235,11 @@ function InterviewWorkspace({
   const [chat, setChat] = useState<{ question: string; answer: string }[]>([]);
   const conversationRef = useRef<HTMLDivElement>(null);
   const latestMessageRef = useRef<HTMLDivElement>(null);
+  const questionCardRef = useRef<HTMLFormElement>(null);
   const [panelWidth, setPanelWidth] = useState(380);
   const [error, setError] = useState('');
   const savingRef = useRef(false);
+  const [applyingRecommendation, setApplyingRecommendation] = useState(false);
 
   useLayoutEffect(() => {
     const conversation = conversationRef.current;
@@ -250,6 +260,9 @@ function InterviewWorkspace({
   }, [chat.length]);
 
   const question = questions[questionIndex];
+  useLayoutEffect(() => {
+    if (questionCardRef.current) questionCardRef.current.scrollTop = 0;
+  }, [question?.key]);
   const draftAnswer = question ? draft?.answers[question.key] : undefined;
   const answerText = draftAnswer?.value ?? question?.value ?? '';
   const answerRevision = draftAnswer?.revision ?? businessCase.revision;
@@ -258,11 +271,13 @@ function InterviewWorkspace({
     (answerRevision !== businessCase.revision || draftAnswer.answerRevision !== question?.revision),
   );
   const goToQuestion = (next: number) => {
+    setStaffNotice('');
     setQuestionIndex(next);
     if (draft) saveDraft({ ...draft, questionIndex: next });
   };
-  const commonComplete = questions.filter(
-    (answer) => (answer.value || answer.notApplicable) && answer.confirmed,
+  const requiredQuestions = questions.filter((answer) => answer.required);
+  const commonComplete = requiredQuestions.filter(
+    (answer) => (answer.value || answer.notApplicable) && answer.confirmed && !answer.needsReview,
   ).length;
   const editable =
     actor.role === 'APPLICANT' &&
@@ -272,6 +287,21 @@ function InterviewWorkspace({
         request.stage < 4 && !['CLOSED', 'WITHDRAWN', 'FINALIZED'].includes(request.status),
     );
   const viewStyle = { '--info-w': `${panelWidth}px` } as CSSProperties;
+  const turns = useInterviewTurns(
+    businessCase.id,
+    actor.id,
+    actor.role === 'APPLICANT' && actor.id === businessCase.ownerId,
+  );
+  const staffCheck = useInterviewStaffCheck(businessCase.id);
+  const answerBusy = save.isPending || staffCheck.isPending || applyingRecommendation;
+  const [staffNotice, setStaffNotice] = useState('');
+  const clearCurrentDraft = () => {
+    if (!question || !draft) return;
+    const remaining = { ...draft.answers };
+    delete remaining[question.key];
+    if (Object.keys(remaining).length) saveDraft({ questionIndex, answers: remaining });
+    else clearDraft();
+  };
   const presentation = question ? questionPresentation(question) : undefined;
   const updateAnswer = (value: string) => {
     if (!question) return;
@@ -288,7 +318,7 @@ function InterviewWorkspace({
     });
   };
   const saveAnswer = async (value: string) => {
-    if (!question || !editable || conflict || save.isPending || savingRef.current) return;
+    if (!question || !editable || conflict || answerBusy || savingRef.current) return;
     savingRef.current = true;
     setError('');
     // 선택형 답변도 저장 실패 시 직접 입력과 같은 초안으로 보존한다.
@@ -379,7 +409,14 @@ function InterviewWorkspace({
                 <div className="body">
                   <div className="bubble">
                     <p>안녕하세요. 사업 목적과 처리하는 정보부터 살펴볼게요.</p>
-                    <p>서버·IP·포트처럼 확인이 필요한 정보는 ICT인프라 담당자에게 연결합니다.</p>
+                    <p>
+                      기관 관리자가 정한 항목을 하나씩 작성합니다. 모르는 질문은 AI에게 물어보고,
+                      추천답변은 직접 확인해 주세요.
+                    </p>
+                    <p>
+                      서버·IP·포트는 담당자 확인 항목입니다. 공통 정보를 작성한 뒤 서류별 화면에서
+                      협의를 요청합니다.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -400,6 +437,30 @@ function InterviewWorkspace({
                   <p className="m-me">{item.answer}</p>
                 </div>
               ))}
+              {(turns.data ?? []).map((turn) => (
+                <div className="chat-pair" key={`turn-${turn.interviewTurnId}`}>
+                  <p className="m-me">{turn.question}</p>
+                  <div className="m-ai">
+                    <span className="av" aria-hidden="true">
+                      <Icon name="sparkles" size={18} />
+                    </span>
+                    <div className="body">
+                      <div className="bubble">
+                        <strong>
+                          {questions.find((q) => q.key === turn.fieldKey)?.label ?? '항목 도움말'}
+                        </strong>
+                        <p>{turn.reply}</p>
+                        <p className="help">AI 설명 · 신청서에 자동 반영되지 않음</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {turns.error && (
+                <Notice tone="warning">
+                  대화 이력을 불러오지 못했습니다. 직접 입력은 계속할 수 있습니다.
+                </Notice>
+              )}
             </div>
             {!editable && (
               <Notice>
@@ -409,6 +470,7 @@ function InterviewWorkspace({
           </div>
           {editable && question && presentation && (
             <form
+              ref={questionCardRef}
               className="qcard interview-question"
               aria-labelledby="interview-question-title"
               onSubmit={(event) => {
@@ -417,7 +479,7 @@ function InterviewWorkspace({
               }}
             >
               <p className="qnum">
-                <span>남은 질문 {questions.length - questionIndex}개</span>
+                <span>{question.required ? '필수 항목' : '선택 항목'}</span>
                 <span className="meta">
                   공통 질문 {questionIndex + 1} / {questions.length}
                 </span>
@@ -440,7 +502,7 @@ function InterviewWorkspace({
                       className="qchip"
                       type="button"
                       key={option}
-                      disabled={save.isPending || conflict}
+                      disabled={answerBusy || conflict}
                       onClick={() => void saveAnswer(option)}
                     >
                       {option}
@@ -452,26 +514,65 @@ function InterviewWorkspace({
                 <label htmlFor="interview-answer">{question.label}</label>
                 {presentation.options && <p className="help">보기에 없으면 직접 입력해 주세요.</p>}
                 <div className="qrow">
-                  <input
-                    className="input"
-                    id="interview-answer"
-                    aria-describedby="interview-question-help"
-                    autoComplete="off"
-                    maxLength={4000}
-                    value={answerText}
-                    disabled={save.isPending}
-                    onChange={(e) => updateAnswer(e.target.value)}
-                    placeholder={presentation.placeholder}
-                  />
-                  <button className="btn btn-primary" disabled={save.isPending || conflict}>
+                  {question.inputType === 'LONG_TEXT' ? (
+                    <textarea
+                      className="input"
+                      id="interview-answer"
+                      rows={4}
+                      maxLength={4000}
+                      aria-describedby="interview-question-help"
+                      value={answerText}
+                      disabled={answerBusy}
+                      onChange={(e) => updateAnswer(e.target.value)}
+                      placeholder={presentation.placeholder}
+                    />
+                  ) : (
+                    <input
+                      className="input"
+                      id="interview-answer"
+                      type={question.inputType === 'NUMBER' ? 'number' : 'text'}
+                      aria-describedby="interview-question-help"
+                      autoComplete="off"
+                      maxLength={4000}
+                      value={answerText}
+                      disabled={answerBusy}
+                      onChange={(e) => updateAnswer(e.target.value)}
+                      placeholder={presentation.placeholder}
+                    />
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    disabled={answerBusy || conflict || !answerText.trim()}
+                  >
                     {save.isPending
                       ? '저장 중…'
-                      : questionIndex === questions.length - 1
-                        ? '공통 답변 저장'
-                        : '답변 저장하고 다음'}
+                      : question.source === 'AI_INFERRED' &&
+                          !question.confirmed &&
+                          answerText === question.value
+                        ? 'AI 답변 확인하고 다음'
+                        : questionIndex === questions.length - 1
+                          ? '공통 답변 저장'
+                          : '답변 저장하고 다음'}
                   </button>
                 </div>
               </div>
+              {question.source === 'AI_INFERRED' && !question.confirmed && (
+                <Notice tone="warning">
+                  AI가 작성한 미확정 답변입니다. 내용을 읽고 확인해 주세요.
+                  {question.evidence && <p className="help">근거: {question.evidence}</p>}
+                </Notice>
+              )}
+              <InterviewAssistance
+                key={`${actor.id}:${businessCase.id}:${question.key}`}
+                businessCase={businessCase}
+                question={question}
+                actorId={actor.id}
+                answerText={answerText}
+                turns={turns.data ?? []}
+                disabled={save.isPending || staffCheck.isPending || conflict}
+                onApplied={clearCurrentDraft}
+                onApplyingChange={setApplyingRecommendation}
+              />
               {draftAnswer && (
                 <p className="help interview-draft-note">
                   입력 내용은 이 탭에서 임시 보관됩니다. 새로고침하거나 탭을 닫으면 사라집니다.
@@ -504,11 +605,45 @@ function InterviewWorkspace({
                 </Notice>
               )}
               {error && <Notice tone="danger">{error}</Notice>}
+              {staffCheck.error && <Notice tone="danger">{staffCheck.error.message}</Notice>}
+              {staffNotice && <Notice>{staffNotice}</Notice>}
               <div className="btn-row">
                 <button
                   type="button"
                   className="btn btn-tertiary"
-                  disabled={save.isPending}
+                  disabled={answerBusy || conflict}
+                  onClick={async () => {
+                    try {
+                      const result = await staffCheck.mutateAsync({
+                        fieldKey: question.key,
+                        expectedRevision: question.revision ?? 0,
+                      });
+                      if (draftAnswer)
+                        saveDraft({
+                          questionIndex,
+                          answers: {
+                            ...draft?.answers,
+                            [question.key]: {
+                              value: answerText,
+                              revision: businessCase.revision,
+                              answerRevision: result.revision,
+                            },
+                          },
+                        });
+                      setStaffNotice(
+                        `${question.label}: 담당자 확인 필요로 표시했습니다. 입력 중인 내용은 보존되며, 서류별 화면에서 협의를 요청할 수 있습니다.`,
+                      );
+                    } catch {
+                      /* 입력 보존 */
+                    }
+                  }}
+                >
+                  잘 모르겠어요 · 담당자 확인 요청
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-tertiary"
+                  disabled={answerBusy}
                   onClick={() => {
                     setError('');
                     goToQuestion(questionIndex + 1);
@@ -521,7 +656,14 @@ function InterviewWorkspace({
           )}
           {editable && !question && (
             <div className="qcard interview-question">
-              <h3 className="qtitle">공통 정보를 정리했습니다</h3>
+              <h3 className="qtitle">
+                {commonComplete === requiredQuestions.length
+                  ? '공통 정보를 정리했습니다'
+                  : `확인이 필요한 필수 항목이 ${requiredQuestions.length - commonComplete}개 남았습니다`}
+              </h3>
+              {commonComplete < requiredQuestions.length && (
+                <p>나중에 입력하거나 담당자 확인을 요청한 항목은 완료로 계산하지 않습니다.</p>
+              )}
               <p>서류별 상세 화면에서 추가 항목을 확인하고 담당자에게 협의를 요청해 주세요.</p>
               <div className="btn-row interview-complete-actions">
                 {requests.map((request, index) => (
@@ -583,13 +725,13 @@ function InterviewWorkspace({
                 수집된 보안정보
               </h2>
               <span className="help">
-                공통 필수정보 {commonComplete} / {questions.length}
+                공통 필수정보 {commonComplete} / {requiredQuestions.length}
               </span>
             </div>
             <progress
               className="prog"
               value={commonComplete}
-              max={Math.max(1, questions.length)}
+              max={Math.max(1, requiredQuestions.length)}
               aria-label="확인한 공통 답변"
             />
           </div>
@@ -635,6 +777,18 @@ interface InterviewQuestionPresentation {
 
 /** 시안의 질문 표현을 사용하되 게시본의 공통 항목과 저장 키를 유지한다. */
 function questionPresentation(question: Answer): InterviewQuestionPresentation {
+  if (question.inputType || question.hint)
+    return {
+      title: question.label,
+      help:
+        question.hint ||
+        '알고 있는 사실을 적어 주세요. 모르는 내용은 AI에게 물어보거나 담당자 확인을 요청할 수 있습니다.',
+      placeholder:
+        question.inputType === 'DATE_RANGE'
+          ? '예: 2026-11-01 ~ 2027-03-31'
+          : '답변을 입력해 주세요.',
+      options: question.inputType === 'BOOLEAN' ? ['예', '아니요'] : undefined,
+    };
   const questions: Record<string, InterviewQuestionPresentation> = {
     purpose: {
       title: '어떤 사업인가요?',

@@ -248,6 +248,8 @@ export class ContractMapper {
         fields.set(a.key, {
           key: a.key,
           label: a.label,
+          type: a.inputType,
+          hint: a.hint,
           scope: a.scope,
           docTypes: [],
           required: a.required,

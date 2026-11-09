@@ -21,6 +21,58 @@ import { createMockApi, type MockApiOptions } from '@/mocks/server';
 
 const ORIGIN = 'https://security-advisor.example';
 
+test('모의 인터뷰도 대화·추천·적용·사람의 확인을 구분한다', async () => {
+  const { client } = await setup();
+  const created = await client.send('/api/business-cases', 'POST', {
+    title: '합성 인터뷰 사업',
+    department: '합성 부서',
+    summary: '',
+    docTypes: ['FIREWALL'],
+  });
+  expect(created.status).toBe(201);
+  const businessCase = await created.json();
+  const id = businessCase.businessCaseId;
+  const base = `/api/business-cases/${id}/interview-turns`;
+  const before = await (await client.send(`/api/business-cases/${id}`)).json();
+  const result = await client.send(base, 'POST', {
+    fieldKey: 'purpose',
+    mode: 'SUGGEST',
+    text: '추천해 주세요',
+    expectedRevision: before.revision,
+  });
+  expect(result.status).toBe(201);
+  const turn = await result.json();
+  expect(await (await client.send(`/api/business-cases/${id}`)).json()).toEqual(before);
+  expect(
+    (
+      await client.send(`${base}/${turn.interviewTurnId}/applications`, 'POST', {
+        expectedRevision: before.revision,
+      })
+    ).status,
+  ).toBe(200);
+  const after = await (await client.send(`/api/business-cases/${id}`)).json();
+  expect(
+    after.caseAnswers.find((a: { fieldKey: string }) => a.fieldKey === 'purpose'),
+  ).toMatchObject({ confirmed: false, valueSource: 'AI_INFERRED' });
+  expect((await client.send(base)).status).toBe(200);
+  const ask = await (
+    await client.send(base, 'POST', {
+      fieldKey: 'purpose',
+      mode: 'ASK',
+      text: '설명해 주세요',
+      expectedRevision: after.revision,
+    })
+  ).json();
+  expect(ask.proposedValue).toBeNull();
+  expect(
+    (
+      await client.send(`${base}/${ask.interviewTurnId}/applications`, 'POST', {
+        expectedRevision: after.revision,
+      })
+    ).status,
+  ).toBe(422);
+});
+
 function makeClient(handler: ReturnType<typeof createMockApi>) {
   const jar = new Map<string, string>();
   return {

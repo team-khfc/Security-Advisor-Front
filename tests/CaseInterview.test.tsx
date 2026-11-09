@@ -18,6 +18,11 @@ const controls = vi.hoisted(() => ({
 vi.mock('@/features/auth', () => ({
   useSession: () => ({ data: controls.session, isPending: false }),
 }));
+vi.mock('@/features/request/useInterview', () => ({
+  useInterviewTurns: () => ({ data: [] }),
+  useInterviewStaffCheck: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/features/request/InterviewAssistance', () => ({ InterviewAssistance: () => null }));
 vi.mock('@/features/request/useRequests', () => ({
   useCase: () => ({ data: controls.businessCase, isPending: false }),
   useRequests: () => ({ data: controls.requests, isPending: false }),
@@ -47,6 +52,35 @@ afterEach(() => {
 function conversation() {
   return screen.getByRole('region', { name: '인터뷰 대화' });
 }
+
+test('게시본의 질문·도움말·긴 답변 형식과 미완료 상태를 표시한다', async () => {
+  const original = controls.businessCase!;
+  controls.businessCase = {
+    ...original,
+    answers: [
+      {
+        ...original.answers[0],
+        key: 'project.summary',
+        label: '게시본 사업 개요',
+        hint: '사업 목적과 대상 이용자를 적어 주세요.',
+        inputType: 'LONG_TEXT',
+        value: '',
+        confirmed: false,
+        required: true,
+      },
+    ],
+  };
+  const user = userEvent.setup();
+  render(<CaseInterview id={original.id} />);
+  expect(screen.getByRole('heading', { name: '게시본 사업 개요' })).toBeTruthy();
+  expect(screen.getByText('사업 목적과 대상 이용자를 적어 주세요.')).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: '게시본 사업 개요' }).tagName).toBe('TEXTAREA');
+  await user.click(screen.getByRole('button', { name: '나중에 입력' }));
+  expect(
+    screen.getByRole('heading', { name: '확인이 필요한 필수 항목이 1개 남았습니다' }),
+  ).toBeTruthy();
+  expect(controls.save).not.toHaveBeenCalled();
+});
 
 function mockConversationLayout(body: HTMLElement, { pairHeight = 240 } = {}) {
   const top = 120;

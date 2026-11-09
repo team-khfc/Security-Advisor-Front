@@ -177,10 +177,15 @@ test('분석 개요는 복귀 시 복원하고 사용자가 분석을 요청할 
     '전송 전 합성 개요',
   );
   expect(controls.analyze).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('button', { name: '분석 요청' }));
+  await user.click(screen.getByRole('button', { name: '사업 개요 저장' }));
   await waitFor(() =>
     expect(controls.analyze).toHaveBeenCalledWith(
       expect.objectContaining({ text: '전송 전 합성 개요' }),
     ),
   );
 });
+vi.mock('@/features/request/useInterview', () => ({
+  useInterviewTurns: () => ({ data: [] }),
+  useInterviewStaffCheck: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/features/request/InterviewAssistance', () => ({ InterviewAssistance: () => null }));

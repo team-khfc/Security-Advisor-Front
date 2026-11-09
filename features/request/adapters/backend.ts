@@ -50,6 +50,8 @@ export function adaptAnswers(
       return {
         key: f.key,
         label: f.label,
+        inputType: f.type,
+        hint: f.hint,
         scope: f.scope,
         ownerRole: f.askRole,
         required: f.required,
@@ -79,6 +81,7 @@ export function adaptCase(value: z.infer<typeof caseDto>, publication: Publicati
     ownerName: value.applicantUsername,
     revision: value.revision,
     publicationVersion: publication.version,
+    publicationId: publication.publicationId,
     answers: adaptAnswers(value.caseAnswers, publication, 'CASE'),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
