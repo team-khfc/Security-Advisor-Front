@@ -1,10 +1,10 @@
 # API 계약 연결 상태
 
-기록일: 2026-11-07. **API 계약의 소유자는 Security-Advisor-Back이다.** 이 디렉터리는 Front가 확인한 실제 서버 경로와 아직 제안 단계인 모의 계약의 차이를 기록한다. 확정되지 않은 모의 명세를 공식 OpenAPI처럼 게시하지 않는다.
+기록일: 2026-11-09. **API 계약의 소유자는 Security-Advisor-Back이다.** 이 디렉터리는 Front가 확인한 실제 서버 경로와 아직 제안 단계인 모의 계약의 차이를 기록한다. 확정되지 않은 모의 명세를 공식 OpenAPI처럼 게시하지 않는다.
 
 ## 확인한 실제 Back 기준
 
-참조한 Back 커밋은 [`6253f9c7bf0d8862be1d93a32062de6bd887f68d`](https://github.com/team-khfc/Security-Advisor-Back/tree/6253f9c7bf0d8862be1d93a32062de6bd887f68d)이다. 이 기준에서 Front가 가져올 확정 OpenAPI 계약 파일은 확인되지 않았다. 다음은 컨트롤러 소스로 확인한 경로이며, 실제 환경에서 연동 실행을 완료했다는 의미는 아니다.
+참조한 Back 커밋은 [`12d89eda4e1c785dd09f67bdeb85cee3ccc8507c`](https://github.com/team-khfc/Security-Advisor-Back/tree/12d89eda4e1c785dd09f67bdeb85cee3ccc8507c)이다. [확정 OpenAPI](https://github.com/team-khfc/Security-Advisor-Back/blob/12d89eda4e1c785dd09f67bdeb85cee3ccc8507c/docs/api/openapi.yaml)와 [FRONTEND_HANDOFF.md](https://github.com/team-khfc/Security-Advisor-Back/blob/12d89eda4e1c785dd09f67bdeb85cee3ccc8507c/docs/FRONTEND_HANDOFF.md)를 기준으로 확인했다. 아래 경로 확인과 실제 실행 검증은 구분하며, 실행 방법·연결 차이는 [테스트 서버 문서](../docs/BACKEND_TEST_SERVER.md)를 따른다.
 
 | 실제 Back 경로 | 소스에서 확인한 의미 | 이번 Front 사용 |
 | --- | --- | --- |
@@ -12,10 +12,11 @@
 | `POST /api/auth/logout` | 세션 무효화, 204 | 로그아웃 훅 |
 | `GET /api/auth/me` | 현재 사용자, 인증 없으면 401 | 세션 조회 및 CSRF 쿠키 초기화 요청 |
 | `POST /api/members` | 회원가입, 생성 시 201·Location | 가입 훅 |
-| `GET /api/procedures` | 신청 가능한 절차 목록 | 현재 Front에서는 사용하지 않음 |
-| `GET /api/procedures/{code}` | 절차 한 건 | 현재 Front에서는 사용하지 않음 |
+| `GET /api/installation` | 공개 설치 정보 `{name, code}` | 내부 기관 정보 DTO와 `mode=api`로 변환 |
+| `GET /api/business-cases` | 사업 건 페이지와 하위 신청 요약 | 기본 API 연결 검사. 화면 DTO 어댑터는 후속 |
+| `PUT /api/business-cases/{id}/answers/{key}` | 필드별 공통 답변 저장 | 현재 일괄 PATCH 훅을 전환해야 함 |
 
-원본 소스: [AuthController](https://github.com/team-khfc/Security-Advisor-Back/blob/6253f9c7bf0d8862be1d93a32062de6bd887f68d/src/main/java/kr/securityadvisor/auth/controller/AuthController.java), [MemberController](https://github.com/team-khfc/Security-Advisor-Back/blob/6253f9c7bf0d8862be1d93a32062de6bd887f68d/src/main/java/kr/securityadvisor/auth/controller/MemberController.java), [ProcedureController](https://github.com/team-khfc/Security-Advisor-Back/blob/6253f9c7bf0d8862be1d93a32062de6bd887f68d/src/main/java/kr/securityadvisor/procedure/controller/ProcedureController.java), [SecurityConfig](https://github.com/team-khfc/Security-Advisor-Back/blob/6253f9c7bf0d8862be1d93a32062de6bd887f68d/src/main/java/kr/securityadvisor/common/config/SecurityConfig.java).
+기존 절차 목록(`/api/procedures`) 확인 기록은 초기 Back 기준이었다. 최신 계약의 게시본·서류 유형·질문 스키마와 연결할 때는 위 OpenAPI를 원본으로 사용한다.
 
 ### 현행 인증 경로의 예외
 

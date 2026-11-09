@@ -50,6 +50,16 @@ npm run dev
 
 ## 실제 Back 연결
 
+Back의 확정 OpenAPI와 인수인계 문서를 기준으로 Docker에서 **Front·실제 Back·PostgreSQL을 함께 실행**하는 방법은 [실제 연결 테스트 서버](docs/BACKEND_TEST_SERVER.md)를 참고합니다. Windows에서는 Front 폴더에서 다음 명령으로 준비할 수 있습니다.
+
+```powershell
+npm run test:server -- --backend "$env:USERPROFILE\Desktop\repo\Security-Advisor-Back-main"
+```
+
+기본 주소는 `http://localhost:3001/login`이며 기존 모의 서버와 구분합니다. 이 구성은 인증·기관 조회·기본 API 연결 검사에 사용할 수 있습니다. **사업·신청·답변·협의·제출 등 업무 화면 전체가 실제 Back에 연동된 상태는 아닙니다.**
+
+Back을 별도로 실행하고 Front 개발 서버를 연결할 경우에는 다음 설정을 사용합니다.
+
 `.env.local`에 Back 주소를 지정합니다.
 
 ```dotenv
@@ -63,7 +73,7 @@ npm run dev:api
 
 브라우저는 동일 출처의 `/api/...`만 호출하고 Next.js 서버가 Back으로 전달합니다. 실제 모드에서 요청이 실패해도 합성 성공 응답으로 바꾸지 않습니다.
 
-현재 확인한 Back의 로그인·로그아웃·현재 사용자·회원가입 경로에 맞춘 어댑터가 있습니다. **설치 정보와 사업·신청·검토·문서 등 전체 업무의 확정 OpenAPI는 아직 없습니다.** 따라서 이 실행 모드를 전체 업무의 실제 연동 완료로 해석하면 안 됩니다. 현행 인증 경로의 REST 명명 예외, 응답 변환, 실제와 모의 API 차이는 [API 계약 연결 상태](contract/README.md)에 정리했습니다.
+Back의 확정 OpenAPI와 `FRONTEND_HANDOFF.md`가 제공되었으며, 인증 응답과 기관 정보에 맞춘 어댑터를 제공합니다. 사업·신청·검토·문서의 업무 DTO와 mutation 경로는 현재 Front 모의 계약과 차이가 있어 후속 연결이 필요합니다. 현행 인증 경로의 REST 명명 예외, 응답 변환, 실제와 모의 API 차이는 [API 계약 연결 상태](contract/README.md)에 정리했습니다.
 
 ## 주요 화면과 업무 흐름
 
