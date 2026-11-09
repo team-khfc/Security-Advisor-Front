@@ -1,11 +1,12 @@
 import { render } from './queryRender';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RequestDetail } from '@/features/request/RequestDetail';
 import type { BusinessCase, ReviewField, SecurityRequest } from '@/features/request/types';
 import type { Actor, Role, Session } from '@/lib/types';
 import { createMockState, MOCK_MEMBERS } from '@/mocks/seed';
+import * as http from '@/lib/httpClient';
 
 const controls = vi.hoisted(() => ({
   request: null as SecurityRequest | null,
@@ -13,6 +14,7 @@ const controls = vi.hoisted(() => ({
   session: null as Session | null,
   mutate: vi.fn(),
   pending: false,
+  loading: false,
 }));
 
 vi.mock('@/features/auth', () => ({
@@ -21,7 +23,7 @@ vi.mock('@/features/auth', () => ({
 }));
 
 vi.mock('@/features/request/useRequests', () => ({
-  useRequest: () => ({ data: controls.request, isPending: false, error: null }),
+  useRequest: () => ({ data: controls.request, isPending: controls.loading, error: null }),
   useCase: () => ({ data: controls.businessCase, isPending: false, error: null }),
   useRequests: () => ({ data: [], isPending: false }),
   useRequestCommand: () => ({ mutateAsync: controls.mutate, isPending: controls.pending }),
@@ -89,6 +91,87 @@ beforeEach(() => {
   selectRole('ADMIN');
   controls.mutate.mockReset().mockResolvedValue({});
   controls.pending = false;
+  controls.loading = false;
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+test('제출 후 하위 자원 조회로 작업 영역이 재생성되어도 완료 안내와 초점을 유지한다', async () => {
+  const descriptors = Object.fromEntries(
+    ['showModal', 'close'].map((name) => [
+      name,
+      Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, name),
+    ]),
+  );
+  Object.defineProperties(HTMLDialogElement.prototype, {
+    showModal: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.open = true;
+      },
+    },
+    close: {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.open = false;
+      },
+    },
+  });
+  try {
+    selectRole('APPLICANT');
+    controls.request = {
+      ...request(),
+      stage: 3,
+      status: 'FINAL_REVIEW',
+      allowedActions: ['SUBMIT'],
+    };
+    vi.spyOn(http, 'requestJson').mockResolvedValue({
+      finalDraftId: 21,
+      securityRequestId: 42,
+      text: '확인한 합성 보고서',
+      valueSource: 'AI_INFERRED',
+      modelReference: 'fake/offline',
+      confirmedBy: 'applicant',
+      confirmedAt: '2026-11-10T00:00:00Z',
+      confirmed: true,
+      stale: false,
+      revision: 1,
+    });
+    let complete!: () => void;
+    controls.mutate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const view = render(<RequestDetail id={request().id} />);
+    const user = userEvent.setup();
+    await waitFor(() =>
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: '최종 제출' }).disabled).toBe(
+        false,
+      ),
+    );
+    await user.click(screen.getByRole('button', { name: '최종 제출' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '최종 제출' }));
+    controls.loading = true;
+    view.rerender(<RequestDetail id={request().id} />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    complete();
+    controls.loading = false;
+    controls.request = { ...request(), stage: 4, status: 'SUBMITTED', allowedActions: [] };
+    view.rerender(<RequestDetail id={request().id} />);
+    const message = await screen.findByText(
+      '최종 제출을 완료했습니다. 제출본을 확인하거나 PDF를 내려받을 수 있습니다.',
+    );
+    await waitFor(() => expect(document.activeElement).toBe(message.closest('[role="status"]')));
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: '제출본 문서로 이동' }));
+  } finally {
+    for (const [name, descriptor] of Object.entries(descriptors)) {
+      if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, name, descriptor);
+      else Reflect.deleteProperty(HTMLDialogElement.prototype, name);
+    }
+  }
 });
 
 test('시안의 주요 카드 순서를 유지하고 자동 점검을 수행한 것처럼 표시하지 않는다', () => {

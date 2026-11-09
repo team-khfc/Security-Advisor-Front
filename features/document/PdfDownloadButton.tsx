@@ -47,8 +47,13 @@ export function PdfDownloadButton({
       <button
         type="button"
         className="btn btn-sm"
-        disabled={disabled || download.isPending}
-        onClick={() => download.mutate()}
+        disabled={disabled}
+        aria-disabled={download.isPending || undefined}
+        aria-busy={download.isPending || undefined}
+        onClick={() => {
+          // 파일 준비 중에도 키보드 초점을 유지하되 중복 생성은 막는다.
+          if (!download.isPending) download.mutate();
+        }}
       >
         {download.isPending ? 'PDF 준비 중…' : 'PDF 다운로드'}
         {size ? ` (${size})` : ''}

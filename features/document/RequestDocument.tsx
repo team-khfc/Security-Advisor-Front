@@ -97,7 +97,9 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const submission = request.submissions.find((item) => item.id === request.currentSubmissionId);
   const finalDraft = useFinalDraft(request.id, !submission && request.stage === 3);
-  const finalPending = !!finalDraft.data && (!finalDraft.data.confirmed || finalDraft.data.stale);
+  // 비활성 질의에도 캐시는 남으므로 제출본에는 현재 초안의 재확인 상태를 섞지 않는다.
+  const finalPending =
+    !submission && !!finalDraft.data && (!finalDraft.data.confirmed || finalDraft.data.stale);
   const unavailable = Boolean(
     (request.currentSubmissionId || request.stage === 4 || request.status === 'FINALIZED') &&
     !submission,
@@ -123,7 +125,7 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
 
   return (
     <section className="card" id="documents" aria-labelledby="d-docs">
-      <h2 className="h-panel" id="d-docs">
+      <h2 className="h-panel" id="d-docs" tabIndex={-1}>
         문서
       </h2>
       <div className="doc in">
