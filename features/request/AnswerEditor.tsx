@@ -16,12 +16,19 @@ const sourceLabels = {
 /** 값의 출처와 사람의 확인 기록은 서로 구분해 보여 준다. */
 export function SourceBadge({ answer }: { answer: Answer }) {
   if (!answer.source) return <Badge tone="warning">담당자 확인 필요</Badge>;
+  const aiConfirmed = answer.confirmed && Boolean(answer.confirmation) && !answer.needsReview;
+  const confirmationLabel =
+    answer.confirmation?.role === 'APPLICANT'
+      ? '사용자 확인'
+      : answer.confirmation?.role
+        ? '담당자 확인'
+        : '확인됨';
   return (
     <span
-      className={`badge src ${answer.source === 'AI_INFERRED' ? 'b-outline' : answer.source === 'STAFF_CONFIRMED' ? 'b-success' : 'b-neutral'}`}
+      className={`badge src ${answer.source === 'AI_INFERRED' ? (aiConfirmed ? 'b-info' : 'b-outline') : answer.source === 'STAFF_CONFIRMED' ? 'b-success' : answer.source === 'STAFF_INPUT' ? 'b-info' : 'b-neutral'}`}
     >
       {sourceLabels[answer.source]}
-      {answer.source === 'AI_INFERRED' && (answer.confirmed ? ' · 사용자 확인' : ' · 미확정')}
+      {answer.source === 'AI_INFERRED' && (aiConfirmed ? ` · ${confirmationLabel}` : ' · 미확정')}
       {answer.confirmation && answer.source !== 'USER_ANSWER' && (
         <span className="source-person">({answer.confirmation.actorName})</span>
       )}
@@ -33,9 +40,11 @@ export function SourceBadge({ answer }: { answer: Answer }) {
 export function AnswerView({
   answers,
   highlighted = [],
+  evidenceDisplay = 'disclosure',
 }: {
   answers: Answer[];
   highlighted?: string[];
+  evidenceDisplay?: 'disclosure' | 'inline';
 }) {
   return (
     <dl className="answer-list">
@@ -59,12 +68,14 @@ export function AnswerView({
               <p>{answer.notApplicable ? '미해당' : answer.value || '담당자 확인 필요'}</p>
             )}
             <SourceBadge answer={answer} />
-            {answer.evidence && (
+            {answer.evidence && evidenceDisplay === 'inline' ? (
+              <p className="src-ev">근거: {answer.evidence}</p>
+            ) : answer.evidence ? (
               <details className="evidence">
                 <summary>AI 추론 근거 보기</summary>
                 <p>{answer.evidence}</p>
               </details>
-            )}
+            ) : null}
           </dd>
         </div>
       ))}

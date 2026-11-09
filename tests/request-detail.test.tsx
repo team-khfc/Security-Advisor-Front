@@ -1,0 +1,287 @@
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { RequestDetail } from '@/features/request/RequestDetail';
+import type { BusinessCase, ReviewField, SecurityRequest } from '@/features/request/types';
+import type { Actor, Role, Session } from '@/lib/types';
+import { createMockState, MOCK_MEMBERS } from '@/mocks/seed';
+
+const controls = vi.hoisted(() => ({
+  request: null as SecurityRequest | null,
+  businessCase: null as BusinessCase | null,
+  session: null as Session | null,
+  mutate: vi.fn(),
+  pending: false,
+}));
+
+vi.mock('@/features/auth', () => ({
+  useSession: () => ({ data: controls.session, isPending: false }),
+  useMembers: () => ({ data: [], isPending: false }),
+}));
+
+vi.mock('@/features/request/useRequests', () => ({
+  useRequest: () => ({ data: controls.request, isPending: false, error: null }),
+  useCase: () => ({ data: controls.businessCase, isPending: false, error: null }),
+  useRequests: () => ({ data: [], isPending: false }),
+  useRequestCommand: () => ({ mutateAsync: controls.mutate, isPending: controls.pending }),
+  useSaveCase: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
+vi.mock('@/lib/queries', () => ({
+  useAudit: () => ({ data: [], isPending: false, error: null }),
+}));
+
+function actor(role: Role): Actor {
+  const value = MOCK_MEMBERS.find((member) => member.role === role);
+  if (!value) throw new Error('합성 테스트 계정 누락');
+  return value;
+}
+
+function request(): SecurityRequest {
+  if (!controls.request) throw new Error('합성 테스트 신청 누락');
+  return controls.request;
+}
+
+function selectRole(role: Role) {
+  controls.session = { member: actor(role), mock: true, expiresAt: null };
+}
+
+function reviewRequest(field: ReviewField) {
+  selectRole(field);
+  controls.request = {
+    ...request(),
+    allowedActions: ['COMPLETE_REVIEW'],
+    reviews: request().reviews.map((review) => ({
+      ...review,
+      revision: 3,
+      checklist: {},
+      status: review.field === field ? 'IN_REVIEW' : 'PENDING',
+    })),
+  };
+}
+
+function reviewPanel(name: string) {
+  return within(screen.getByRole('complementary', { name }));
+}
+
+beforeEach(() => {
+  const state = createMockState();
+  const seeded = state.requests.find((item) => item.id === 'demo-request-1');
+  if (!seeded) throw new Error('합성 테스트 신청 누락');
+  controls.request = {
+    ...structuredClone(seeded),
+    id: 'synthetic-detail-request',
+    caseTitle: '합성 신청 상세 검증 사업',
+    stage: 2,
+    status: 'CONSULTING',
+    docType: 'FIREWALL',
+    allowedActions: [],
+    supplements: [],
+    returns: [],
+    submissions: [],
+    currentSubmissionId: null,
+    highlightedFields: [],
+    changedCommonFields: [],
+    blockers: [],
+  };
+  controls.businessCase = state.cases.find((item) => item.id === seeded.caseId) ?? null;
+  selectRole('ADMIN');
+  controls.mutate.mockReset().mockResolvedValue({});
+  controls.pending = false;
+});
+
+test('시안의 주요 카드 순서를 유지하고 자동 점검을 수행한 것처럼 표시하지 않는다', () => {
+  render(<RequestDetail id={request().id} />);
+
+  const titles = screen
+    .getAllByRole('heading', { level: 2 })
+    .filter((heading) => heading.closest('.detail-content'))
+    .map((heading) => heading.textContent);
+  expect(titles).toEqual([
+    '사업 정보',
+    '문서',
+    '데이터 흐름도',
+    '방화벽 규칙',
+    '기관 기준 자동 점검',
+    '처리 이력',
+  ]);
+  expect(screen.getByRole('button', { name: '문서 미리보기' })).toBeTruthy();
+  expect(screen.getByRole('table', { name: /방화벽 규칙/ })).toBeTruthy();
+
+  const checks = within(screen.getByRole('region', { name: '기관 기준 자동 점검' }));
+  expect(checks.getByText('미실시')).toBeTruthy();
+  expect(checks.queryByText('통과', { exact: true })).toBeNull();
+  expect(checks.getByText(/자동 점검 결과가 아직 없습니다/)).toBeTruthy();
+});
+
+test('관리자 조회 패널은 실제 협의 상태와 IN_REVIEW를 표시하고 검토 동작을 만들지 않는다', () => {
+  controls.request = {
+    ...request(),
+    reviews: request().reviews.map((review) => ({
+      ...review,
+      status: review.field === 'INFRA' ? 'COMPLETE' : 'IN_REVIEW',
+      statusLabel: undefined,
+      allocationCompleted: review.field === 'INFRA',
+    })),
+  };
+  render(<RequestDetail id={request().id} />);
+
+  const panel = reviewPanel('현재 처리 상황');
+  expect(panel.getByText('협의 완료', { exact: true })).toBeTruthy();
+  expect(panel.getByText('검토 중', { exact: true })).toBeTruthy();
+  expect(panel.getByText(/정보보안 검토 중입니다/)).toBeTruthy();
+  expect(panel.queryAllByRole('checkbox')).toHaveLength(0);
+  expect(panel.queryAllByRole('button')).toHaveLength(0);
+});
+
+const reviewCases: {
+  field: ReviewField;
+  title: string;
+  labels: string[];
+  expectedChecklist: Record<string, boolean>;
+}[] = [
+  {
+    field: 'INFRA',
+    title: 'ICT인프라 검토',
+    labels: [
+      '출발지 주소를 확인했습니다',
+      '목적지 주소를 확인했습니다',
+      '프로토콜을 확인했습니다',
+      '서비스 포트를 확인했습니다',
+      '허용 기간을 확인했습니다',
+    ],
+    expectedChecklist: {
+      source: true,
+      destination: true,
+      protocol: true,
+      port: true,
+      period: true,
+    },
+  },
+  {
+    field: 'SECURITY',
+    title: '정보보안 검토',
+    labels: [
+      '처리 정보와 개인정보 범위를 확인했습니다',
+      '외부 전송 여부와 목적지를 확인했습니다',
+      '접근 권한 통제를 확인했습니다',
+      '접속·처리 기록 보관을 확인했습니다',
+    ],
+    expectedChecklist: {
+      processed_info: true,
+      external_transfer: true,
+      access_control: true,
+      logging: true,
+    },
+  },
+];
+
+describe('담당자 협의 완료', () => {
+  test.each(reviewCases)(
+    '$field는 사람이 필수 항목과 의견을 입력해야 서버 계약에 맞는 체크리스트를 전송한다',
+    async ({ field, title, labels, expectedChecklist }) => {
+      reviewRequest(field);
+      const user = userEvent.setup();
+      render(<RequestDetail id={request().id} />);
+      const panel = reviewPanel(title);
+      const submit = panel.getByRole<HTMLButtonElement>('button', { name: '담당 분야 협의 완료' });
+      const opinion = panel.getByRole<HTMLTextAreaElement>('textbox', { name: /검토 의견/ });
+
+      expect(opinion.required).toBe(true);
+      expect(panel.getAllByRole<HTMLInputElement>('checkbox').every((box) => !box.checked)).toBe(
+        true,
+      );
+      expect(submit.disabled).toBe(true);
+      await user.type(opinion, '합성 자료의 검토 근거와 후속 조치를 확인했습니다.');
+      for (const label of labels.slice(0, -1)) {
+        await user.click(panel.getByRole('checkbox', { name: label }));
+      }
+      expect(submit.disabled).toBe(true);
+      await user.click(submit);
+      expect(controls.mutate).not.toHaveBeenCalled();
+
+      await user.click(panel.getByRole('checkbox', { name: labels.at(-1) }));
+      await user.clear(opinion);
+      await user.type(opinion, '   ');
+      expect(submit.disabled).toBe(true);
+      await user.clear(opinion);
+      await user.type(opinion, '합성 검토 근거를 확인했습니다.');
+      expect(submit.disabled).toBe(false);
+      await user.click(submit);
+
+      await waitFor(() => expect(controls.mutate).toHaveBeenCalledTimes(1));
+      expect(controls.mutate).toHaveBeenCalledWith({
+        action: 'COMPLETE_REVIEW',
+        expectedRevision: request().revision,
+        field,
+        comment: '합성 검토 근거를 확인했습니다.',
+        checklist: expectedChecklist,
+      });
+    },
+  );
+
+  test('저장에 실패하면 직접 체크한 항목과 검토 의견을 보존해 다시 시도할 수 있다', async () => {
+    reviewRequest('SECURITY');
+    controls.mutate.mockRejectedValueOnce(new Error('합성 저장 오류입니다. 다시 시도해 주세요.'));
+    const user = userEvent.setup();
+    render(<RequestDetail id={request().id} />);
+    const panel = reviewPanel('정보보안 검토');
+    const opinion = panel.getByRole<HTMLTextAreaElement>('textbox', { name: /검토 의견/ });
+    const submit = panel.getByRole<HTMLButtonElement>('button', { name: '담당 분야 협의 완료' });
+    for (const box of panel.getAllByRole('checkbox')) await user.click(box);
+    await user.type(opinion, '재시도 시 보존할 합성 검토 의견');
+    await user.click(submit);
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByText('합성 저장 오류입니다. 다시 시도해 주세요.')).toBeTruthy();
+    expect(opinion.value).toBe('재시도 시 보존할 합성 검토 의견');
+    expect(panel.getAllByRole<HTMLInputElement>('checkbox').every((box) => box.checked)).toBe(true);
+    expect(submit.disabled).toBe(false);
+    await user.click(submit);
+    await waitFor(() => expect(controls.mutate).toHaveBeenCalledTimes(2));
+    expect(controls.mutate.mock.calls[1]).toEqual(controls.mutate.mock.calls[0]);
+  });
+
+  test('검토 수정본이 바뀌면 이전 로컬 체크를 승계하지 않고 최신 서버 확인값으로 돌아간다', async () => {
+    reviewRequest('INFRA');
+    const user = userEvent.setup();
+    const rendered = render(<RequestDetail id={request().id} />);
+    const panel = reviewPanel('ICT인프라 검토');
+    for (const box of panel.getAllByRole('checkbox')) await user.click(box);
+    await user.type(panel.getByRole('textbox', { name: /검토 의견/ }), '합성 검토 의견');
+    expect(
+      panel.getByRole<HTMLButtonElement>('button', { name: '담당 분야 협의 완료' }).disabled,
+    ).toBe(false);
+
+    controls.request = {
+      ...request(),
+      reviews: request().reviews.map((review) =>
+        review.field === 'INFRA' ? { ...review, revision: 4, checklist: { source: true } } : review,
+      ),
+    };
+    rendered.rerender(<RequestDetail id={request().id} />);
+
+    expect(
+      panel.getByRole<HTMLInputElement>('checkbox', { name: '출발지 주소를 확인했습니다' }).checked,
+    ).toBe(true);
+    expect(
+      panel.getAllByRole<HTMLInputElement>('checkbox').filter((box) => box.checked),
+    ).toHaveLength(1);
+    expect(
+      panel.getByRole<HTMLButtonElement>('button', { name: '담당 분야 협의 완료' }).disabled,
+    ).toBe(true);
+    expect(controls.mutate).not.toHaveBeenCalled();
+  });
+});
+
+test('알 수 없는 서버 권한만 있으면 담당자 역할만으로 검토 동작을 노출하지 않는다', () => {
+  selectRole('SECURITY');
+  controls.request = { ...request(), allowedActions: ['FUTURE_REVIEW_ACTION'] };
+  render(<RequestDetail id={request().id} />);
+
+  const panel = reviewPanel('현재 처리 상황');
+  expect(panel.queryAllByRole('button')).toHaveLength(0);
+  expect(panel.queryAllByRole('checkbox')).toHaveLength(0);
+  expect(panel.queryByRole('textbox', { name: /검토 의견/ })).toBeNull();
+  expect(controls.mutate).not.toHaveBeenCalled();
+});

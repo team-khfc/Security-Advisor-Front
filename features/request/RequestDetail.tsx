@@ -14,9 +14,13 @@ import {
 } from '@/components/ui';
 import { useMembers, useSession } from '@/features/auth';
 import { auditActionLabel } from '@/features/audit/labels';
+import { RequestDocument } from '@/features/document/RequestDocument';
 import { useAudit } from '@/lib/queries';
 import type { Actor } from '@/lib/types';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
+import { RequestTechnicalDetails } from './RequestTechnicalDetails';
+import { getRequestDetailData } from './requestDetailData';
+import { waitingLine } from './turns';
 import {
   DOCUMENT_LABELS,
   FIELD_LABELS,
@@ -28,6 +32,23 @@ import {
   type SecurityRequest,
 } from './types';
 import { useCase, useRequest, useRequestCommand, useRequests, useSaveCase } from './useRequests';
+
+/** Back ReviewChecklist의 필수 항목. 확인 여부는 담당자가 직접 입력한다. */
+const REVIEW_CHECKLIST_ITEMS: Record<ReviewField, { key: string; label: string }[]> = {
+  INFRA: [
+    { key: 'source', label: '출발지 주소를 확인했습니다' },
+    { key: 'destination', label: '목적지 주소를 확인했습니다' },
+    { key: 'protocol', label: '프로토콜을 확인했습니다' },
+    { key: 'port', label: '서비스 포트를 확인했습니다' },
+    { key: 'period', label: '허용 기간을 확인했습니다' },
+  ],
+  SECURITY: [
+    { key: 'processed_info', label: '처리 정보와 개인정보 범위를 확인했습니다' },
+    { key: 'external_transfer', label: '외부 전송 여부와 목적지를 확인했습니다' },
+    { key: 'access_control', label: '접근 권한 통제를 확인했습니다' },
+    { key: 'logging', label: '접속·처리 기록 보관을 확인했습니다' },
+  ],
+};
 
 /** URL을 직접 열어도 실제 조회 권한은 API가 판단한다. */
 export function RequestDetail({ id }: { id: string }) {
@@ -72,24 +93,41 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
   const [message, setMessage] = useState('');
   const [failure, setFailure] = useState('');
   const [comment, setComment] = useState('');
+  const [reviewDraft, setReviewDraft] = useState<{
+    reviewId: string;
+    revision: number | undefined;
+    values: Record<string, boolean>;
+  } | null>(null);
   const terminal = ['FINALIZED', 'CLOSED', 'WITHDRAWN'].includes(request.status);
   const has = (action: string) => request.allowedActions.includes(action);
   const fields = [...request.commonAnswers, ...request.answers];
-  const pendingCount = fields.filter(
-    (answer) =>
-      (answer.required || answer.value || answer.notApplicable) &&
-      !(
-        answer.source &&
-        answer.confirmed &&
-        (answer.source === 'USER_ANSWER' || answer.confirmation) &&
-        (answer.notApplicable || answer.value.trim())
-      ),
-  ).length;
-  const latestReturn = request.returns.at(-1);
+  const detail = getRequestDetailData(request);
+  const latestReturn = request.returns
+    .slice()
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0];
   const siblings = (allRequests.data ?? []).filter(
     (item) => item.caseId === request.caseId && item.id !== request.id,
   );
   const roleField = actor.role === 'INFRA' || actor.role === 'SECURITY' ? actor.role : undefined;
+  const currentReview = request.reviews.find((review) => review.field === roleField);
+  const checklistItems = roleField ? REVIEW_CHECKLIST_ITEMS[roleField] : [];
+  const checklist =
+    currentReview &&
+    reviewDraft?.reviewId === currentReview.id &&
+    reviewDraft.revision === currentReview.revision
+      ? reviewDraft.values
+      : (currentReview?.checklist ?? {});
+  const checklistComplete = checklistItems.every((item) => checklist[item.key]);
+  const panelTitle =
+    roleField && (has('COMPLETE_REVIEW') || has('COMPLETE_ALLOCATION'))
+      ? `${FIELD_LABELS[roleField]} 검토`
+      : has('SUBMIT')
+        ? '최종 제출 확인'
+        : has('FINAL_CONFIRM') || has('FINALIZE')
+          ? '제출본 최종 확인'
+          : has('REQUEST_REVIEW')
+            ? '인터뷰 이어서 작성'
+            : '현재 처리 상황';
   const invoke = async (action: CommandAction, extra: Partial<CommandInput> = {}) => {
     setFailure('');
     setMessage('');
@@ -116,28 +154,26 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
   };
 
   return (
-    <>
+    <div className="request-detail-page">
       <nav className="crumb" aria-label="현재 위치">
         <Link href="/requests">
           {actor.role === 'APPLICANT' || actor.role === 'ADMIN' ? '신청 현황' : '협의 요청함'}
         </Link>
-        <Icon name="chevronRight" size={14} />
+        <span aria-hidden="true">/</span>
         <span>
           {canViewCase ? <Link href={`/cases/${request.caseId}`}>사업 건</Link> : '사업 건'}
         </span>
-        <Icon name="chevronRight" size={14} />
+        <span aria-hidden="true">/</span>
         <span>신청 상세</span>
       </nav>
       <PageHeading
         title={request.caseTitle}
         description={
           <div className="request-meta">
-            <span>{request.id}</span>
-            <span>{DOCUMENT_LABELS[request.docType] ?? request.docType}</span>
             <span>
-              {request.department} · {request.ownerName}
+              {request.id}, {request.department} {request.ownerName}, 설정 v
+              {request.publicationVersion}
             </span>
-            <span>설정 게시본 v{request.publicationVersion}</span>
             <Badge
               tone={
                 request.status === 'FINALIZED'
@@ -154,18 +190,6 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
           </div>
         }
       />
-      {siblings.length > 0 && (
-        <div className="sibling-links">
-          <span>함께 신청한 서류</span>
-          {siblings.map((sibling) => (
-            <Link key={sibling.id} href={`/requests/${sibling.id}`}>
-              {DOCUMENT_LABELS[sibling.docType] ?? sibling.docType} ·{' '}
-              {STATUS_LABELS[sibling.status]}
-              <Icon name="chevronRight" size={14} />
-            </Link>
-          ))}
-        </div>
-      )}
       <ol className={`stepper${terminal ? ' is-terminal' : ''}`} aria-label="신청 진행 단계">
         {STAGE_LABELS.map((label, index) => {
           const step = index + 1;
@@ -243,26 +267,84 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
         </div>
       )}
       {failure && !dialogAction && <Notice tone="danger">{failure}</Notice>}
-      <div className="detail-layout">
+      <div className="detail detail-layout">
         <div className="detail-content">
-          <section className="card">
-            <div className="section-heading">
-              <h2 className="h-panel">사업 정보</h2>
-              {canViewCase && (
-                <Link className="btn btn-tertiary btn-sm" href={`/cases/${request.caseId}`}>
-                  공통 인터뷰 보기
-                  <Icon name="chevronRight" size={14} />
-                </Link>
-              )}
-            </div>
+          <section className="card" aria-labelledby="d-info">
+            <h2 className="h-panel" id="d-info">
+              사업 정보
+            </h2>
             <p className="help src-help">
               값 옆 꼬리표는 출처입니다: 사용자 답변, AI 추론(근거 포함), 담당자 입력, 담당자 확인.
               AI 추론은 사람이 확인하기 전까지 확정값이 아닙니다.
             </p>
             <AnswerView
-              answers={request.commonAnswers.filter((answer) => answer.ownerRole === 'APPLICANT')}
+              answers={detail.businessAnswers}
               highlighted={request.highlightedFields}
+              evidenceDisplay="inline"
             />
+            {detail.snapshotUnavailable && (
+              <p className="help">
+                제출 당시 사업 정보를 확인할 수 없습니다. 신청을 다시 불러와 주세요.
+              </p>
+            )}
+            <dl className="dl detail-business-meta">
+              {request.deadlines.filter((deadline) => deadline.active).length > 0 && (
+                <>
+                  <dt>처리 기한</dt>
+                  <dd>
+                    {request.deadlines
+                      .filter((deadline) => deadline.active)
+                      .map((deadline) => (
+                        <div key={deadline.id} className="detail-due">
+                          <Badge
+                            tone={
+                              deadline.timing === 'OVERDUE'
+                                ? 'danger'
+                                : deadline.timing === 'DUE_SOON'
+                                  ? 'warning'
+                                  : 'neutral'
+                            }
+                          >
+                            {deadline.paused
+                              ? '일시 중지'
+                              : deadline.timing === 'OVERDUE'
+                                ? '기한 초과'
+                                : deadline.timing === 'DUE_SOON'
+                                  ? '마감 임박'
+                                  : '진행 중'}
+                          </Badge>
+                          <time dateTime={deadline.dueAt}>{formatDate(deadline.dueAt)}</time>
+                          {deadline.field && (
+                            <span className="help">{FIELD_LABELS[deadline.field]} 처리 기한</span>
+                          )}
+                        </div>
+                      ))}
+                  </dd>
+                </>
+              )}
+              <dt>적용 설정</dt>
+              <dd>
+                v{detail.selectedSubmission?.publicationVersion ?? request.publicationVersion}
+              </dd>
+            </dl>
+            {(canViewCase || siblings.length > 0) && (
+              <details className="sub-block detail-related">
+                <summary>관련 신청·공통 인터뷰</summary>
+                <div className="btn-row">
+                  {canViewCase && (
+                    <Link className="link-more" href={`/cases/${request.caseId}`}>
+                      공통 인터뷰 보기 <Icon name="chevronRight" size={14} />
+                    </Link>
+                  )}
+                  {siblings.map((sibling) => (
+                    <Link className="link-more" key={sibling.id} href={`/requests/${sibling.id}`}>
+                      {DOCUMENT_LABELS[sibling.docType] ?? sibling.docType} ·{' '}
+                      {STATUS_LABELS[sibling.status]}
+                    </Link>
+                  ))}
+                </div>
+              </details>
+            )}
             {has('EDIT_CASE') && caseQuery.data && (
               <details className="sub-block">
                 <summary>사업 공통 답변 수정·확인</summary>
@@ -340,86 +422,20 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
               ))}
             </section>
           )}
-          <section className="card" id="documents">
-            <div className="section-heading">
-              <h2 className="h-panel">신청 문서</h2>
-              <Badge tone={request.currentSubmissionId ? 'info' : 'neutral'}>
-                {request.status === 'FINALIZED'
-                  ? '확정본'
-                  : request.currentSubmissionId
-                    ? '제출본'
-                    : '작성 초안'}
-              </Badge>
-            </div>
-            <div className="document-detail-card">
-              <span className="doc-icon">
-                <Icon name="file" size={32} />
-              </span>
-              <div>
-                <h3 className="h-panel">{DOCUMENT_LABELS[request.docType] ?? request.docType}</h3>
-                <p className="help">
-                  {request.currentSubmissionId
-                    ? `제출본 v${request.submissions.at(-1)?.number} · 제출 시점의 공통값·서류값·설정 버전 보존`
-                    : `작성 수정본 ${request.revision} · ${pendingCount ? `미확정·미입력 ${pendingCount}개` : '입력 내용 확인됨'}`}
-                </p>
-                <a
-                  className="btn btn-sm"
-                  href={`/api/security-requests/${encodeURIComponent(request.id)}/documents`}
-                >
-                  <Icon name="download" size={16} />
-                  검토용 JSON 다운로드
-                </a>
-                <p className="meta">정식 HWP·PDF 출력은 Back 문서 생성 API 연결 후 지원합니다.</p>
-              </div>
-            </div>
-            {request.submissions.length > 0 && (
+          <RequestDocument request={request} />
+          <RequestTechnicalDetails request={request}>
+            {detail.additionalAnswers.length > 0 && (
               <details className="sub-block">
-                <summary>제출본 버전 {request.submissions.length}개 보기</summary>
-                {request.submissions.map((submission) => (
-                  <div className="submission-version" key={submission.id}>
-                    <h3 className="h-panel">제출본 v{submission.number}</h3>
-                    <p className="help">
-                      {formatTime(submission.createdAt)} · 게시본 v{submission.publicationVersion}
-                    </p>
-                    <AnswerView answers={[...submission.commonAnswers, ...submission.answers]} />
-                  </div>
-                ))}
+                <summary>
+                  {request.docType === 'FIREWALL' ? '신청 추가 정보' : '검토 항목 보기'}
+                </summary>
+                <AnswerView
+                  answers={detail.additionalAnswers}
+                  highlighted={request.highlightedFields}
+                  evidenceDisplay="inline"
+                />
               </details>
             )}
-          </section>
-          <section className="card">
-            <h2 className="h-panel">통신 정보</h2>
-            <p className="help">
-              ICT인프라 담당자가 확인한 사실만 표시합니다. AI가 내부 주소를 추측하지 않습니다.
-            </p>
-            <div className="data-flow" aria-label="등록된 시스템 간 데이터 흐름">
-              <div>
-                <Icon name="building" />
-                <strong>{valueOf(request, 'sourceSystem')}</strong>
-                <small>{valueOf(request, 'sourceIp')}</small>
-              </div>
-              <span>
-                <Icon name="arrowRight" />
-                <small>
-                  {valueOf(request, 'protocol')} / {valueOf(request, 'port')}
-                </small>
-              </span>
-              <div>
-                <Icon name="building" />
-                <strong>{valueOf(request, 'destinationSystem')}</strong>
-                <small>{valueOf(request, 'destinationIp')}</small>
-              </div>
-            </div>
-            <AnswerView
-              answers={request.commonAnswers.filter((answer) => answer.ownerRole !== 'APPLICANT')}
-              highlighted={request.highlightedFields}
-            />
-          </section>
-          <section className="card">
-            <h2 className="h-panel">
-              {request.docType === 'FIREWALL' ? '방화벽 신청 정보' : '보안성검토 사항'}
-            </h2>
-            <AnswerView answers={request.answers} highlighted={request.highlightedFields} />
             {(has('EDIT_ANSWERS') || has('SAVE_ANSWERS')) && (
               <details className="sub-block" open={request.stage === 1}>
                 <summary>서류별 답변 수정·확인</summary>
@@ -440,7 +456,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                 />
               </details>
             )}
-          </section>
+          </RequestTechnicalDetails>
           <RequestHistory requestId={request.id} />
         </div>
         <aside className="review" aria-labelledby="review-heading">
@@ -461,13 +477,19 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                         ? '재검토'
                         : review?.status === 'SUPPLEMENT_REQUESTED'
                           ? '보완 요청'
-                          : '검토 대기';
+                          : review?.status === 'IN_REVIEW'
+                            ? '검토 중'
+                            : '검토 대기';
                 return (
                   <div key={field}>
-                    <span>{FIELD_LABELS[field]}</span>
-                    <span className="consult-name">
-                      {assignment?.assigneeName ??
-                        (request.stage === 1 ? '협의 요청 후 배정' : '미배정')}
+                    <span
+                      title={
+                        assignment?.assigneeName
+                          ? `담당자: ${assignment.assigneeName}`
+                          : '담당자 미배정'
+                      }
+                    >
+                      {FIELD_LABELS[field]}
                     </span>
                     <Badge
                       tone={
@@ -481,27 +503,12 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                               : 'neutral'
                       }
                     >
-                      {status}
+                      {review?.statusLabel ?? status}
                     </Badge>
                   </div>
                 );
               })}
             </div>
-            <p className="help">
-              INFRA 할당 후 SECURITY 검토를 시작합니다. 할당 완료와 협의 완료는 별개입니다.
-            </p>
-            {request.deadlines
-              .filter((deadline) => deadline.active)
-              .map((deadline) => (
-                <div className="deadline-line" key={deadline.id}>
-                  <Icon name="clock" size={16} />
-                  <span>{deadline.field ? `${FIELD_LABELS[deadline.field]} ` : ''}처리 기한</span>
-                  <strong>
-                    {deadline.dueAt.slice(0, 10)}
-                    {deadline.paused ? ' · 일시 중지' : ''}
-                  </strong>
-                </div>
-              ))}
             {request.stage === 4 && (
               <div className="final-confirmations">
                 <h3 className="h-panel">제출본 최종 확인</h3>
@@ -531,20 +538,15 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
             {!terminal && (
               <div className="review-actions">
                 <h2 className="h-panel" id="review-heading">
-                  {actor.role === 'APPLICANT'
-                    ? '다음 할 일'
-                    : actor.role === 'ADMIN'
-                      ? '담당자 배정 관리'
-                      : '담당 분야 검토'}
+                  {panelTitle}
                 </h2>
-                <p className="help">
-                  현재 {request.stage}단계 · {request.statusLabel ?? STATUS_LABELS[request.status]}
+                <p className="review-status">
+                  {waitingLine(request) || request.statusLabel || STATUS_LABELS[request.status]}
+                  입니다.
+                  {actor.role === 'APPLICANT' && request.stage === 2
+                    ? ' 보완 요청이 오면 답변해 주세요.'
+                    : ' 담당자가 처리하면 최신 진행 상황이 표시됩니다.'}
                 </p>
-                {actor.role === 'APPLICANT' && request.stage === 2 && (
-                  <Notice>
-                    담당자가 정보를 확인하고 있습니다. 보완 요청이 오면 답변해 주세요.
-                  </Notice>
-                )}
                 {request.blockers.length > 0 && (
                   <Notice tone="warning">
                     <strong>제출 전 확인할 사항</strong>
@@ -556,18 +558,56 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                   </Notice>
                 )}
                 {(has('COMPLETE_ALLOCATION') || has('COMPLETE_REVIEW') || has('FINAL_CONFIRM')) && (
-                  <div className="field">
-                    <label htmlFor="review-comment">검토 의견</label>
-                    <textarea
-                      id="review-comment"
-                      className="input"
-                      rows={3}
-                      value={comment}
-                      maxLength={2000}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="확인한 내용을 기록해 주세요."
-                    />
-                  </div>
+                  <>
+                    {has('COMPLETE_REVIEW') && currentReview && checklistItems.length > 0 && (
+                      <fieldset className="review-checklist" disabled={command.isPending}>
+                        <legend className="legend">
+                          검토 체크리스트{' '}
+                          <span className="help">
+                            {checklistItems.filter((item) => checklist[item.key]).length}/
+                            {checklistItems.length}
+                          </span>
+                          <span className="required">필수</span>
+                        </legend>
+                        {checklistItems.map((item) => (
+                          <label className="check" key={item.key}>
+                            <input
+                              type="checkbox"
+                              checked={checklist[item.key] === true}
+                              onChange={(event) =>
+                                setReviewDraft({
+                                  reviewId: currentReview.id,
+                                  revision: currentReview.revision,
+                                  values: { ...checklist, [item.key]: event.target.checked },
+                                })
+                              }
+                            />
+                            <span>{item.label}</span>
+                          </label>
+                        ))}
+                      </fieldset>
+                    )}
+                    <div className="field">
+                      <label htmlFor="review-comment">
+                        검토 의견
+                        {has('COMPLETE_REVIEW') && <span className="required"> (필수)</span>}
+                      </label>
+                      <p className="help" id="review-comment-help">
+                        확인 근거와 후속 조치를 구체적으로 적어 주세요.
+                      </p>
+                      <textarea
+                        id="review-comment"
+                        className="input"
+                        rows={3}
+                        value={comment}
+                        maxLength={2000}
+                        required={has('COMPLETE_REVIEW')}
+                        aria-describedby="review-comment-help"
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="확인한 내용을 기록해 주세요."
+                      />
+                    </div>
+                  </>
                 )}
                 {has('REQUEST_REVIEW') && (
                   <button
@@ -591,15 +631,22 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
                   </button>
                 )}
                 {has('COMPLETE_REVIEW') && (
-                  <button
-                    className={`btn full-width ${!has('COMPLETE_ALLOCATION') ? 'btn-primary' : ''}`}
-                    disabled={command.isPending}
-                    onClick={() => {
-                      void invoke('COMPLETE_REVIEW');
-                    }}
-                  >
-                    담당 분야 협의 완료
-                  </button>
+                  <>
+                    <button
+                      className={`btn full-width ${!has('COMPLETE_ALLOCATION') ? 'btn-primary' : ''}`}
+                      disabled={command.isPending || !checklistComplete || !comment.trim()}
+                      onClick={() => {
+                        void invoke('COMPLETE_REVIEW', { checklist });
+                      }}
+                    >
+                      담당 분야 협의 완료
+                    </button>
+                    {(!checklistComplete || !comment.trim()) && (
+                      <p className="help">
+                        검토 체크리스트와 검토 의견을 입력하면 협의를 완료할 수 있습니다.
+                      </p>
+                    )}
+                  </>
                 )}
                 {has('GENERATE_DRAFT') && (
                   <button
@@ -727,7 +774,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
         }}
         onSubmit={(action, extra) => invoke(action, extra)}
       />
-    </>
+    </div>
   );
 }
 
@@ -1034,8 +1081,10 @@ function RequestHistory({ requestId }: { requestId: string }) {
   const audit = useAudit(requestId);
   const events = (audit.data ?? []).filter((event) => event.targetId === requestId);
   return (
-    <section className="card">
-      <h2 className="h-panel">처리 이력</h2>
+    <section className="card" aria-labelledby="d-hist">
+      <h2 className="h-panel" id="d-hist">
+        처리 이력
+      </h2>
       {audit.isPending ? (
         <LoadingState />
       ) : audit.error ? (
@@ -1046,22 +1095,18 @@ function RequestHistory({ requestId }: { requestId: string }) {
           }}
         />
       ) : events.length ? (
-        <ol className="history-timeline">
+        <ol className="hist">
           {events
             .slice()
             .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
             .slice(0, 12)
             .map((event) => (
               <li key={event.id}>
-                <Icon name="clock" size={16} />
-                <div>
-                  <strong>{auditActionLabel(event.action)}</strong>
-                  <p className="help">
-                    {event.actorName} · {formatTime(event.createdAt)} · 수정본{' '}
-                    {event.targetRevision}
-                  </p>
-                  {event.reason && <p>{event.reason}</p>}
-                </div>
+                <time dateTime={event.createdAt}>{formatTime(event.createdAt)}</time>
+                <span>
+                  {event.actorName}: {event.summary || auditActionLabel(event.action)}
+                  {event.reason && <span className="help">사유: {event.reason}</span>}
+                </span>
               </li>
             ))}
         </ol>
@@ -1072,8 +1117,11 @@ function RequestHistory({ requestId }: { requestId: string }) {
   );
 }
 
-function valueOf(request: SecurityRequest, key: string) {
-  return request.commonAnswers.find((answer) => answer.key === key)?.value || '담당자 확인 필요';
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+    timeZone: 'Asia/Seoul',
+  }).format(new Date(value));
 }
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
