@@ -229,6 +229,7 @@ function InterviewWorkspace({
   const latestMessageRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(380);
   const [error, setError] = useState('');
+  const savingRef = useRef(false);
 
   useLayoutEffect(() => {
     const conversation = conversationRef.current;
@@ -271,6 +272,53 @@ function InterviewWorkspace({
         request.stage < 4 && !['CLOSED', 'WITHDRAWN', 'FINALIZED'].includes(request.status),
     );
   const viewStyle = { '--info-w': `${panelWidth}px` } as CSSProperties;
+  const presentation = question ? questionPresentation(question) : undefined;
+  const updateAnswer = (value: string) => {
+    if (!question) return;
+    saveDraft({
+      questionIndex,
+      answers: {
+        ...draft?.answers,
+        [question.key]: {
+          value,
+          revision: answerRevision,
+          answerRevision: draftAnswer?.answerRevision ?? question.revision,
+        },
+      },
+    });
+  };
+  const saveAnswer = async (value: string) => {
+    if (!question || !editable || conflict || save.isPending || savingRef.current) return;
+    savingRef.current = true;
+    setError('');
+    // 선택형 답변도 저장 실패 시 직접 입력과 같은 초안으로 보존한다.
+    updateAnswer(value);
+    try {
+      await save.mutateAsync({
+        expectedRevision: answerRevision,
+        answers: [
+          {
+            key: question.key,
+            expectedRevision: draftAnswer?.answerRevision ?? question.revision,
+            value,
+            confirmed: Boolean(value.trim()),
+            notApplicable: false,
+          },
+        ],
+      });
+      setChat((old) => [...old, { question: question.label, answer: value || '담당자 확인 필요' }]);
+      const remaining = { ...draft?.answers };
+      delete remaining[question.key];
+      if (Object.keys(remaining).length)
+        saveDraft({ questionIndex: questionIndex + 1, answers: remaining });
+      else clearDraft();
+      setQuestionIndex(questionIndex + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '답변을 저장하지 못했습니다.');
+    } finally {
+      savingRef.current = false;
+    }
+  };
 
   return (
     <>
@@ -314,7 +362,7 @@ function InterviewWorkspace({
                 보안정보 도우미
               </h2>
             </div>
-            <span className="meta">업무를 설명해 주시면 필요한 보안정보를 함께 정리해요.</span>
+            <span className="meta">AI 답변은 제안이며 확정 전 확인이 필요합니다</span>
           </div>
           <div
             className="msgs conversation-body"
@@ -359,76 +407,74 @@ function InterviewWorkspace({
               </Notice>
             )}
           </div>
-          {editable && question && (
+          {editable && question && presentation && (
             <form
               className="qcard interview-question"
-              onSubmit={async (event) => {
+              aria-labelledby="interview-question-title"
+              onSubmit={(event) => {
                 event.preventDefault();
-                setError('');
-                const value = answerText;
-                try {
-                  await save.mutateAsync({
-                    expectedRevision: answerRevision,
-                    answers: [
-                      {
-                        key: question.key,
-                        expectedRevision: draftAnswer?.answerRevision ?? question.revision,
-                        value,
-                        confirmed: Boolean(value.trim()),
-                        notApplicable: false,
-                      },
-                    ],
-                  });
-                  setChat((old) => [
-                    ...old,
-                    { question: question.label, answer: value || '담당자 확인 필요' },
-                  ]);
-                  const remaining = { ...draft?.answers };
-                  delete remaining[question.key];
-                  if (Object.keys(remaining).length)
-                    saveDraft({ questionIndex: questionIndex + 1, answers: remaining });
-                  else clearDraft();
-                  setQuestionIndex(questionIndex + 1);
-                } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : '답변을 저장하지 못했습니다.');
-                }
+                void saveAnswer(answerText);
               }}
             >
               <p className="qnum">
-                <span>
+                <span>남은 질문 {questions.length - questionIndex}개</span>
+                <span className="meta">
                   공통 질문 {questionIndex + 1} / {questions.length}
                 </span>
-                <span className="meta">신청자 답변</span>
               </p>
-              <label className="qtitle" htmlFor="interview-answer">
-                {question.label}
-              </label>
-              <p className="qhelp">{questionHelp(question)}</p>
-              <textarea
-                className="input"
-                id="interview-answer"
-                rows={8}
-                maxLength={4000}
-                value={answerText}
-                disabled={save.isPending}
-                onChange={(e) =>
-                  saveDraft({
-                    questionIndex,
-                    answers: {
-                      ...draft?.answers,
-                      [question.key]: {
-                        value: e.target.value,
-                        revision: answerRevision,
-                        answerRevision: draftAnswer?.answerRevision ?? question.revision,
-                      },
-                    },
-                  })
-                }
-              />
+              <h3 className="qtitle" id="interview-question-title">
+                {presentation.title}
+              </h3>
+              <p className="qhelp" id="interview-question-help">
+                {presentation.help}
+              </p>
+              {presentation.options && (
+                <div
+                  className="qchips"
+                  role="group"
+                  aria-label={`${question.label} 보기, 누르면 바로 답변됩니다`}
+                  aria-describedby="interview-question-help"
+                >
+                  {presentation.options.map((option) => (
+                    <button
+                      className="qchip"
+                      type="button"
+                      key={option}
+                      disabled={save.isPending || conflict}
+                      onClick={() => void saveAnswer(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor="interview-answer">{question.label}</label>
+                {presentation.options && <p className="help">보기에 없으면 직접 입력해 주세요.</p>}
+                <div className="qrow">
+                  <input
+                    className="input"
+                    id="interview-answer"
+                    aria-describedby="interview-question-help"
+                    autoComplete="off"
+                    maxLength={4000}
+                    value={answerText}
+                    disabled={save.isPending}
+                    onChange={(e) => updateAnswer(e.target.value)}
+                    placeholder={presentation.placeholder}
+                  />
+                  <button className="btn btn-primary" disabled={save.isPending || conflict}>
+                    {save.isPending
+                      ? '저장 중…'
+                      : questionIndex === questions.length - 1
+                        ? '공통 답변 저장'
+                        : '답변 저장하고 다음'}
+                  </button>
+                </div>
+              </div>
               {draftAnswer && (
-                <p className="help">
-                  저장하지 않은 입력은 이 탭에서 같은 계정으로 돌아오면 복원됩니다. 새로고침하거나
-                  탭을 닫으면 사라집니다.
+                <p className="help interview-draft-note">
+                  입력 내용은 이 탭에서 임시 보관됩니다. 새로고침하거나 탭을 닫으면 사라집니다.
                 </p>
               )}
               {conflict && (
@@ -459,19 +505,12 @@ function InterviewWorkspace({
               )}
               {error && <Notice tone="danger">{error}</Notice>}
               <div className="btn-row">
-                <button className="btn btn-primary" disabled={save.isPending || conflict}>
-                  {save.isPending
-                    ? '저장 중…'
-                    : questionIndex === questions.length - 1
-                      ? '공통 답변 저장'
-                      : '답변 저장하고 다음'}
-                  <Icon name="arrowRight" />
-                </button>
                 <button
                   type="button"
                   className="btn btn-tertiary"
                   disabled={save.isPending}
                   onClick={() => {
+                    setError('');
                     goToQuestion(questionIndex + 1);
                   }}
                 >
@@ -587,14 +626,48 @@ function InterviewWorkspace({
   );
 }
 
-function questionHelp(question: Answer) {
-  const hints: Record<string, string> = {
-    purpose: '어떤 업무를 위해 필요한 사업인가요? 전문 용어 없이 설명해도 괜찮아요.',
-    dataTypes: '공개 자료, 개인정보 등 처리하는 정보의 종류를 알려주세요.',
-    externalTransfer: '기관 밖으로 전달하거나 외부에서 가져오는 정보가 있나요?',
-    dataFlow: '누가 어떤 서비스를 거쳐 정보를 주고받는지 순서대로 적어주세요.',
+interface InterviewQuestionPresentation {
+  title: string;
+  help: string;
+  placeholder: string;
+  options?: string[];
+}
+
+/** 시안의 질문 표현을 사용하되 게시본의 공통 항목과 저장 키를 유지한다. */
+function questionPresentation(question: Answer): InterviewQuestionPresentation {
+  const questions: Record<string, InterviewQuestionPresentation> = {
+    purpose: {
+      title: '어떤 사업인가요?',
+      help: '사업 목적을 한두 문장으로 적어 주세요. 신청서의 신청 사유로 들어갑니다.',
+      placeholder: '예: 공개 자료를 검색하고 안내하는 서비스를 만들어요.',
+    },
+    dataTypes: {
+      title: '어떤 정보를 다루나요?',
+      help: '공개 자료, 개인정보 등 처리하는 정보의 종류를 알려 주세요. 개인정보가 포함되면 정보보안 담당자가 처리 기준을 함께 검토합니다.',
+      placeholder: '자료의 종류와 개인정보 포함 여부를 적어 주세요.',
+      options: [
+        '공개 자료만 다뤄요',
+        '개인정보가 포함돼요',
+        '개인정보 없는 내부 업무자료를 다뤄요',
+      ],
+    },
+    externalTransfer: {
+      title: '외부 기관이나 서비스와 연결되나요?',
+      help: '본인인증, 알림 발송처럼 기관 밖으로 나가거나 외부에서 가져오는 정보가 있는지 확인합니다.',
+      placeholder: '연결하는 서비스와 주고받는 정보를 적어 주세요.',
+      options: ['외부 연계 있음 (본인인증·알림 등)', '외부 연계 없음'],
+    },
+    dataFlow: {
+      title: '정보는 어떤 경로로 오가나요?',
+      help: '누가 어떤 서비스를 거쳐 정보를 주고받는지 순서대로 적어 주세요. 서버 주소와 포트는 담당자가 확인합니다.',
+      placeholder: '예: 이용자 → 안내 서비스 → 공개 자료 조회',
+    },
   };
   return (
-    hints[question.key] || '알고 있는 사실을 적어주세요. 모르는 내용은 나중에 입력할 수 있습니다.'
+    questions[question.key] ?? {
+      title: question.label,
+      help: '알고 있는 사실을 적어 주세요. 모르는 내용은 나중에 입력할 수 있습니다.',
+      placeholder: '답변을 입력해 주세요.',
+    }
   );
 }
