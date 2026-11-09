@@ -1,0 +1,43 @@
+name: Real backend connection
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/backend-test.yml'
+      - 'compose.backend-test.yaml'
+      - 'tools/runBackendTestServer.mjs'
+      - 'tools/checkBackendConnection.mjs'
+      - 'lib/queries.ts'
+      - 'lib/serverProxy.ts'
+      - 'lib/httpClient.ts'
+      - 'features/auth/**'
+      - 'app/api/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+permissions:
+  contents: read
+concurrency:
+  group: backend-test-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  connection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: team-khfc/Security-Advisor-Back
+          ref: 12d89eda4e1c785dd09f67bdeb85cee3ccc8507c
+          path: .test-backend
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Start PostgreSQL, real Back and Front
+        run: node tools/runBackendTestServer.mjs --backend .test-backend
+      - name: Verify proxy, CSRF, session and authenticated API
+        run: node tools/checkBackendConnection.mjs
+      - name: Stop test stack without deleting data volumes
+        if: always()
+        run: node tools/runBackendTestServer.mjs --backend .test-backend --stop

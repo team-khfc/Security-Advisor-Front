@@ -6,11 +6,19 @@ import { auditEventSchema } from '@/features/request';
 import { requestJson } from './httpClient';
 import type { Installation, PageResponse } from './types';
 
-const installationSchema = z.object({
-  institutionName: z.string(),
-  institutionCode: z.string(),
-  mode: z.enum(['mock', 'api']).default('api'),
-});
+const installationSchema = z.union([
+  // Back InstallationController의 공개 계약은 name/code이며 실행 모드 값은 포함하지 않는다.
+  z.object({ name: z.string().trim().min(1), code: z.string() }).transform((value) => ({
+    institutionName: value.name,
+    institutionCode: value.code,
+    mode: 'api' as const,
+  })),
+  z.object({
+    institutionName: z.string().trim().min(1),
+    institutionCode: z.string(),
+    mode: z.literal('mock'),
+  }),
+]);
 
 /** 기관 정보는 설치값의 읽기 전용 표시이며 기관 선택 기능을 만들지 않는다. */
 export function useInstallation() {
