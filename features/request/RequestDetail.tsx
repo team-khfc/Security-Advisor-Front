@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Badge,
   EmptyState,
@@ -57,6 +57,13 @@ const REVIEW_CHECKLIST_ITEMS: Record<ReviewField, { key: string; label: string }
 export function RequestDetail({ id }: { id: string }) {
   const query = useRequest(id);
   const session = useSession();
+  const [submitted, setSubmitted] = useState<{ requestId: string; actorId: string } | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const submissionComplete =
+    submitted?.requestId === id && submitted?.actorId === session.data?.member.id;
+  useEffect(() => {
+    if (submissionComplete && !query.isPending) resultRef.current?.focus();
+  }, [submissionComplete, query.isPending]);
   if (query.isPending || session.isPending) return <LoadingState />;
   if (query.error)
     return (
@@ -74,16 +81,38 @@ export function RequestDetail({ id }: { id: string }) {
         description="신청 현황에서 접근 가능한 신청을 선택해 주세요."
       />
     );
+  const actor = session.data.member;
   return (
-    <RequestWorkspace
-      key={`${query.data.id}-${session.data.member.id}`}
-      request={query.data}
-      actor={session.data.member}
-    />
+    <>
+      {submissionComplete && (
+        <div ref={resultRef} role="status" tabIndex={-1}>
+          <Notice tone="success">
+            최종 제출을 완료했습니다. 제출본을 확인하거나 PDF를 내려받을 수 있습니다.
+          </Notice>
+          <a className="btn" href="#d-docs">
+            제출본 문서로 이동
+          </a>
+        </div>
+      )}
+      <RequestWorkspace
+        key={`${query.data.id}-${actor.id}`}
+        request={query.data}
+        actor={actor}
+        onSubmitted={() => setSubmitted({ requestId: id, actorId: actor.id })}
+      />
+    </>
   );
 }
 
-function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor: Actor }) {
+function RequestWorkspace({
+  request,
+  actor,
+  onSubmitted,
+}: {
+  request: SecurityRequest;
+  actor: Actor;
+  onSubmitted: () => void;
+}) {
   const canViewCase =
     actor.role === 'ADMIN' ||
     actor.id === request.ownerId ||
@@ -146,10 +175,14 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
         comment,
         ...extra,
       });
+      // 제출본별 추가 질의가 시작되면 작업 영역이 잠시 교체되어도 완료 안내는 보존한다.
+      if (action === 'SUBMIT') onSubmitted();
       setMessage(
-        action === 'GENERATE_DRAFT'
-          ? 'AI 최종 초안을 생성했습니다. 미확정 값을 읽고 확인해 주세요.'
-          : '요청한 업무 처리를 저장했습니다. 최신 진행 상황을 확인해 주세요.',
+        action === 'SUBMIT'
+          ? ''
+          : action === 'GENERATE_DRAFT'
+            ? 'AI 최종 초안을 생성했습니다. 미확정 값을 읽고 확인해 주세요.'
+            : '요청한 업무 처리를 저장했습니다. 최신 진행 상황을 확인해 주세요.',
       );
       setDialogAction(null);
       setComment('');
@@ -538,7 +571,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
             )}
             {terminal && (
               <div className="review-actions">
-                <h2 className="h-panel" id="review-heading">
+                <h2 className="h-panel" id="review-heading" tabIndex={-1}>
                   현재 처리 상황
                 </h2>
                 <p>처리할 작업이 없습니다. 기록과 제출본은 보존됩니다.</p>
@@ -546,7 +579,7 @@ function RequestWorkspace({ request, actor }: { request: SecurityRequest; actor:
             )}
             {!terminal && (
               <div className="review-actions">
-                <h2 className="h-panel" id="review-heading">
+                <h2 className="h-panel" id="review-heading" tabIndex={-1}>
                   {panelTitle}
                 </h2>
                 <p className="review-status">

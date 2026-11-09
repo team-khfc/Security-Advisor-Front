@@ -128,6 +128,29 @@ export function Modal({
       onClose={() => {
         if (open) onClose();
       }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        // 네이티브 dialog의 경계에서 브라우저 도구 모음으로 빠지지 않게 순환한다.
+        const controls = Array.from(
+          event.currentTarget.querySelectorAll<HTMLElement>(
+            'a[href], button, input, select, textarea, [tabindex]',
+          ),
+        ).filter(
+          (element) =>
+            element.tabIndex >= 0 &&
+            !element.matches(':disabled, [hidden], [inert]') &&
+            element.getClientRects().length > 0,
+        );
+        const target = event.shiftKey ? controls.at(-1) : controls[0];
+        const boundary = event.shiftKey ? controls[0] : controls.at(-1);
+        if (
+          target &&
+          (document.activeElement === boundary || document.activeElement === event.currentTarget)
+        ) {
+          event.preventDefault();
+          target.focus();
+        }
+      }}
     >
       <div className="dlg">
         <div className="dlg-h">

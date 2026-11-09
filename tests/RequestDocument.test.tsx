@@ -6,6 +6,8 @@ import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { RequestDocument } from '@/features/document/RequestDocument';
 import type { Answer, SecurityRequest, Submission } from '@/features/request/types';
 import { createMockState } from '@/mocks/seed';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render as renderView } from '@testing-library/react';
 
 const dialogMethods = {
   showModal: Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal'),
@@ -176,6 +178,39 @@ test('출처나 확인자가 없는 값은 confirmed=true여도 모두 확인됨
   expect(preview.textContent).toContain('미확정 항목: 3개');
 });
 
+test('제출 직후 캐시에 남은 이전 초안의 재확인 상태를 제출본에 섞지 않는다', async () => {
+  const client = new QueryClient();
+  client.setQueryData(['final-draft', '42'], {
+    text: '현재 초안',
+    valueSource: 'AI_INFERRED',
+    confirmed: true,
+    stale: true,
+  });
+  const frozen = submission({
+    snapshot: {
+      finalDraft: { text: '확인한 불변 보고서', valueSource: 'AI_INFERRED', confirmed: true },
+    },
+  });
+  renderView(
+    <QueryClientProvider client={client}>
+      <RequestDocument
+        request={request({
+          id: '42',
+          status: 'SUBMITTED',
+          stage: 4,
+          currentSubmissionId: frozen.id,
+          submissions: [frozen],
+        })}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText('모든 값 확인됨')).toBeTruthy();
+  expect(screen.queryByText(/AI 추론 미확인/)).toBeNull();
+  await openPreview();
+  expect(within(screen.getByRole('dialog')).getByText('확인한 불변 보고서')).toBeTruthy();
+  expect(within(screen.getByRole('dialog')).queryByText('현재 초안')).toBeNull();
+});
+
 test('제출본 본문이 누락되면 현재 초안으로 대신 내보내지 않는다', () => {
   render(<RequestDocument request={request({ currentSubmissionId: 'demo-missing-submission' })} />);
   expect(screen.getByText(/제출본 내용을 불러오지 못했습니다/)).toBeTruthy();
@@ -256,4 +291,37 @@ test('PDF 생성 실패는 오류를 표시하며 성공 다운로드를 만들�
   await screen.findByText('출력 형식을 사용할 수 없습니다.');
   expect(binary).not.toHaveBeenCalled();
   expect(screen.queryByText(/다운로드 준비 완료/)).toBeNull();
+});
+
+test('PDF 준비 중 키보드 초점을 유지하고 Enter 반복으로 파일을 중복 생성하지 않는다', async () => {
+  let complete!: (value: { generatedDocumentId: number }) => void;
+  const json = vi.spyOn(http, 'requestJson').mockImplementation(
+    () =>
+      new Promise<{ generatedDocumentId: number }>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  vi.spyOn(http, 'requestBlob').mockResolvedValue(
+    new Blob(['%PDF 합성'], { type: 'application/pdf' }),
+  );
+  vi.stubGlobal(
+    'URL',
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => 'blob:keyboard-pdf'),
+      revokeObjectURL: vi.fn(),
+    }),
+  );
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  render(<RequestDocument request={request({ stage: 1 })} />);
+  const user = userEvent.setup();
+  const button = screen.getByRole('button', { name: 'PDF 다운로드' });
+  button.focus();
+  await user.keyboard('{Enter}');
+  expect(button.getAttribute('aria-disabled')).toBe('true');
+  expect(document.activeElement).toBe(button);
+  await user.keyboard('{Enter}');
+  expect(json).toHaveBeenCalledOnce();
+  complete({ generatedDocumentId: 91 });
+  await screen.findByText(/PDF 다운로드 준비 완료/);
+  expect(document.activeElement).toBe(button);
 });

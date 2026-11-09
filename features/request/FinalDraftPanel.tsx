@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge, Notice } from '@/components/ui';
 import { useInputDraft } from '@/lib/inputDrafts';
 import type { SecurityRequest } from './types';
@@ -26,21 +26,35 @@ export function FinalDraftPanel({
   const dirty = text !== (draft?.text ?? '');
   const command = useFinalDraftCommand(request.id);
   const [message, setMessage] = useState('');
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  const focusAfterCommand = useRef<'editor' | 'status' | null>(null);
+  useEffect(() => {
+    if (command.isPending || !focusAfterCommand.current) return;
+    const target = focusAfterCommand.current === 'editor' ? editorRef.current : statusRef.current;
+    target?.focus();
+    focusAfterCommand.current = null;
+  }, [command.isPending, message]);
   useEffect(() => {
     onDirtyChange(dirty || command.isPending);
   }, [dirty, command.isPending, onDirtyChange]);
 
   const generate = async () => {
+    const trigger = document.activeElement;
     setMessage('');
     try {
       await command.mutateAsync({ action: 'generate', expectedRevision: request.revision });
       input.clearDraft();
+      if (document.activeElement === trigger || document.activeElement === document.body) {
+        focusAfterCommand.current = 'editor';
+      }
       setMessage('초안을 작성했습니다. 내용을 읽고 수정한 뒤 확인해 주세요.');
     } catch {
       /* 오류는 mutation 상태로 표시하고 입력은 유지한다. */
     }
   };
   const confirm = async () => {
+    const trigger = document.activeElement;
     setMessage('');
     try {
       const current =
@@ -58,7 +72,10 @@ export function FinalDraftPanel({
         text,
       });
       input.clearDraft();
-      setMessage('최종 초안을 확인했습니다. 아래에서 최종 제출할 수 있습니다.');
+      if (document.activeElement === trigger || document.activeElement === document.body) {
+        focusAfterCommand.current = 'status';
+      }
+      setMessage('최종 초안을 확인했습니다. 최종 제출 확인으로 이동해 제출해 주세요.');
     } catch {
       /* 서버 충돌·실패 시 편집 내용을 보존한다. */
     }
@@ -66,7 +83,7 @@ export function FinalDraftPanel({
 
   return (
     <section className="card final-draft-panel" aria-labelledby="final-draft-heading">
-      <h2 className="h-panel" id="final-draft-heading">
+      <h2 className="h-panel" id="final-draft-heading" tabIndex={-1}>
         최종 보고서 초안
       </h2>
       <p className="help">
@@ -114,6 +131,7 @@ export function FinalDraftPanel({
         최종 보고서 내용
       </label>
       <textarea
+        ref={editorRef}
         id="final-report-text"
         className="input"
         rows={9}
@@ -132,7 +150,16 @@ export function FinalDraftPanel({
           {command.error.message} 입력한 내용은 유지됩니다. 다시 시도하거나 직접 작성해 주세요.
         </Notice>
       )}
-      {message && !draft?.stale && !dirty && <p role="status">{message}</p>}
+      {message && !draft?.stale && !dirty && (
+        <p ref={statusRef} role="status" tabIndex={-1}>
+          {message}
+        </p>
+      )}
+      {draft?.confirmed && !draft.stale && !dirty && (
+        <a className="btn" href="#review-heading">
+          최종 제출 확인으로 이동
+        </a>
+      )}
       <div className="btn-row">
         <button
           type="button"
@@ -149,7 +176,10 @@ export function FinalDraftPanel({
             type="button"
             className="btn btn-tertiary"
             disabled={command.isPending}
-            onClick={() => input.clearDraft()}
+            onClick={() => {
+              input.clearDraft();
+              editorRef.current?.focus();
+            }}
           >
             저장된 내용으로 되돌리기
           </button>
