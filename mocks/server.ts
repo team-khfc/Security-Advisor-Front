@@ -1,5 +1,6 @@
 import { ContractMapper } from './contractMapper';
 import { MockPolicies } from './policies';
+import { MockInquiries } from './inquiries';
 import { mockGeneratedDocument } from './generatedDocument';
 import type { GeneratedDocument } from '@/features/document/types';
 import type { InterviewTurn } from '@/features/request/useInterview';
@@ -66,6 +67,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  inquiries: MockInquiries;
   generatedDocuments: Map<number, GeneratedDocument>;
   policies: MockPolicies;
   state: MockState;
@@ -200,6 +202,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   return {
     state: createMockState(),
     policies: new MockPolicies(),
+    inquiries: new MockInquiries(),
     members: MOCK_MEMBERS.map((actor) => ({ actor: structuredClone(actor), passwordHash })),
     sessions: new Map(),
     attempts: new Map(),
@@ -1011,6 +1014,17 @@ async function dispatchContract(
     (resource === 'security-requests' && sub === 'firewall-rules')
   ) {
     return runtime.policies.handle(
+      runtime.state,
+      wire,
+      actor!,
+      url,
+      method,
+      method === 'GET' ? undefined : await bodyJson(request),
+      now,
+    );
+  }
+  if (resource === 'inquiries' || (resource === 'security-requests' && sub === 'inquiries')) {
+    return runtime.inquiries.handle(
       runtime.state,
       wire,
       actor!,

@@ -13,6 +13,7 @@ import {
   PageHeading,
 } from '@/components/ui';
 import { useMembers, useSession } from '@/features/auth';
+import { StaffInquiryPanel } from '@/features/llm';
 import { auditActionLabel } from '@/features/audit/labels';
 import { RequestDocument } from '@/features/document/RequestDocument';
 import { useAudit } from '@/lib/queries';
@@ -146,6 +147,13 @@ function RequestWorkspace({
     (item) => item.caseId === request.caseId && item.id !== request.id,
   );
   const roleField = actor.role === 'INFRA' || actor.role === 'SECURITY' ? actor.role : undefined;
+  const canInquire = Boolean(
+    roleField &&
+    request.assignments.some(
+      (assignment) =>
+        assignment.active && assignment.field === roleField && assignment.assigneeId === actor.id,
+    ),
+  );
   const currentReview = request.reviews.find((review) => review.field === roleField);
   const finalReview = finalReviewReadiness(request, actor);
   const needsReconsultation = request.stage === 3 && pendingReviews(request).length > 0;
@@ -521,10 +529,16 @@ function RequestWorkspace({
               </details>
             )}
           </RequestTechnicalDetails>
+          {canInquire && <StaffInquiryPanel requestId={request.id} actor={actor} />}
           <RequestHistory requestId={request.id} />
         </div>
         <aside className="review" aria-labelledby="review-heading">
           <div className="card">
+            {canInquire && (
+              <a className="btn inquiry-shortcut" href="#staff-inquiry-heading">
+                AI 검토 도우미로 이동
+              </a>
+            )}
             <h2 className="sr-only">담당자 협의 현황</h2>
             <div className="consult">
               {reviewFields(request).map((field) => {

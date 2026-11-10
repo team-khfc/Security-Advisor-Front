@@ -1,4 +1,132 @@
 /* 보안길잡이 AI | 신청 상세·담당자 검토 화면 전용 */
+.staff-inquiry {
+  min-width: 0;
+}
+.staff-inquiry > p,
+.inquiry-scope p {
+  font-size: 1.7rem;
+  line-height: 1.7;
+}
+.inquiry-scope {
+  margin: 1.6rem 0;
+}
+.inquiry-scope summary,
+.inquiry-evidence summary {
+  cursor: pointer;
+  min-height: 4.4rem;
+  padding: 1rem 0;
+}
+.inquiry-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin: 2rem 0;
+}
+.inquiry-toolbar select {
+  flex: 1;
+  min-width: 14rem;
+  width: 0;
+}
+.inquiry-messages {
+  max-height: 64rem;
+  min-height: 18rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1.6rem;
+  background: var(--sf-background);
+  border: 1px solid var(--sf-border);
+  border-radius: 0.8rem;
+}
+.inquiry-empty {
+  padding: 3.2rem 0;
+  text-align: center;
+  color: var(--sf-muted);
+}
+.inquiry-message {
+  margin-bottom: 2rem;
+  padding: 2rem;
+  background: var(--sf-surface, #fff);
+  border: 1px solid var(--sf-line);
+  border-radius: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.inquiry-message-user {
+  border-left: 4px solid var(--sf-primary);
+}
+.inquiry-message-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.inquiry-message-heading time {
+  font-size: 1.5rem;
+  color: var(--sf-muted);
+}
+.inquiry-message-text {
+  white-space: pre-wrap;
+  line-height: 1.8;
+  font-size: 1.7rem;
+}
+.inquiry-evidence {
+  font-size: 1.5rem;
+  line-height: 1.7;
+}
+.inquiry-evidence ul {
+  padding-left: 2rem;
+}
+.inquiry-composer {
+  display: grid;
+  gap: 1.2rem;
+  margin-top: 2rem;
+}
+.inquiry-composer textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 11rem;
+  font-size: 1.7rem;
+}
+.inquiry-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+.inquiry-suggestions .btn {
+  text-align: left;
+  white-space: normal;
+  height: auto;
+}
+.inquiry-send {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+}
+.inquiry-send span {
+  color: var(--sf-muted);
+  font-size: 1.5rem;
+}
+.inquiry-shortcut {
+  width: 100%;
+  margin-bottom: 1.6rem;
+}
+@media (max-width: 600px) {
+  .inquiry-messages {
+    padding: 0.8rem;
+    max-height: 56rem;
+  }
+  .inquiry-message {
+    padding: 1.2rem;
+  }
+  .inquiry-toolbar label {
+    width: 100%;
+  }
+  .inquiry-send .btn {
+    width: 100%;
+  }
+}
 .back {
   display: inline-flex;
   align-items: center;
