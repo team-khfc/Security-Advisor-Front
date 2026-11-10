@@ -1,6 +1,6 @@
 # AGENTS.md — SecurityAdvisor(보안길잡이)
 
-v1.16 · 2026-11-07 · 5장 이름 규칙: 기본 키 `<테이블 단수형>_id`, 같은 이름 컬럼은 같은 의미·타입, 엔티티 식별자 필드 연결 방식(개발자 요청) · v1.15: 운영 기관 테이블 없음 명시, 기관 정보 조회 API(0·1·5·15장) · v1.14: 저장소 구성을 개발 2(Back·Front) + 배포 1(Security-Advisor 릴리스 스냅샷)로 정리, Front 모의 API로 독립 개발(0·2·3·14장) · v1.13: 저장소를 Back·Front로 분리(0장·2장·3장·8장) · v1.12: 운영 기관 설치당 1기관 고정(1장·5장 API 404 기준) · v1.11: 5장 API 규칙을 RESTful 설계 기준으로 확장(자원·메서드·상태 전이의 자원 표현·상태 코드·표현 형식) · v1.10: 디자인 시안 참조를 prototype-soo로 변경, 시안 수시 변경 원칙(6장) · v1.9: 최종 확정안 반영(인증·회원가입·테스트 계정, 시연 필수 경로, 신청 단계×상태) · v1.8: 업무 도메인 6종 · v1.7: 9장 작업 전 문서 버전 확인 의무 · 기반: 메인 개발자 작성 개발 규칙(1~10장) + 업무·대회 규칙(11~14장) + 확정 결정(15장) · 채택·수정은 이 파일을 고치는 PR로
+v1.17 · 2026-11-07 · 중복 정리 — 1장 업무 서술·15장 결정 표 제거(원본 링크), 후속 작업은 BACKLOG.md, Java 25 재확정(Docker 이미지 포함), Lombok 허용 목록 · 이력은 문서 끝 "변경 이력" · 기반: 메인 개발자 작성 개발 규칙(1~10장) + 업무·대회 규칙(11~14장) · 채택·수정은 이 파일을 고치는 PR로
 
 사람과 AI 에이전트(Claude Code, Codex, Cursor, Copilot 등)가 함께 지키는 규칙이다. 작업을 시작하기 전에 이 파일을 끝까지 읽는다.
 
@@ -21,7 +21,7 @@ v1.16 · 2026-11-07 · 5장 이름 규칙: 기본 키 `<테이블 단수형>_id`
   - Back: 개발용 `compose.yaml`로 DB만 띄우고 `./gradlew bootRun`, 검사는 Testcontainers(`./gradlew check`). API 확인은 Swagger UI.
   - Front: **모의 API 모드가 기본**이다(MSW 등, Back의 OpenAPI 계약과 같은 모양의 합성 데이터). `npm run dev`는 Back 없이 동작하고, 실제 Back과 붙여 볼 때만 서버 측 환경변수로 `/api/*`를 Back에 프록시한다(Next.js rewrites, `NEXT_PUBLIC_` 변수 사용 금지 — 세션 쿠키가 같은 출처로 유지됨). 프론트 테스트는 Back 없이 통과해야 한다.
 - **API 계약이 경계다.** Back이 `docs/api/openapi.yaml`을 저장소에 커밋해 소유하고(코드와 다르면 Back CI 실패), Front는 그 파일을 Back 태그·커밋과 함께 복사해 타입·모의 API를 만든다. 계약 변경은 Back PR이 먼저이고, Front PR 설명에 Back PR 링크와 계약 버전을 적는다. 양쪽에 걸친 기능은 저장소마다 이슈를 만들고 서로 링크한다.
-- **완성본·배포는 Security-Advisor 하나로 한다.** Back·Front에 릴리스 태그(예: `v0.1.0`)를 달면, 그 시점 코드를 Security-Advisor의 `back/`·`front/`에 스냅샷으로 복사하고 `RELEASE.md`에 출처 태그·커밋을 기록한다. Security-Advisor의 `compose.yaml`이 DB·Back·Front를 모두 빌드·실행한다(multi-stage 빌드 — 사용자에게 JDK·Node 설치를 요구하지 않음). 사용자는 `cp .env.example .env` → `docker compose up -d --build` → 브라우저 접속, 초기화는 `docker compose down -v`.
+- **완성본·배포는 Security-Advisor 하나로 한다.** Back·Front 릴리스 태그 시점 코드를 `back/`·`front/`에 스냅샷으로 복사하고, Security-Advisor의 `compose.yaml`이 DB·Back·Front를 빌드·실행한다(multi-stage — 사용자는 Docker만 필요). 릴리스 절차의 원본은 CONTRIBUTING.md 2장, 실행 명령은 2장.
 - **Security-Advisor에서는 기능을 고치지 않는다.** `back/`·`front/`는 스냅샷이므로 직접 수정하지 않고, 수정이 필요하면 Back·Front에서 고친 뒤 새 태그로 스냅샷을 갱신한다. 이 저장소에서 바꾸는 것은 compose·`.env.example`·README·구동안내서·`RELEASE.md`·통합 smoke 검사뿐이다.
 - **운영 기관 정보는 설치 설정이다.** 기관명·기관 코드(`INSTITUTION_NAME`, `INSTITUTION_CODE`), 시연 계정 비밀번호(`DEMO_ACCOUNT_PASSWORD`), LLM 키 등은 Security-Advisor의 `.env`로 받는다(`.env.example`에는 이름과 시연 기본값만, 실제 키 금지). **DB에 기관 테이블·엔티티를 두지 않는다** — 백엔드는 `@ConfigurationProperties`로 읽어 표시용 API로 내려준다(FUNCTIONAL_SPEC.md 3-4장).
 - 규칙 문서 9종과 `tools/check_doc_versions.py`는 **Back·Front·Security-Advisor 세 저장소 루트에 같은 버전으로** 둔다. 스냅샷 복사 시 `back/`·`front/` 안의 규칙 문서는 제외한다(루트 사본 하나만 유지).
@@ -30,19 +30,19 @@ v1.16 · 2026-11-07 · 5장 이름 규칙: 기본 키 `<테이블 단수형>_id`
 
 **SecurityAdvisor(보안길잡이)**: 공공기관 직원이 보안성검토·방화벽 허용 등 보안 서류를 쉽게 작성하도록 돕는 웹 시스템이다. 서류 생성기가 아니라, 보안을 모르는 현업과 전문가 사이의 지식 비대칭을 중계하는 플랫폼이다. 기능 요구·도메인 분할은 FUNCTIONAL_SPEC.md를 따른다.
 
-사용자 역할은 기획 기준 4종이다: 일반 사용자(서류 작성), 정보보안 담당자, ICT인프라 담당자(각자 검토·보완), 기관 관리자(절차·양식·LLM 구성 관리). 처리 절차는 4단계다 — 작성 → 담당자 협의(1차 범위: INFRA 선행 고정 — INFRA가 서버·IP·포트 **할당**, 할당과 검토(협의)는 별도 단계라 할당만 하고 검토 보류 가능, SECURITY는 할당 완료 후 검토) → 사용자 최종 검토(AI 최종 초안은 미확정) → 확정·관리(서류 확정 ≠ 방화벽 실제 적용). 차수 반환(2→1, 3→2, 3→1, 4→3)은 사유 필수이고 **기존 값은 비우지 않고 보존하며 보완 필요 지정 항목만 강조 표시**한다. 정상 흐름 밖 종료는 종결(반려)·철회다. **사용자는 한 번에 여러 서류를 신청할 수 있다 — 사업 건(BusinessCase) 1개가 서류별 신청(SecurityRequest) N개를 거느리고, 공통 정보는 사업 건에 한 번 저장되며, 위의 4단계·반환·협의·제출은 모두 신청 단위로 독립 진행한다.** 상세 규칙·불변식은 FUNCTIONAL_SPEC.md 3-1·3-2장·5장. **운영 기관은 설치당 1곳으로 고정한다** — 한 설치 = 한 기관이며, 기관 관리자도 그 기관 소속으로 고정된다. 기관 등록·전환·기관 격리(테넌트) 코드와 기관 테이블·엔티티를 만들지 않는다 — 기관명·코드는 `.env` 설정값(FUNCTIONAL_SPEC.md 3-4장). USB 사용 등 추가 서류는 1차 범위(방화벽·보안성검토 2종) 밖이며 2026-11-11 이후 확장이다.
+업무 규칙의 원본은 FUNCTIONAL_SPEC.md다 — 역할 4종과 권한(3장), 4단계 처리 절차·차수 반환·종결/철회(3-1장), 사업 건 1:N 신청(3-2장), 운영 업무 도메인 6종(3-3장), 운영 기관 설치당 1곳(3-4장), 불변식(5장), 상태(6장). 이 문서는 그 규칙을 **어떻게 구현하는지**를 정하고, 코드에서 늘 지킬 요점은 11장에 둔다. 기관 등록·전환·기관 격리(테넌트) 코드와 기관 테이블·엔티티는 만들지 않는다(기관명·코드는 `.env`, 0장). 추가 서류(USB 등)는 1차 범위 밖이다.
 
 **개발 방법론은 도메인 주도 설계(DDD)를 따른다**(2026-11-06 확정, 상세는 5장). 업무 규칙은 domain 계층에 모으고, 코드는 기획의 업무 용어(유비쿼터스 언어)를 쓴다.
 
 | 영역 | 기술 |
 |---|---|
-| 백엔드 | **Java 25 (LTS)**, Spring Boot 4.1 (Spring MVC), Spring Data JPA, Flyway, Gradle (Kotlin DSL) |
+| 백엔드 | **Java 25 (LTS)**, Spring Boot 4.1 (Spring MVC), Spring Data JPA, Flyway, Gradle (Kotlin DSL), Lombok(허용 목록만 — 5장) |
 | AI 프레임워크 | **Spring AI 2.0** (ChatClient·ChatModel, PGVector VectorStore) — 공통 LLM 어댑터 뒤에서 사용, 버전 고정 |
 | 프론트엔드 | Node 22/24, React 19, TypeScript 5.9, **Next.js (App Router)**, TanStack Query 5 — Vite 미사용(2026-11-05 협의 확정) |
 | DB | PostgreSQL 17 (+ pgvector) |
 | 실행 환경 | Docker Compose |
 
-버전과 선택 이유는 docs/adr/0001-tech-stack.md(스택)와 docs/adr/0002-spring-ai.md(AI 프레임워크)에 있다. 버전을 올릴 때는 그 문서도 고친다. Gradle toolchain은 Java 25로 고정하고, 포맷터·플러그인의 Java 25 호환 버전은 저장소 설정에서 확인한다.
+버전과 선택 이유는 docs/adr/0001-tech-stack.md(스택)와 docs/adr/0002-spring-ai.md(AI 프레임워크)에 있다. 버전을 올릴 때는 그 문서도 고친다. Gradle toolchain과 Docker 베이스 이미지(예: `eclipse-temurin:25`)를 Java 25로 고정한다(2026-11-07 재확정 — Java 21 전환 안은 채택하지 않음). 포맷터·플러그인·Lombok은 Java 25를 지원하는 버전을 저장소 설정에 고정한다.
 
 ## 2. 자주 쓰는 명령
 
@@ -149,7 +149,12 @@ controller → service → repository / domain 한 방향만 허용한다. Archi
 
 ### 코딩 규칙
 
-- 의존성은 생성자 주입만(@Autowired 필드 주입 금지). Lombok은 쓰지 않는다. DTO는 record로 만든다.
+- 의존성은 생성자 주입만(@Autowired 필드 주입 금지). 생성자는 Lombok `@RequiredArgsConstructor`로 만들어도 된다. DTO는 record로 만든다(Lombok 불필요).
+- **Lombok은 허용 목록만 쓴다**(2026-11-07 변경 — 이전 "사용 금지"를 대체). 버전은 Java 25를 지원하는 1.18.42 이상으로 고정한다.
+  - 허용: `@Getter`, `@RequiredArgsConstructor`, `@NoArgsConstructor(access = AccessLevel.PROTECTED)`(JPA 엔티티 기본 생성자), `@Slf4j`.
+  - 금지: `@Setter`(상태 변경은 도메인 메서드로), `@Data`, `@Value`(record 사용), `@SneakyThrows`, `val`·`var`. 엔티티에는 `@Builder`·`@AllArgsConstructor`(생성 시 불변식 검사 우회), `@EqualsAndHashCode`·`@ToString`(지연 로딩 오작동, 비밀번호 해시 등 민감 필드 로그 노출 — SECURE_CODING.md 6절)도 쓰지 않는다.
+  - 저장소 루트 `lombok.config`에 `lombok.setter.flagUsage = error`, `lombok.data.flagUsage = error`, `lombok.value.flagUsage = error`, `lombok.sneakyThrows.flagUsage = error`, `lombok.val.flagUsage = error`, `lombok.var.flagUsage = error`, `lombok.addLombokGeneratedAnnotation = true`를 두어 금지 항목은 컴파일 오류로 막는다. 엔티티의 `@Builder`·`@ToString` 등은 리뷰로 확인한다.
+  - 컬렉션 필드는 `@Getter`로 그대로 노출하지 않고 불변 뷰를 돌려주는 메서드를 직접 작성한다. domain 계층에서도 허용 목록은 쓸 수 있다(컴파일 시점 처리라 런타임 의존이 없다).
 - 엔티티: BaseTimeEntity 상속, @Table(name = …) 명시, protected 기본 생성자, setter 대신 의미 있는 도메인 메서드(deactivate()).
 - 엔티티를 API 응답으로 직접 내보내지 않는다. XxxResponse.from(entity)로 바꾼다.
 - 트랜잭션: service 클래스에 @Transactional(readOnly = true), 쓰기 메서드에만 @Transactional.
@@ -297,6 +302,7 @@ controller → service → repository / domain 한 방향만 허용한다. Archi
 - FUNCTIONAL_SPEC.md: 기능 명세·도메인 맵·불변식 — 기능 구현의 기준
 - docs/adr/: 기술 결정 기록. 큰 결정은 NNNN-english-title.md 파일로 남기고 내용은 한국어로 쓴다.
 - docs/glossary.md: 유비쿼터스 언어 대응표(업무 용어 ↔ 코드 식별자)
+- BACKLOG.md: 개발 후속 작업 목록(팀 Claude 프로젝트) — 저장소 준비 후 GitHub 이슈로 일괄 등록
 - 운영 규칙(팀·범위·일정·제출 책임): PROJECT_RULES.md · 시큐어코딩: SECURE_CODING.md · 코딩 스타일: CODING_STYLE.md · 협업 절차: CONTRIBUTING.md · 화면 기준: design.md
 - 디자인 시안: team-khfc/prototype-soo 최신본(README에 화면 목록, 미리보기 https://team-khfc.github.io/prototype-soo/) — 디자이너 작업 영역, 수시 변경(6장)
 - 전체 그림·확정 결정의 이력과 **문서별 기준 버전 표(5장)** 는 팀 Claude 프로젝트의 PROJECT_CONTEXT.md에 관리한다. 문서 개정 절차는 PROJECT_RULES.md 7-1.
@@ -335,57 +341,23 @@ controller → service → repository / domain 한 방향만 허용한다. Archi
 
 ## 15. 확정 결정과 후속 작업
 
-| 결정 | 내용 | 상태 |
+- 확정 결정의 기록은 PROJECT_CONTEXT.md 7장 한 곳에서 관리한다. 이 문서에는 결정 표를 두지 않는다.
+- 개발 후속 작업은 BACKLOG.md에서 관리하고, 저장소가 준비되면 GitHub 이슈로 한 번에 등록한다. 등록 후에는 이슈가 원본이다.
+
+## 변경 이력
+
+최신순. 머리말에는 현재 버전만 둔다.
+
+| 버전 | 날짜 | 변경 |
 |---|---|---|
-| 서비스명·패키지 | 영문명 **SecurityAdvisor**, 패키지 **kr.securityadvisor** | 확정 (2026-11-06) |
-| 처리 절차 | 4단계(작성→담당자 협의[INFRA 할당→SECURITY 검토]→사용자 최종 검토→확정·관리) + 차수 반환 — FUNCTIONAL_SPEC.md 3-1장 | 확정 (2026-11-06) |
-| 차수 반환 값 처리 | 기존 작성 내용 보존 + 보완 필요 지정 항목 하이라이트·강조 표시(사유 노출). 값을 비운 채 반환 금지 | 확정 (2026-11-06) |
-| 할당/검토 분리 | 할당 완료와 협의 완료는 별도 상태. INFRA는 할당만 하고 검토 보류 가능, SECURITY는 할당 완료 후 검토 | 확정 (2026-11-06) |
-| 검토 순서 | 1차 범위는 INFRA 선행 고정, 기관 설정 변경은 P3 | 확정 (2026-11-06) |
-| 종결·철회 | 담당자 종결(반려)·사용자 철회 — 사유 필수, 이력 보존, 이후 수정 불가. 1차 범위는 상태·전이·목록까지 | 확정 (2026-11-06) |
-| 인증·회원가입·시연 범위 | 로그인·회원가입(가입 계정은 APPLICANT만, 역할 부여는 관리자), 역할별 테스트 계정 seed(비밀번호는 환경변수 주입), 시연 필수 경로 우선·P2는 리허설 통과 후 착수, 신청 단계×상태 표·4단계 확정 주체 — FUNCTIONAL_SPEC.md 4장·6장·F-11 | 확정 (2026-11-07) |
-| 운영 업무 도메인 | 담당자 배정(2단계 진입 시 기본 담당자 자동 배정·관리자 재배정)·처리 기한(영업일, 경과해도 상태 불변)·감사 이력(추가 전용·업무와 같은 트랜잭션)·정책 수명주기(방화벽 확정 시 규칙 생성, 적용은 사람이 기록)·업무 지표(읽기 전용)·알림(화면 안, 업무 상태 불변) — FUNCTIONAL_SPEC.md 3-3장 | 확정 (2026-11-07) |
-| 다중 서류 신청 | 사업 건(BusinessCase) 1 : N 신청(SecurityRequest). 상태 단위는 신청, 사업 건 상태는 계산값, 공통 답변(scope=CASE) 1회 수집, 사업 건당 서류 유형 1건 — FUNCTIONAL_SPEC.md 3-2장 | 확정 (2026-11-07) |
-| 운영 기관 | 설치당 1기관 고정 — 기관 관리자는 운영 기관 소속만, 업무 데이터에 기관 키·기관 격리 없음, 기관 테이블·엔티티 없음(`.env` 설정값), 다른 기관은 별도 설치 | 확정 (2026-11-07) |
-| API 설계 | RESTful — 자원(명사) 경로, HTTP 메서드 의미 준수, 상태 전이는 하위 자원 POST/PUT으로 표현(status 직접 PATCH 금지), ProblemDetail + 400/401/403/404/409/422 구분 — 5장 | 확정 (2026-11-07) |
-| 저장소 정책 | 개발 2 + 배포 1: 서버·DB는 Security-Advisor-Back, 화면은 Security-Advisor-Front(각자 독립 개발·테스트, Front는 모의 API 기본), 완성본·배포·제출은 Security-Advisor(릴리스 태그 스냅샷 + compose). 규칙 문서는 세 저장소 루트에 같은 버전, API 계약은 Back 소유. 개발 작업 시작점은 prototype, 디자인 시안은 prototype-soo — 0장 | 확정 (2026-11-07) |
-| Java | Java 25 (LTS) — Gradle toolchain 고정 | 확정 (2026-11-06) |
-| DB 이름 규칙 | 기본 키 `<테이블 단수형>_id`(맨 `id` 금지), 외래 키는 참조 기본 키와 같은 이름, 같은 이름 컬럼은 같은 의미·타입, 엔티티 기본 키 필드는 `id` + `@Column` 연결 — 5장 | 확정 (2026-11-07) |
-| 방법론 | DDD — 전술 패턴 범위. 이벤트 소싱·CQRS 미도입 | 확정 (2026-11-06) |
-| DB | PostgreSQL 17 + Flyway + Testcontainers. 접근은 Spring Data JPA | 확정 (2026-11-05) |
-| 프론트엔드 | Next.js(App Router), Vite 미사용. 데이터 패칭 TanStack Query | 확정 — 개발자 협의 완료 (2026-11-05) |
-| AI 프레임워크 | Spring AI 2.0 채택 — ChatClient+공급자 2종+PGVector의 최소 범위, 버전 고정, 공통 어댑터 유지 | 확정 — 개발자 협의 완료 (2026-11-06) |
-| 코딩 스타일 | Google 스타일 가이드 + KISA 시큐어코딩(SECURE_CODING.md) 준수 | 확정 (2026-11-05) |
-| 기획(역할·범위) | 역할 4종, 1차 범위 서류 2종 — 기획은 팀장 의견 기준 | 확정 (2026-11-05) |
-| 디자인 시안 | 참고 원본은 prototype-soo 최신본(디자이너 작업 영역, 수시 변경). 구현 직전 최신본 확인, PR에 참고 커밋 기록, 업무 의미는 FUNCTIONAL_SPEC 우선 — 6장 | 확정 (2026-11-07) |
-
-후속 작업(담당: 개발자, PR로):
-
-- [ ] prototype의 Next.js 화면·도메인 검사 15종을 기반으로 Security-Advisor-Front에 프론트 구성(화면 모양은 prototype-soo 최신 시안과 대조)
-- [ ] Back: `docs/api/openapi.yaml` 커밋과 코드 일치 검사, `Dockerfile`(multi-stage) — 개발자
-- [ ] Front: 모의 API(합성 데이터) 기본 모드, `dev:api` 프록시 모드(서버 측 `API_BASE_URL`), `Dockerfile` — 개발자
-- [ ] Security-Advisor 배포 저장소 구성: 스냅샷 복사 절차(스크립트), `compose.yaml`(DB·Back·Front), `.env.example`, `RELEASE.md`, 통합 smoke 검사, README·구동안내서 — 개발자. 현재 루트의 디자인 시안 파일(11-07 업로드)은 디자이너와 확인 후 prototype-soo로 정리
-- [ ] 세 저장소 CI(Back: Gradle check, Front: npm check, Security-Advisor: compose 빌드·smoke) — 개발자
-- [ ] 연동·배포 방식 ADR(0004-repository-and-release) — 개발자
-- [ ] 인증·회원·운영 기관 설정 ADR(0005) — 코드 주석의 "ADR-0003" 참조(회원 마이그레이션·SecurityConfig·Member)는 0003(REST API)과 겹치므로 0005로 맞춘다 — 개발자
-- [ ] 운영 기관 설정: `INSTITUTION_NAME`·`INSTITUTION_CODE`를 `@ConfigurationProperties`로 읽고 `GET /api/installation` 제공(인증 불필요, 읽기 전용), Security-Advisor `.env.example`에 이름 추가 — 개발자
-- [ ] PR 템플릿에 "참고한 디자인 시안 커밋(prototype-soo)" 항목 추가
-- [ ] 5장 RESTful 규칙에 따라 OpenAPI 계약 초안 작성(상태 전이 경로 확정 포함) 후 ADR 0003-rest-api.md로 기록 — 개발자
-- [ ] 백엔드를 확정 스택(Java 25·Boot 4.1·Gradle Kotlin DSL·PostgreSQL·Flyway)으로 kr.securityadvisor 패키지에 구축
-- [ ] docs/adr/0001-tech-stack.md(Java 25·DDD·패키지명 포함)·0002-spring-ai.md 작성
-- [ ] docs/glossary.md 초안: FUNCTIONAL_SPEC.md 2장 용어표 기반(기획 합의)
-- [ ] ArchUnit에 domain 계층의 Spring Web·Spring AI 비의존 규칙 추가
-- [ ] Spring AI 2.0 의존성 추가 + pgvector 도커 구성 + LLM 어댑터 구현체 연결
-- [ ] Security-Advisor-Back·Front·Security-Advisor 세 저장소 루트에 규칙 문서 9종과 `tools/check_doc_versions.py`를 추가하고, prototype 저장소 루트의 규칙 문서를 기준 버전 표의 버전으로 교체(현재 prototype 루트는 11-06 기준), `tools/check_doc_versions.py` 추가, Back 저장소의 gradlew 실행 권한 확인
-- [ ] Spotless 포맷터 엔진을 Google 스타일 기준으로 조정(google-java-format, Java 25 호환) 후 CODING_STYLE.md와 일치시킴
-- [ ] ESLint에 Next.js 특수 파일 default export 예외와 SECURE_CODING.md 금지 API 규칙 반영
-- [ ] 백엔드용 Java 시큐어코딩(행안부 소프트웨어 개발보안 가이드) 사본 확보 후 SECURE_CODING.md 보완
-- [x] 반환 항목 하이라이트·강조 표시의 시각 규칙을 design.md에 반영 — 디자인 담당자, design.md v3.1 10.2.1
-- [ ] Flyway: `business_cases` 테이블, `security_requests.business_case_id` FK + `UNIQUE(business_case_id, doc_type)`, 답변 범위(CASE/REQUEST) 저장 구조 — 11.07 스키마 확정에 포함
-- [ ] 다중 서류 화면(서류 유형 복수 선택, 사업 건 화면, 공통 정보 변경 알림)을 design.md에 반영 — 디자인 담당자
-- [ ] FUNCTIONAL_SPEC.md 8-1 스키마 확정 체크리스트대로 Flyway 마이그레이션 작성(P2·P3 기능 테이블 포함), `audit_events`는 운영 계정 INSERT·SELECT 권한만 — 개발자
-- [ ] 감사 이력 기록을 업무 변경과 같은 트랜잭션에서 남기는 공통 구조(애플리케이션 서비스 또는 도메인 이벤트 핸들러) — 개발자
-- [ ] 배정·기한·처리 이력·감사 이력·업무 지표 화면을 design.md·시안에 반영 — 디자인 담당자
-- [ ] 테스트 계정 seed: 비밀번호는 `DEMO_ACCOUNT_PASSWORD` 등 환경변수에서 읽어 bcrypt로 저장(평문을 코드·마이그레이션에 넣지 않음), `.env.example`에 시연 기본값 표기 — 개발자
-- [ ] 회원가입 API가 요청의 역할 값을 무시하고 APPLICANT로만 생성하는지 테스트(불변식 32) — 개발자
-- [ ] 신청 단계×상태 CHECK 제약과 도메인 전이 테스트(불변식 33~35) — 개발자
+| v1.17 | 2026-11-07 | 중복 정리 — 1장 업무 서술·15장 결정 표 제거(원본 링크), 후속 작업은 BACKLOG.md, Java 25 재확정(Docker 이미지 포함), Lombok 허용 목록 |
+| v1.16 | 2026-11-07 | 5장 이름 규칙: 기본 키 `<테이블 단수형>_id`, 같은 이름 컬럼은 같은 의미·타입, 엔티티 식별자 필드 연결 방식(개발자 요청) |
+| v1.15 | — | 운영 기관 테이블 없음 명시, 기관 정보 조회 API(0·1·5·15장) |
+| v1.14 | — | 저장소 구성을 개발 2(Back·Front) + 배포 1(Security-Advisor 릴리스 스냅샷)로 정리, Front 모의 API로 독립 개발(0·2·3·14장) |
+| v1.13 | — | 저장소를 Back·Front로 분리(0장·2장·3장·8장) |
+| v1.12 | — | 운영 기관 설치당 1기관 고정(1장·5장 API 404 기준) |
+| v1.11 | — | 5장 API 규칙을 RESTful 설계 기준으로 확장(자원·메서드·상태 전이의 자원 표현·상태 코드·표현 형식) |
+| v1.10 | — | 디자인 시안 참조를 prototype-soo로 변경, 시안 수시 변경 원칙(6장) |
+| v1.9 | — | 최종 확정안 반영(인증·회원가입·테스트 계정, 시연 필수 경로, 신청 단계×상태) |
+| v1.8 | — | 업무 도메인 6종 |
+| v1.7 | — | 9장 작업 전 문서 버전 확인 의무 |

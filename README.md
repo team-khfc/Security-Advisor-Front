@@ -164,21 +164,23 @@ docker run --rm --name security-advisor-front -p 3000:3000 -e API_MODE=mock secu
 
 ## 작업 기준과 출처
 
-공식 기준 버전은 [PROJECT_CONTEXT.md 5장](PROJECT_CONTEXT.md#5-기준-버전-표-공식)입니다. 아래는 이번 구현이 확인한 기준이며, 후속 작업 전에는 공식 표와 각 문서 머리말을 다시 확인합니다.
+작업 전 [PROJECT_CONTEXT.md 5장](PROJECT_CONTEXT.md#5-기준-버전-표-공식)의 공식 기준표와 [요약 지침의 참조 순서](claude/INSTRUCTIONS.md)를 확인합니다. 개발 실행 규칙은 [AGENTS.md](AGENTS.md), 문서 개정 절차는 [PROJECT_RULES.md 7-1](PROJECT_RULES.md#7-1-문서-버전-관리와-개정-절차)이 원본입니다. 아래는 2026-11-10에 제공된 최신 원본으로 동기화한 현재 기준이며, 원본의 개정일은 유지했습니다.
 
 | 문서                                     | 기준 버전 | 개정일     |
 | ---------------------------------------- | --------- | ---------- |
-| [요약 지침](claude/INSTRUCTIONS.md)      | v1.13     | 2026-11-07 |
-| [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | v3.4      | 2026-11-07 |
-| [FUNCTIONAL_SPEC.md](FUNCTIONAL_SPEC.md) | v1.11     | 2026-11-07 |
-| [AGENTS.md](AGENTS.md)                   | v1.16     | 2026-11-07 |
-| [PROJECT_RULES.md](PROJECT_RULES.md)     | v1.14     | 2026-11-07 |
-| [CONTRIBUTING.md](CONTRIBUTING.md)       | v0.16     | 2026-11-07 |
-| [CODING_STYLE.md](CODING_STYLE.md)       | v0.5      | 2026-11-07 |
-| [SECURE_CODING.md](SECURE_CODING.md)     | v1.4      | 2026-11-07 |
+| [요약 지침](claude/INSTRUCTIONS.md)      | v1.14     | 2026-11-07 |
+| [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | v3.5      | 2026-11-07 |
+| [FUNCTIONAL_SPEC.md](FUNCTIONAL_SPEC.md) | v1.12     | 2026-11-07 |
+| [AGENTS.md](AGENTS.md)                   | v1.17     | 2026-11-07 |
+| [PROJECT_RULES.md](PROJECT_RULES.md)     | v1.15     | 2026-11-07 |
+| [CONTRIBUTING.md](CONTRIBUTING.md)       | v0.17     | 2026-11-07 |
+| [CODING_STYLE.md](CODING_STYLE.md)       | v0.6      | 2026-11-07 |
+| [SECURE_CODING.md](SECURE_CODING.md)     | v1.5      | 2026-11-07 |
 | [design.md](design.md)                   | v3.1      | 2026-11-06 |
 
-공개 저장소의 규칙 문서는 제공된 최신 원본에서 팀 실명을 역할명으로, 개인 이메일을 비공개 표기로 치환한 **비식별 공개본**입니다. 업무 규칙·버전·개정일은 유지했으며 원본과 공개본의 해시·변환 범위는 [SOURCE_PROVENANCE.md](docs/SOURCE_PROVENANCE.md)에 기록했습니다. 요약 지침은 `claude/INSTRUCTIONS.md` 한 경로에 둡니다.
+공개 저장소의 규칙 문서는 제공된 최신 원본에서 팀 실명을 역할명으로, 개인 이메일을 비공개 표기로 치환한 **공통 비식별 공개본**입니다. 업무 규칙·버전·개정일은 유지했으며 원본 경로·원본과 공개본의 해시·변환 범위는 [SOURCE_PROVENANCE.md](docs/SOURCE_PROVENANCE.md)에 기록했습니다. 규칙 문서는 루트, 요약 지침은 `claude/INSTRUCTIONS.md` 한 경로에서 관리합니다. 저장소별 반영은 각 문서 동기화 PR과 병합 커밋으로 확인하며, 다른 저장소의 완료를 이 README만으로 판단하지 않습니다.
+
+`npm run check:docs`는 저장소 안의 기준표·머리말·단일 경로·공개본 해시를 검사합니다. 외부 프로젝트 원본의 새 개정을 자동 조회하는 검사는 아니므로 새 원본을 받으면 개정 절차에 따라 함께 갱신합니다. 과거 ADR·PR·검증 기록에는 당시 참고 버전을 유지하며, 현재 작업의 기준은 위 공식 기준표를 따릅니다.
 
 디자인은 [`prototype-soo` 커밋 `1af32fb424ea79a1a4ce60484a83f9d1935fef25`](https://github.com/team-khfc/prototype-soo/tree/1af32fb424ea79a1a4ce60484a83f9d1935fef25)와 해당 MERGE_NOTES를 참조했습니다. 개별 화면 구성은 시안을 따르고, 시안과 다른 업무 의미는 FUNCTIONAL_SPEC을 우선했습니다. 본문 축소 배율은 design.md 기준에 맞춰 17px로 보정했습니다. 디자인 원본 저장소는 수정하지 않았습니다.
 
