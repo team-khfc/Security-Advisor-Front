@@ -1195,16 +1195,45 @@ progress.prog::-moz-progress-bar {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.2rem;
 }
-.infra-grid label {
+.infra-link-selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 1.6rem;
+}
+.infra-link-selects label {
   display: grid;
   gap: 0.6rem;
   min-width: 0;
 }
+.infra-link-selects select {
+  width: 100%;
+}
+.infra-grid label {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  gap: 0.6rem;
+  min-width: 0;
+  align-content: start;
+}
+.infra-grid .infra-field-label {
+  grid-row: 1;
+}
 .infra-grid .input {
+  grid-row: 2;
+  align-self: start;
   width: 100%;
   min-width: 0;
 }
+.infra-grid .help {
+  grid-row: 3;
+  margin: 0;
+}
 @media (max-width: 800px) {
+  .infra-link-selects {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .infra-grid {
     grid-template-columns: minmax(0, 1fr);
   }

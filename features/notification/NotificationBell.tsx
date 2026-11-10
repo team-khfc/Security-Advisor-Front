@@ -38,7 +38,7 @@ export function NotificationBell() {
       <button
         ref={button}
         type="button"
-        className="tbtn"
+        className="tbtn notification-toggle"
         aria-label={`알림${count.data === undefined ? '' : `, 안 읽은 알림 ${count.data}건`}`}
         aria-expanded={open}
         aria-controls="notification-panel"

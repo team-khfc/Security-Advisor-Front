@@ -95,7 +95,7 @@ export function InfrastructureAiProposal({
         return;
       }
       used.add(target);
-      const row =
+      const row: InfraConnection | undefined =
         target === 'new'
           ? {
               id: crypto.randomUUID(),
@@ -118,7 +118,11 @@ export function InfrastructureAiProposal({
         return;
       }
       for (const key of picked)
-        if (proposal.fields[key]?.value) row[key] = proposal.fields[key].value;
+        if (proposal.fields[key]?.value) {
+          row[key] = proposal.fields[key].value;
+          if (key.startsWith('source')) row.sourceServerId = null;
+          if (key.startsWith('destination')) row.destinationServerId = null;
+        }
       if (target === 'new') next.push(row);
       count++;
     }
