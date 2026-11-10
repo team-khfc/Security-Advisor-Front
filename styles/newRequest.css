@@ -819,10 +819,10 @@ progress.prog::-moz-progress-bar {
 .infop-b > .help {
   margin: 0.8rem 0 0;
 }
-/* 수집 정보 값 목록은 시안 .irow(라벨 9.6rem · 값 · 출처) 한 줄 구성 */
+/* 긴 항목명도 읽을 수 있도록 라벨 폭을 확보하고 값과 출처는 남은 폭에서 줄바꿈한다. */
 .infop-b .answer-item {
   display: grid;
-  grid-template-columns: 9.6rem minmax(0, 1fr);
+  grid-template-columns: 14rem minmax(0, 1fr);
   gap: 0.4rem 0.8rem;
   align-items: baseline;
   padding: 1rem 0.4rem;
@@ -835,6 +835,8 @@ progress.prog::-moz-progress-bar {
   margin: 0;
 }
 .infop-b .answer-item dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -1083,4 +1085,45 @@ progress.prog::-moz-progress-bar {
 }
 .collected-field .help {
   overflow-wrap: anywhere;
+}
+
+.date-range-answer {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.date-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 0.8rem;
+}
+.date-range-fields label {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+@media (max-width: 480px) {
+  .date-range-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.question-inline-answer {
+  margin-block: 1.6rem;
+  padding-block: 1.2rem;
+  border-block: 1px solid var(--sf-line);
+}
+.question-inline-answer .qrow {
+  flex-direction: column;
+  align-items: stretch;
+}
+.question-inline-answer .qrow > .btn {
+  align-self: flex-start;
+}
+.question-inline-answer .input {
+  width: 100%;
+  min-width: 0;
 }

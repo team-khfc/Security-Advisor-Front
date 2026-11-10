@@ -199,7 +199,8 @@ vi.mock('@/features/request/useInterviewAssistance', () => ({
     showHelp: false,
     toggleHelp: vi.fn(),
     send: vi.fn(),
-    setMode: vi.fn(),
+    prompt: '',
+    setPrompt: vi.fn(),
     isStale: () => false,
   }),
 }));

@@ -62,14 +62,12 @@ export function InterviewAssistance({
   );
 }
 
-/** 입력창 한 곳에서 전환하되 두 종류의 초안은 독립적으로 보관한다. */
+/** 질문 카드의 답변 입력과 분리된 AI 질문·파일 첨부 영역이다. */
 export function InterviewComposer({
   state,
-  children,
   attachment,
 }: {
   state: InterviewAssistanceState;
-  children: ReactNode;
   attachment?: ReactNode;
 }) {
   return (
@@ -78,49 +76,36 @@ export function InterviewComposer({
         <button
           type="button"
           className="btn btn-sm"
-          aria-pressed={state.mode === 'ANSWER'}
+          aria-pressed={true}
           disabled={state.apply.isPending}
-          onClick={() => state.setMode('ANSWER')}
-        >
-          답변 작성
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm"
-          aria-pressed={state.mode === 'ASK'}
-          disabled={state.apply.isPending}
-          onClick={() => state.setMode('ASK')}
+          onClick={() => document.getElementById('interview-ai-prompt')?.focus()}
         >
           AI에게 질문
         </button>
         {attachment}
       </div>
-      {state.mode === 'ANSWER' ? (
-        children
-      ) : (
-        <div className="qrow">
-          <label className="sr-only" htmlFor="interview-ai-prompt">
-            이 항목을 AI에게 물어보기
-          </label>
-          <textarea
-            id="interview-ai-prompt"
-            className="input"
-            rows={2}
-            maxLength={4000}
-            placeholder="궁금한 점을 적어 주세요. AI 질문은 신청서 답변으로 저장되지 않습니다."
-            value={state.prompt}
-            disabled={state.ask.isPending || state.apply.isPending}
-            onChange={(e) => state.setPrompt(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={state.busy || !state.prompt.trim()}
-          >
-            {state.ask.isPending ? '답변 기다리는 중…' : '질문 보내기'}
-          </button>
-        </div>
-      )}
+      <div className="qrow">
+        <label className="sr-only" htmlFor="interview-ai-prompt">
+          이 항목을 AI에게 물어보기
+        </label>
+        <textarea
+          id="interview-ai-prompt"
+          className="input"
+          rows={2}
+          maxLength={4000}
+          placeholder="궁금한 점을 적어 주세요. AI 질문은 신청서 답변으로 저장되지 않습니다."
+          value={state.prompt}
+          disabled={state.ask.isPending || state.apply.isPending}
+          onChange={(e) => state.setPrompt(e.target.value)}
+        />
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={state.busy || !state.prompt.trim()}
+        >
+          {state.ask.isPending ? '답변 기다리는 중…' : '질문 보내기'}
+        </button>
+      </div>
     </>
   );
 }

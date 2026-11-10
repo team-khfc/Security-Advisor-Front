@@ -21,6 +21,7 @@ import {
 } from '@/lib/uploadDraft';
 import { AnswerView } from './AnswerEditor';
 import { CollectedAnswerEditor } from './CollectedAnswerEditor';
+import { DateRangeAnswer } from './DateRangeAnswer';
 import { useChatAttachments } from './useChatAttachments';
 import {
   InterviewAssistance,
@@ -529,6 +530,85 @@ function InterviewWorkspace({
     }
   };
 
+  const renderAnswerFields = () => {
+    if (!question || !presentation) return null;
+    return (
+      <>
+        {presentation.options && (
+          <div
+            className="qchips"
+            role="group"
+            aria-label={`${question.label} 보기, 누르면 바로 답변됩니다`}
+            aria-describedby="interview-question-help"
+          >
+            {presentation.options.map((option) => (
+              <button
+                className="qchip"
+                type="button"
+                key={option}
+                disabled={answerBusy || conflict}
+                onClick={() => void saveAnswer(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="field">
+          {question.inputType !== 'DATE_RANGE' && (
+            <label className="sr-only" htmlFor={'interview-answer'}>
+              {question.label}
+            </label>
+          )}
+          <div className="qrow">
+            {question.inputType === 'DATE_RANGE' ? (
+              <DateRangeAnswer value={answerText} disabled={answerBusy} onChange={updateAnswer} />
+            ) : question.inputType === 'LONG_TEXT' ? (
+              <textarea
+                className="input"
+                id={'interview-answer'}
+                rows={2}
+                maxLength={4000}
+                aria-describedby="interview-question-help"
+                value={answerText}
+                disabled={answerBusy}
+                onChange={(e) => updateAnswer(e.target.value)}
+                placeholder={presentation.placeholder}
+              />
+            ) : (
+              <input
+                className="input"
+                id={'interview-answer'}
+                type={question.inputType === 'NUMBER' ? 'number' : 'text'}
+                aria-describedby="interview-question-help"
+                autoComplete="off"
+                maxLength={4000}
+                value={answerText}
+                disabled={answerBusy}
+                onChange={(e) => updateAnswer(e.target.value)}
+                placeholder={presentation.placeholder}
+              />
+            )}
+            <button
+              className="btn btn-primary"
+              disabled={answerBusy || conflict || !answerText.trim()}
+            >
+              {save.isPending
+                ? '저장 중…'
+                : question.source === 'AI_INFERRED' &&
+                    !question.confirmed &&
+                    answerText === question.value
+                  ? 'AI 답변 확인하고 다음'
+                  : questionIndex === questions.length - 1
+                    ? '공통 답변 저장'
+                    : '답변 저장하고 다음'}
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
     <>
       <nav className="crumb" aria-label="현재 위치">
@@ -757,6 +837,17 @@ function InterviewWorkspace({
                         </Notice>
                       )}
                       <InterviewAssistance state={assistance} question={question} />
+                      <form
+                        className="question-inline-answer"
+                        aria-label={`${question.label} 바로 답변`}
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void saveAnswer(answerText);
+                        }}
+                      >
+                        <p className="help">이 질문에 바로 답변해 주세요.</p>
+                        {renderAnswerFields()}
+                      </form>
                       {draftAnswer && (
                         <p className="help interview-draft-note">
                           입력 내용은 이 탭에서 임시 보관됩니다. 새로고침하거나 탭을 닫으면
@@ -879,8 +970,7 @@ function InterviewWorkspace({
               aria-labelledby="interview-question-title"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (assistance.mode === 'ASK') void assistance.send('ASK');
-                else void saveAnswer(answerText);
+                void assistance.send('ASK');
               }}
             >
               <InterviewComposer
@@ -896,75 +986,7 @@ function InterviewWorkspace({
                     파일 첨부
                   </button>
                 }
-              >
-                {presentation.options && (
-                  <div
-                    className="qchips"
-                    role="group"
-                    aria-label={`${question.label} 보기, 누르면 바로 답변됩니다`}
-                    aria-describedby="interview-question-help"
-                  >
-                    {presentation.options.map((option) => (
-                      <button
-                        className="qchip"
-                        type="button"
-                        key={option}
-                        disabled={answerBusy || conflict}
-                        onClick={() => void saveAnswer(option)}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="field">
-                  <label className="sr-only" htmlFor="interview-answer">
-                    {question.label}
-                  </label>
-                  <div className="qrow">
-                    {question.inputType === 'LONG_TEXT' ? (
-                      <textarea
-                        className="input"
-                        id="interview-answer"
-                        rows={2}
-                        maxLength={4000}
-                        aria-describedby="interview-question-help"
-                        value={answerText}
-                        disabled={answerBusy}
-                        onChange={(e) => updateAnswer(e.target.value)}
-                        placeholder={presentation.placeholder}
-                      />
-                    ) : (
-                      <input
-                        className="input"
-                        id="interview-answer"
-                        type={question.inputType === 'NUMBER' ? 'number' : 'text'}
-                        aria-describedby="interview-question-help"
-                        autoComplete="off"
-                        maxLength={4000}
-                        value={answerText}
-                        disabled={answerBusy}
-                        onChange={(e) => updateAnswer(e.target.value)}
-                        placeholder={presentation.placeholder}
-                      />
-                    )}
-                    <button
-                      className="btn btn-primary"
-                      disabled={answerBusy || conflict || !answerText.trim()}
-                    >
-                      {save.isPending
-                        ? '저장 중…'
-                        : question.source === 'AI_INFERRED' &&
-                            !question.confirmed &&
-                            answerText === question.value
-                          ? 'AI 답변 확인하고 다음'
-                          : questionIndex === questions.length - 1
-                            ? '공통 답변 저장'
-                            : '답변 저장하고 다음'}
-                    </button>
-                  </div>
-                </div>
-              </InterviewComposer>
+              />
             </form>
           )}
           {editable && !question && (

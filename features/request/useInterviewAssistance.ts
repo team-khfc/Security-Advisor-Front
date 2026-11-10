@@ -30,8 +30,6 @@ export function useInterviewAssistance({
 }) {
   const ask = useInterviewAsk(businessCase.id);
   const apply = useInterviewApply(businessCase.id);
-  const [modeChoice, setModeChoice] = useState({ key: '', mode: 'ANSWER' as 'ANSWER' | 'ASK' });
-  const mode = modeChoice.key === question?.key ? modeChoice.mode : 'ANSWER';
   const [helpKey, setHelpKey] = useState<string>();
   const showHelp = Boolean(question && helpKey === question.key);
   const help = useInterviewHelp(
@@ -87,7 +85,6 @@ export function useInterviewAssistance({
         expectedRevision: businessCase.revision,
       });
       onApplied();
-      setModeChoice({ key: turn.fieldKey, mode: 'ANSWER' });
     } catch {
       /* 오류를 대화에 표시하고 입력을 유지한다. */
     }
@@ -97,12 +94,10 @@ export function useInterviewAssistance({
     ask,
     apply,
     busy,
-    mode,
     prompt: draft ?? '',
     setPrompt: saveDraft,
     showHelp,
     help,
-    setMode: (next: 'ASK' | 'ANSWER') => setModeChoice({ key: question?.key ?? '', mode: next }),
     toggleHelp: () => setHelpKey(showHelp ? undefined : question?.key),
     send,
     isStale,

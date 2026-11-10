@@ -59,13 +59,10 @@ function AssistanceHarness(props: Parameters<typeof useInterviewAssistance>[0]) 
         aria-label="인터뷰 입력"
         onSubmit={(event) => {
           event.preventDefault();
-          if (state.mode === 'ASK') void state.send('ASK');
+          void state.send('ASK');
         }}
       >
-        <InterviewComposer state={state}>
-          <input aria-label="직접 답변" value={props.answerText} readOnly />
-          <button type="submit">답변 저장</button>
-        </InterviewComposer>
+        <InterviewComposer state={state} />
       </form>
     </>
   );
@@ -203,7 +200,7 @@ test('AI 응답을 기다리는 동안 직접 답변이 바뀌면 늦게 도착�
   expect(onApplied).not.toHaveBeenCalled();
 });
 
-test('입력 모드를 바꿔도 직접 답변과 AI 질문 초안이 각각 보존되고 입력창은 하나만 보인다', async () => {
+test('AI 질문 영역에는 직접 답변 전환 없이 질문 초안을 유지한다', async () => {
   setup('보존할 직접 답변');
   const user = userEvent.setup();
   const card = screen.getByRole('form', { name: '인터뷰 입력' });
@@ -213,10 +210,7 @@ test('입력 모드를 바꿔도 직접 답변과 AI 질문 초안이 각각 보
     screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }),
     '보존할 질문',
   );
-  await user.click(screen.getByRole('button', { name: '답변 작성' }));
-  expect((screen.getByRole('textbox', { name: '직접 답변' }) as HTMLInputElement).value).toBe(
-    '보존할 직접 답변',
-  );
+  expect(screen.queryByRole('button', { name: '답변 작성' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
   expect(
     (screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }) as HTMLTextAreaElement)
