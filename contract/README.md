@@ -27,6 +27,9 @@
 
 ## 검증
 
+문서 미리보기·다운로드는 기존 GeneratedDocumentResponse를 공유한다. 생성 응답의 문서 번호를
+PDF 다운로드에 그대로 사용하며, 구현과 실제 화면 검증은 [정식 문서 통합 기록](../docs/SERVER_DOCUMENT_PREVIEW_20261110.md)에 있다.
+
 기존 정렬 결과는 `docs/API_ALIGNMENT_20261109.md`, 신청자 인터뷰 추가 사항과 실제 도커 검증은 `docs/APPLICANT_INTERVIEW_20261110.md`에 기록한다.
 
 신청자 인터뷰의 GET/POST 대화와 POST 적용 계약을 추가했다. 화면은 게시본 `type`·`hint`를 보존하고, 항목 도움말은 해당 사업 건의 `publicationId`로 조회한다. 자유 질문과 추천 미리보기는 답변 저장과 분리한다. 명시적 적용 뒤에도 AI 값은 미확정이며 기존 confirmation API로 확인한다.

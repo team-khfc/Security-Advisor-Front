@@ -1,5 +1,7 @@
 import { ContractMapper } from './contractMapper';
 import { MockPolicies } from './policies';
+import { mockGeneratedDocument } from './generatedDocument';
+import type { GeneratedDocument } from '@/features/document/types';
 import type { InterviewTurn } from '@/features/request/useInterview';
 import type { FinalDraft } from '@/features/request/useFinalDraft';
 import { compare, hash } from 'bcryptjs';
@@ -64,6 +66,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  generatedDocuments: Map<number, GeneratedDocument>;
   policies: MockPolicies;
   state: MockState;
   members: MemberRecord[];
@@ -203,6 +206,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
     analyses: new Map(),
     interviewTurns: new Map(),
     finalDrafts: new Map(),
+    generatedDocuments: new Map(),
     dummyHash: await hash(crypto.randomUUID(), 10),
   };
 }
@@ -1093,7 +1097,51 @@ async function dispatchContract(
     return json(stored.draft);
   }
   if (resource === 'security-requests' && sub === 'generated-documents' && method === 'POST') {
+    const r = getRequest(runtime, id, actor!);
+    const input = parse(
+      z.object({
+        submissionId: z.number().int().positive().optional(),
+        aiSupplement: z.boolean().optional(),
+      }),
+      await request.json(),
+    );
+    const submission = input.submissionId
+      ? r.submissions.find((s) => wire.id(s.id) === input.submissionId)
+      : undefined;
+    if (input.submissionId && !submission) fail(404, 'NOT_FOUND', '제출본을 찾을 수 없습니다.');
+    const stored = runtime.finalDrafts.get(id);
+    const doc = mockGeneratedDocument(
+      r,
+      submission,
+      stored ? { ...stored.draft, stale: stored.fingerprint !== draftFingerprint(r) } : undefined,
+      {
+        generatedDocumentId: wire.id(crypto.randomUUID()),
+        securityRequestId: Number(numericId),
+        submissionId: input.submissionId ?? null,
+        version:
+          [...runtime.generatedDocuments.values()].filter(
+            (d) => d.securityRequestId === Number(numericId),
+          ).length + 1,
+        generatedBy: actor!.username,
+        generatedAt: new Date(now).toISOString(),
+      },
+    );
+    runtime.generatedDocuments.set(doc.generatedDocumentId, doc);
+    return json(doc, 201);
+  }
+  if (resource === 'security-requests' && sub === 'generated-documents' && method === 'GET') {
     getRequest(runtime, id, actor!);
+    return json(
+      [...runtime.generatedDocuments.values()].filter(
+        (d) => d.securityRequestId === Number(numericId),
+      ),
+    );
+  }
+  if (resource === 'generated-documents' && method === 'GET') {
+    const doc = runtime.generatedDocuments.get(Number(numericId));
+    if (!doc) fail(404, 'NOT_FOUND', '문서를 찾을 수 없습니다.');
+    getRequest(runtime, wire.original(String(doc.securityRequestId)), actor!);
+    if (!sub) return json(doc);
     fail(
       503,
       'PDF_REQUIRES_BACKEND',

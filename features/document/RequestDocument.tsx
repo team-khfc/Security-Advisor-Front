@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { PdfDownloadButton } from './PdfDownloadButton';
+import { DocumentActions } from './DocumentActions';
 import { FinalReportText } from './FinalReportText';
 import { useFinalDraft } from '@/features/request/useFinalDraft';
-import { Badge, Modal, Notice } from '@/components/ui';
+import { Badge, Notice } from '@/components/ui';
 import { AnswerView } from '@/features/request/AnswerEditor';
 import {
   DOCUMENT_LABELS,
@@ -12,13 +11,6 @@ import {
   type SecurityRequest,
   type Submission,
 } from '@/features/request/types';
-
-const SOURCE_LABELS = {
-  USER_ANSWER: '사용자 답변',
-  AI_INFERRED: 'AI 추론',
-  STAFF_INPUT: '담당자 입력',
-  STAFF_CONFIRMED: '담당자 확인',
-} as const;
 
 function isConfirmed(answer: Answer) {
   return Boolean(
@@ -43,47 +35,6 @@ function documentLabel(request: SecurityRequest, submission?: Submission) {
   return `${request.stage === 1 ? '작성 초안' : '검토 초안'} · 수정본 ${request.revision}`;
 }
 
-function documentTitle(request: SecurityRequest, submission?: Submission) {
-  const snapshot = submission?.snapshot;
-  if (
-    snapshot &&
-    typeof snapshot === 'object' &&
-    'caseTitle' in snapshot &&
-    typeof snapshot.caseTitle === 'string'
-  ) {
-    return snapshot.caseTitle;
-  }
-  return request.caseTitle;
-}
-
-function documentText(request: SecurityRequest, answers: Answer[], submission?: Submission) {
-  return [
-    `[${DOCUMENT_LABELS[request.docType] ?? request.docType}] ${documentLabel(request, submission)}`,
-    `사업명: ${documentTitle(request, submission)}`,
-    `신청번호: ${request.id}`,
-    `신청 부서·신청자: ${request.department} ${request.ownerName}`,
-    `적용 설정: v${submission?.publicationVersion ?? request.publicationVersion}`,
-    ...(submission ? [`제출 일시: ${formatTime(submission.createdAt)} (한국 시간)`] : []),
-    '',
-    ...(['CASE', 'REQUEST'] as const).flatMap((scope) => [
-      scope === 'CASE' ? '--- 사업 공통 정보 ---' : '--- 신청 정보 ---',
-      ...answers
-        .filter((answer) => answer.scope === scope)
-        .flatMap((answer) => [
-          `${answer.label}: ${answer.notApplicable ? '미해당' : answer.value.trim() ? answer.value : '담당자 확인 필요'}`,
-          `출처: ${answer.source ? SOURCE_LABELS[answer.source] : '담당자 확인 필요'}`,
-          `확인 상태: ${isConfirmed(answer) ? '확인됨' : '담당자 확인 필요'}${answer.confirmation ? ` · ${answer.confirmation.actorName} (${formatTime(answer.confirmation.at)})` : ''}`,
-          ...(answer.evidence ? [`근거: ${answer.evidence}`] : []),
-          '',
-        ]),
-    ]),
-    `미확정 항목: ${answers.filter(needsConfirmation).length}개`,
-    '',
-    '※ AI 추론은 사람이 확인하기 전까지 미확정입니다.',
-    '※ 서류 확정은 실제 방화벽 적용을 의미하지 않습니다.',
-  ].join('\n');
-}
-
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
     dateStyle: 'short',
@@ -94,7 +45,6 @@ function formatTime(value: string) {
 
 /** 시안의 문서 카드에서 실제 저장값과 불변 제출본을 구분해 미리보고 내려받는다. */
 export function RequestDocument({ request }: { request: SecurityRequest }) {
-  const [previewOpen, setPreviewOpen] = useState(false);
   const submission = request.submissions.find((item) => item.id === request.currentSubmissionId);
   const finalDraft = useFinalDraft(request.id, !submission && request.stage === 3);
   // 비활성 질의에도 캐시는 남으므로 제출본에는 현재 초안의 재확인 상태를 섞지 않는다.
@@ -109,7 +59,6 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
     : submission
       ? [...submission.commonAnswers, ...submission.answers]
       : [...request.commonAnswers, ...request.answers];
-  const text = documentText(request, answers, submission);
   const aiPending =
     answers.filter((answer) => answer.source === 'AI_INFERRED' && needsConfirmation(answer))
       .length + (finalPending && finalDraft.data?.valueSource === 'AI_INFERRED' ? 1 : 0);
@@ -178,21 +127,7 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
             읽기 전용
           </p>
         )}
-        <div className="btn-row">
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={unavailable}
-            onClick={() => setPreviewOpen(true)}
-          >
-            문서 미리보기
-          </button>
-          <PdfDownloadButton
-            requestId={request.id}
-            submissionId={submission?.id}
-            disabled={unavailable}
-          />
-        </div>
+        <DocumentActions request={request} submissionId={submission?.id} disabled={unavailable} />
       </div>
       {request.submissions.length > 0 && (
         <details className="sub-block">
@@ -205,31 +140,11 @@ export function RequestDocument({ request }: { request: SecurityRequest }) {
               </p>
               <AnswerView answers={[...version.commonAnswers, ...version.answers]} />
               <FinalReportText request={request} submission={version} />
-              <PdfDownloadButton requestId={request.id} submissionId={version.id} />
+              <DocumentActions request={request} submissionId={version.id} />
             </div>
           ))}
         </details>
       )}
-      <Modal
-        open={previewOpen && !unavailable}
-        onClose={() => setPreviewOpen(false)}
-        title={`${documentTitle(request, submission)} ${documentLabel(request, submission)} 미리보기`}
-      >
-        <pre className="docpre" tabIndex={0} aria-label="문서 내용">
-          {text}
-        </pre>
-        {!unavailable && <FinalReportText request={request} submission={submission} />}
-        <div className="dlg-actions">
-          <PdfDownloadButton
-            requestId={request.id}
-            submissionId={submission?.id}
-            disabled={unavailable}
-          />
-          <button type="button" className="btn" onClick={() => setPreviewOpen(false)}>
-            닫기
-          </button>
-        </div>
-      </Modal>
     </section>
   );
 }

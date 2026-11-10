@@ -131,8 +131,24 @@ export async function requestJson<T>(path: string, options: RequestJsonOptions =
 
 /** 서버가 생성한 PDF만 받고 로그인 페이지나 JSON을 파일로 저장하지 않는다. */
 export async function requestBlob(path: string): Promise<Blob> {
+  return (await requestPdf(path)).blob;
+}
+
+/** 서버 한글 파일명을 보존하되 경로·제어 문자와 다른 확장자는 쓰지 않는다. */
+export async function requestPdf(path: string): Promise<{ blob: Blob; fileName?: string }> {
   const response = await requestResponse(path, { headers: { Accept: 'application/pdf' } });
   if (!response.headers.get('content-type')?.startsWith('application/pdf'))
     throw new Error('PDF 응답을 받지 못했습니다. 다시 시도해 주세요.');
-  return response.blob();
+  const disposition = response.headers.get('content-disposition') ?? '';
+  let fileName: string | undefined;
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  try {
+    const candidate = encoded
+      ? decodeURIComponent(encoded.trim())
+      : /filename="([^"]+)"/i.exec(disposition)?.[1];
+    if (candidate && /^[^\\/\x00-\x1f\x7f]+\.pdf$/i.test(candidate)) fileName = candidate;
+  } catch {
+    /* 잘못된 파일명은 문서 번호를 이용한 기본 이름으로 대체한다. */
+  }
+  return { blob: await response.blob(), fileName };
 }

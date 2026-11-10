@@ -188,6 +188,39 @@
   max-height: 55dvh;
   overflow: auto;
 }
+.generated-document .h-panel {
+  margin-top: 1.6rem;
+  overflow-wrap: anywhere;
+}
+.generated-document-body {
+  margin: 1.6rem 0;
+  padding: 1.6rem;
+  border: 1px solid var(--sf-line);
+  border-radius: var(--r-ctl);
+  background: var(--sf-background);
+  overflow-wrap: anywhere;
+}
+.generated-document-body h4 {
+  font-size: 1.9rem;
+  margin: 0 0 1.6rem;
+}
+.generated-document-value {
+  padding: 1.2rem 0;
+  border-top: 1px solid var(--sf-line);
+}
+.generated-document-value dt {
+  font-weight: 700;
+}
+.generated-document-value dd {
+  margin: 0.6rem 0 0;
+}
+.generated-document-text {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+.document-actions {
+  align-items: flex-start;
+}
 .filter-box {
   display: flex;
   gap: 1.6rem;

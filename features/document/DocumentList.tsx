@@ -1,20 +1,10 @@
 'use client';
 
-import { PdfDownloadButton } from './PdfDownloadButton';
-import { FinalReportText } from './FinalReportText';
+import { DocumentActions } from './DocumentActions';
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import {
-  Badge,
-  EmptyState,
-  ErrorState,
-  Icon,
-  LoadingState,
-  Modal,
-  Notice,
-  PageHeading,
-} from '@/components/ui';
+import { Badge, EmptyState, ErrorState, Icon, LoadingState, PageHeading } from '@/components/ui';
 import {
   DOCUMENT_LABELS,
   STATUS_LABELS,
@@ -26,13 +16,6 @@ import {
 type DocumentFilter = 'all' | 'draft' | 'submitted' | 'finalized';
 
 const PAGE_SIZE = 6;
-
-const sourceLabels = {
-  USER_ANSWER: '사용자 답변',
-  AI_INFERRED: 'AI 추론',
-  STAFF_INPUT: '담당자 입력',
-  STAFF_CONFIRMED: '담당자 확인',
-} as const;
 
 function displayedAnswers(request: SecurityRequest): Answer[] {
   const submission = request.submissions.find((item) => item.id === request.currentSubmissionId);
@@ -55,29 +38,6 @@ function documentLabel(request: SecurityRequest) {
   return request.stage === 1 ? '작성 초안' : '검토 초안';
 }
 
-function documentText(request: SecurityRequest) {
-  const submission = request.submissions.find((item) => item.id === request.currentSubmissionId);
-  const answers = displayedAnswers(request);
-  return [
-    `${DOCUMENT_LABELS[request.docType] ?? request.docType} · ${documentLabel(request)}`,
-    '',
-    `사업명: ${request.caseTitle}`,
-    `신청번호: ${request.id}`,
-    `신청자: ${request.ownerName} (${request.department})`,
-    `설정 게시본: v${submission?.publicationVersion ?? request.publicationVersion}`,
-    `신청 상태: ${STATUS_LABELS[request.status]}`,
-    '',
-    ...answers.flatMap((answer) => [
-      `${answer.label}: ${answer.notApplicable ? '미해당' : answer.value || '담당자 확인 필요'}`,
-      `출처: ${answer.source ? sourceLabels[answer.source] : '담당자 확인 필요'}${answer.confirmation ? ` · 확인: ${answer.confirmation.actorName}` : answer.source === 'AI_INFERRED' ? ' · 미확정' : ''}`,
-      ...(answer.evidence ? [`근거: ${answer.evidence}`] : []),
-      '',
-    ]),
-    '※ AI 추론은 사람이 확인하기 전까지 미확정입니다.',
-    '※ 서류 확정은 실제 방화벽 적용을 의미하지 않습니다.',
-  ].join('\n');
-}
-
 /** 초안은 최신 저장값으로, 제출본은 저장 당시 스냅샷으로 구분해 표시한다. */
 export function DocumentList() {
   const requests = useRequests(true);
@@ -85,7 +45,6 @@ export function DocumentList() {
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<DocumentFilter>('all');
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<SecurityRequest | null>(null);
 
   function searchDocuments(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -248,17 +207,14 @@ export function DocumentList() {
                   </p>
                 )}
                 <div className="doc-actions">
-                  <button type="button" className="btn btn-sm" onClick={() => setSelected(request)}>
-                    <Icon name="file" size={18} />
-                    미리보기
-                  </button>
-                  <PdfDownloadButton
-                    requestId={request.id}
+                  <DocumentActions
+                    request={request}
                     submissionId={request.currentSubmissionId ?? undefined}
+                    previewLabel="미리보기"
                     disabled={
-                      (request.stage === 4 && !request.currentSubmissionId) ||
-                      (!!request.currentSubmissionId &&
-                        !request.submissions.some((s) => s.id === request.currentSubmissionId))
+                      ((request.stage === 4 || request.status === 'FINALIZED') &&
+                        !request.currentSubmissionId) ||
+                      (!!request.currentSubmissionId && !submitted)
                     }
                   />
                   <Link
@@ -343,46 +299,6 @@ export function DocumentList() {
           </button>
         </nav>
       )}
-      <Modal
-        open={selected !== null}
-        title={
-          selected
-            ? `${DOCUMENT_LABELS[selected.docType] ?? selected.docType} 미리보기`
-            : '문서 미리보기'
-        }
-        onClose={() => setSelected(null)}
-      >
-        {selected && (
-          <>
-            <Notice tone={selected.currentSubmissionId ? 'info' : 'warning'}>
-              <p>
-                {selected.currentSubmissionId
-                  ? '제출 당시의 스냅샷입니다. 이후 공통 정보가 바뀌어도 이 제출본은 바뀌지 않습니다.'
-                  : '저장된 작성 내용의 초안입니다. AI 추론과 필수값을 확인한 뒤 제출해 주세요.'}
-              </p>
-            </Notice>
-            <pre className="docpre">{documentText(selected)}</pre>
-            <FinalReportText
-              request={selected}
-              submission={selected.submissions.find((s) => s.id === selected.currentSubmissionId)}
-            />
-            <div className="doc-actions">
-              <PdfDownloadButton
-                requestId={selected.id}
-                submissionId={selected.currentSubmissionId ?? undefined}
-                disabled={
-                  (selected.stage === 4 && !selected.currentSubmissionId) ||
-                  (!!selected.currentSubmissionId &&
-                    !selected.submissions.some((s) => s.id === selected.currentSubmissionId))
-                }
-              />
-              <button type="button" className="btn btn-tertiary" onClick={() => setSelected(null)}>
-                닫기
-              </button>
-            </div>
-          </>
-        )}
-      </Modal>
     </>
   );
 }
