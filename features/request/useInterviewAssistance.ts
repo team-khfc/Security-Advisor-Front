@@ -34,7 +34,12 @@ export function useInterviewAssistance({
   const mode = modeChoice.key === question?.key ? modeChoice.mode : 'ANSWER';
   const [helpKey, setHelpKey] = useState<string>();
   const showHelp = Boolean(question && helpKey === question.key);
-  const help = useInterviewHelp(question?.key ?? '', businessCase.publicationId, showHelp);
+  const help = useInterviewHelp(
+    question?.key ?? '',
+    businessCase.publicationId,
+    showHelp,
+    businessCase.knowledgePublicationId,
+  );
   const { draft, saveDraft, clearDraft } = useInputDraft<string>(
     actorId,
     `case:${businessCase.id}:question:${question?.key ?? ''}`,

@@ -2,8 +2,9 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `e4e627bb9bdd798644bccbd180a32bdcfcf030dc` (질문·기한 정책 게시 PR #18, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/e4e627bb9bdd798644bccbd180a32bdcfcf030dc/docs/api/openapi.yaml
+- Back 커밋: `de56f8f1a6291a0397a0c832d9e2d3c6c9f1e460` (지식 게시본·지표 PR #20, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/de56f8f1a6291a0397a0c832d9e2d3c6c9f1e460/docs/api/openapi.yaml
+- 지식 게시본·지표 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/20
 - 질문·기한 정책 게시 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/18
 - 알림·처리할 일 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/16
 - 담당자 업무 인계 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/14
@@ -14,6 +15,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+지식 관리는 `/api/knowledge-drafts/current`의 목록·단건·비교·게시와 `/api/knowledge-publications`의 페이지 이력·불변 원문 API를 사용한다. 모두 관리자 전용이며 기존 지식 POST/PUT은 초안만 저장한다. 항목 수정에는 항목 revision, 게시 메모와 게시에는 전체 초안 revision을 전달한다. 게시 비교 결과와 메모의 revision이 다르면 재비교를 요청한다. `BusinessCaseResponse.knowledgePublicationId`를 인터뷰 도움말 조회에 전달하고 캐시 키에도 포함한다. `GET /api/insights/summary`는 관리자 전용 읽기 결과로 계산 시각·null 비율을 그대로 표시한다. [실제 검증 기록](../docs/KNOWLEDGE_INSIGHTS_20261110.md)을 참고한다.
 
 기관 설정은 관리자 전용 초안 조회·저장·비교·게시 API를 사용한다. `ConfigurationResponse.builtInFields`로 기본 질문 계약을 보호하고 실제 저장 응답의 revision을 다음 변경에 전달한다. `GET /api/configurations/{id}/comparison`의 revision으로 게시하며 409에서는 내 입력을 유지한다. `GET /api/publications?page&size`와 `GET /api/publications/{id}/comparison`으로 이력·게시 당시 변경 내용을 조회한다. 새 게시본은 새 사업에 적용하고 기존 사업과 추가 신청은 고정된 publicationId를 유지한다. [기관 설정 검증 기록](../docs/CONFIGURATION_PUBLISHING_20261110.md)에 실제 흐름을 기록했다.
 

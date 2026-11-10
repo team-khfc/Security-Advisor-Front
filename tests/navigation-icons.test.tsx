@@ -85,6 +85,8 @@ describe('공통 메뉴 아이콘(A01)', () => {
         ['신청 현황', '/requests', 'inbox'],
         ['문서함', '/documents', 'document'],
         ['기관 설정', '/settings', 'settings'],
+        ['지식·비공개 정보', '/knowledge', 'document'],
+        ['업무 지표', '/insights', 'inbox'],
         ['계정·담당자 관리', '/members', 'users'],
         ['정책 수명주기', '/policies', 'timer'],
         ['감사 이력', '/history', 'history'],
