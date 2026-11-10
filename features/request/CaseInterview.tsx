@@ -356,6 +356,7 @@ function InterviewWorkspace({
   const latestAiRef = useRef<HTMLDivElement>(null);
   const latestAttachmentRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(380);
+  const [composerMode, setComposerMode] = useState({ key: '', answer: true });
   const [error, setError] = useState('');
   const savingRef = useRef(false);
 
@@ -396,12 +397,16 @@ function InterviewWorkspace({
   const attachments = useChatAttachments(businessCase);
   const [staffNotice, setStaffNotice] = useState('');
   const [sideEditing, setSideEditing] = useState(false);
-  const clearCurrentDraft = () => {
-    if (!question || !draft) return;
-    const remaining = { ...draft.answers };
+  const advanceAfterApplied = () => {
+    if (!question) return;
+    const next = questionIndex + 1;
+    const remaining = { ...draft?.answers };
     delete remaining[question.key];
-    if (Object.keys(remaining).length) saveDraft({ questionIndex, answers: remaining });
+    if (Object.keys(remaining).length) saveDraft({ questionIndex: next, answers: remaining });
     else clearDraft();
+    setStaffNotice('');
+    setError('');
+    setQuestionIndex(next);
   };
   const assistance = useInterviewAssistance({
     businessCase,
@@ -416,7 +421,7 @@ function InterviewWorkspace({
       save.isPending ||
       staffCheck.isPending ||
       conflict,
-    onApplied: clearCurrentDraft,
+    onApplied: advanceAfterApplied,
   });
   const answerBusy =
     sideEditing ||
@@ -530,9 +535,36 @@ function InterviewWorkspace({
     }
   };
 
-  const renderAnswerFields = () => {
-    if (!question || !presentation) return null;
-    return (
+  const requestStaffCheck = async () => {
+    if (!question || !editable || answerBusy || conflict) return;
+
+    try {
+      const result = await staffCheck.mutateAsync({
+        fieldKey: question.key,
+        expectedRevision: question.revision ?? 0,
+      });
+      if (draftAnswer)
+        saveDraft({
+          questionIndex,
+          answers: {
+            ...draft?.answers,
+            [question.key]: {
+              value: answerText,
+              revision: businessCase.revision,
+              answerRevision: result.revision,
+            },
+          },
+        });
+      setStaffNotice(
+        `${question.label}: 담당자 확인 필요로 표시했습니다. 입력 중인 내용은 보존되며, 서류별 화면에서 협의를 요청할 수 있습니다.`,
+      );
+    } catch {
+      /* 입력 보존 */
+    }
+  };
+
+  const answerFields =
+    question && presentation ? (
       <>
         {presentation.options && (
           <div
@@ -606,8 +638,7 @@ function InterviewWorkspace({
           </div>
         </div>
       </>
-    );
-  };
+    ) : null;
 
   return (
     <>
@@ -831,23 +862,9 @@ function InterviewWorkspace({
                         {presentation.help}
                       </p>
                       {question.source === 'AI_INFERRED' && !question.confirmed && (
-                        <Notice tone="warning">
-                          AI가 작성한 미확정 답변입니다. 내용을 읽고 확인해 주세요.
-                          {question.evidence && <p className="help">근거: {question.evidence}</p>}
-                        </Notice>
+                        <p className="help">AI가 작성한 답변</p>
                       )}
                       <InterviewAssistance state={assistance} question={question} />
-                      <form
-                        className="question-inline-answer"
-                        aria-label={`${question.label} 바로 답변`}
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void saveAnswer(answerText);
-                        }}
-                      >
-                        <p className="help">이 질문에 바로 답변해 주세요.</p>
-                        {renderAnswerFields()}
-                      </form>
                       {draftAnswer && (
                         <p className="help interview-draft-note">
                           입력 내용은 이 탭에서 임시 보관됩니다. 새로고침하거나 탭을 닫으면
@@ -890,31 +907,7 @@ function InterviewWorkspace({
                           type="button"
                           className="btn btn-tertiary"
                           disabled={answerBusy || conflict}
-                          onClick={async () => {
-                            try {
-                              const result = await staffCheck.mutateAsync({
-                                fieldKey: question.key,
-                                expectedRevision: question.revision ?? 0,
-                              });
-                              if (draftAnswer)
-                                saveDraft({
-                                  questionIndex,
-                                  answers: {
-                                    ...draft?.answers,
-                                    [question.key]: {
-                                      value: answerText,
-                                      revision: businessCase.revision,
-                                      answerRevision: result.revision,
-                                    },
-                                  },
-                                });
-                              setStaffNotice(
-                                `${question.label}: 담당자 확인 필요로 표시했습니다. 입력 중인 내용은 보존되며, 서류별 화면에서 협의를 요청할 수 있습니다.`,
-                              );
-                            } catch {
-                              /* 입력 보존 */
-                            }
-                          }}
+                          onClick={requestStaffCheck}
                         >
                           잘 모르겠어요 · 담당자 확인 요청
                         </button>
@@ -970,11 +963,56 @@ function InterviewWorkspace({
               aria-labelledby="interview-question-title"
               onSubmit={(event) => {
                 event.preventDefault();
-                void assistance.send('ASK');
+                if (composerMode.key !== question.key || composerMode.answer)
+                  void saveAnswer(answerText);
+                else void assistance.send('ASK');
               }}
             >
               <InterviewComposer
+                questionKey={question.key}
                 state={assistance}
+                onModeChange={(answer) => setComposerMode({ key: question.key, answer })}
+                answers={
+                  question.inputType === 'BOOLEAN' ? (
+                    <div>
+                      <p className="help">{question.label} · 선택하면 바로 반영됩니다.</p>
+                      <div
+                        className="qchips"
+                        role="group"
+                        aria-label={`${question.label} 답변 선택`}
+                      >
+                        {['예', '아니요'].map((option) => (
+                          <button
+                            type="button"
+                            className="qchip"
+                            key={option}
+                            disabled={answerBusy || conflict}
+                            onClick={() => void saveAnswer(option)}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="qchip"
+                          disabled={answerBusy || conflict}
+                          onClick={requestStaffCheck}
+                        >
+                          몰라요
+                        </button>
+                      </div>
+                      <p className="help">
+                        ‘몰라요’는 담당자 확인 필요로 표시하며 완료 답변으로 계산하지 않습니다.
+                      </p>
+                      {staffNotice && <p role="status">{staffNotice}</p>}
+                      {staffCheck.error && (
+                        <Notice tone="danger">{staffCheck.error.message}</Notice>
+                      )}
+                    </div>
+                  ) : (
+                    answerFields
+                  )
+                }
                 attachment={
                   <button
                     type="button"

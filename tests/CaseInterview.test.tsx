@@ -351,7 +351,7 @@ test('채팅 첨부 영역이 있어도 대화 영역에서 새로 저장한 답
     within(modes)
       .getAllByRole('button')
       .map((button) => button.textContent),
-  ).toEqual(['AI에게 질문', '파일 첨부']);
+  ).toEqual(['AI에게 질문', '답변하기', '파일 첨부']);
   expect(screen.queryByRole('region', { name: '채팅 첨부파일' })).toBeNull();
   expect(screen.queryByRole('textbox', { name: '분석할 사업 개요' })).toBeNull();
 

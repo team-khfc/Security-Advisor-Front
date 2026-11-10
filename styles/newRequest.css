@@ -1111,19 +1111,7 @@ progress.prog::-moz-progress-bar {
   }
 }
 
-.question-inline-answer {
-  margin-block: 1.6rem;
-  padding-block: 1.2rem;
-  border-block: 1px solid var(--sf-line);
-}
-.question-inline-answer .qrow {
-  flex-direction: column;
-  align-items: stretch;
-}
-.question-inline-answer .qrow > .btn {
-  align-self: flex-start;
-}
-.question-inline-answer .input {
-  width: 100%;
-  min-width: 0;
+.interview-proposal .interview-apply-now {
+  justify-self: end;
+  order: 1;
 }

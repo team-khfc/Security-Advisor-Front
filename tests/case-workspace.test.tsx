@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CaseInterview } from '@/features/request/CaseInterview';
 import { clearInputDraft } from '@/lib/inputDrafts';
@@ -13,6 +13,8 @@ const controls = vi.hoisted(() => ({
   requests: [] as SecurityRequest[],
   save: vi.fn(),
   analyze: vi.fn(),
+  staffCheck: vi.fn(),
+  onApplied: undefined as (() => void) | undefined,
 }));
 
 vi.mock('@/features/auth', () => ({
@@ -40,6 +42,7 @@ beforeEach(() => {
   controls.requests = state.requests.filter((request) => request.caseId === businessCase.id);
   controls.session = { member: applicant, mock: true, expiresAt: null };
   controls.save.mockReset().mockResolvedValue({});
+  controls.staffCheck.mockReset().mockResolvedValue({ revision: 2 });
   controls.analyze
     .mockReset()
     .mockResolvedValue({ suggestions: [{ value: '합성 첨부문서 요약' }] });
@@ -107,7 +110,7 @@ test('다른 사용자가 열면 읽기 전용 안내만 보이고 질문 카드
 test('질문 안내는 대화창에 표시하고 입력 카드의 선택형 답변은 같은 항목에 저장한다', async () => {
   const user = userEvent.setup();
   renderForEditing(controls.businessCase!.id);
-  const card = screen.getByRole('form', { name: '사업 목적 바로 답변' });
+  const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
   const conversation = screen.getByRole('region', { name: '인터뷰 대화' });
   expect(within(conversation).getByText(/필수 항목|선택 항목/)).toBeTruthy();
   expect(within(card).queryByText(/필수 항목|선택 항목/)).toBeNull();
@@ -165,23 +168,26 @@ test('선택형 저장 실패 시 선택한 답변을 입력란에 보존하고 
 });
 vi.mock('@/features/request/useInterview', () => ({
   useInterviewTurns: () => ({ data: [] }),
-  useInterviewStaffCheck: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useInterviewStaffCheck: () => ({ mutateAsync: controls.staffCheck, isPending: false }),
 }));
 vi.mock('@/features/request/useInterviewAssistance', () => ({
-  useInterviewAssistance: () => ({
-    history: [],
-    ask: { isPending: false },
-    apply: { isPending: false },
-    mode: 'ANSWER',
-    help: {},
-    busy: false,
-    showHelp: false,
-    toggleHelp: vi.fn(),
-    send: vi.fn(),
-    prompt: '',
-    setPrompt: vi.fn(),
-    isStale: () => false,
-  }),
+  useInterviewAssistance: ({ onApplied }: { onApplied: () => void }) => {
+    controls.onApplied = onApplied;
+    return {
+      history: [],
+      ask: { isPending: false },
+      apply: { isPending: false },
+      mode: 'ANSWER',
+      help: {},
+      busy: false,
+      showHelp: false,
+      toggleHelp: vi.fn(),
+      send: vi.fn(),
+      prompt: '',
+      setPrompt: vi.fn(),
+      isStale: () => false,
+    };
+  },
 }));
 
 // 기존 합성 자료는 완료된 답변이다. 재작성 검사는 사용자가 다시 보기로 여는 흐름을 따른다.
@@ -196,7 +202,7 @@ test('우측에서 저장한 항목은 대화 입력과 수집 정보에 갱신�
   const user = userEvent.setup();
   const id = controls.businessCase!.id;
   const view = renderForEditing(id);
-  const composer = screen.getByRole('form', { name: '사업 목적 바로 답변' });
+  const composer = screen.getByRole('form', { name: '어떤 사업인가요?' });
   await user.clear(within(composer).getByLabelText('사업 목적'));
   await user.type(within(composer).getByLabelText('사업 목적'), '아직 저장하지 않은 초안');
   const info = screen.getByRole('complementary', { name: '수집된 보안정보' });
@@ -265,10 +271,10 @@ test('분석 실패는 채팅에 남기고 재시도하면 같은 메시지에 �
   expect(controls.analyze).toHaveBeenCalledTimes(2);
 });
 
-test('질문 카드만 직접 답변을 제공하고 기존 API로 저장된다', async () => {
+test('하단 답변하기에서 직접 답변을 기존 API로 저장한다', async () => {
   const user = userEvent.setup();
   renderForEditing(controls.businessCase!.id);
-  const card = screen.getByRole('form', { name: '사업 목적 바로 답변' });
+  const card = screen.getByRole('form', { name: '어떤 사업인가요?' });
   const input = within(card).getByLabelText('사업 목적');
   await user.clear(input);
   await user.type(input, '카드에서 입력한 합성 목적');
@@ -305,4 +311,69 @@ test('선택형 질문은 질문 카드에서 보기를 눌러 저장할 수 있
       }),
     ),
   );
+});
+
+test.each(['예', '아니요'])(
+  '예·아니요 질문은 하단 답변하기의 %s 선택을 저장한다',
+  async (option) => {
+    const item = controls.businessCase!.answers.find((answer) => answer.key === 'purpose')!;
+    item.inputType = 'BOOLEAN';
+    const user = userEvent.setup();
+    renderForEditing(controls.businessCase!.id);
+    expect(screen.queryByRole('form', { name: '사업 목적 바로 답변' })).toBeNull();
+    expect(screen.getByRole('button', { name: '답변하기' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    const choices = screen.getByRole('group', { name: '사업 목적 답변 선택' });
+    expect(
+      within(choices)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['예', '아니요', '몰라요']);
+    await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+    expect(screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '답변하기' }));
+    await user.click(screen.getByRole('button', { name: option }));
+    await waitFor(() =>
+      expect(controls.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          answers: [expect.objectContaining({ value: option, confirmed: true })],
+        }),
+      ),
+    );
+  },
+);
+
+test('몰라요는 확정 답변 저장 대신 담당자 확인 API를 호출한다', async () => {
+  const item = controls.businessCase!.answers.find((answer) => answer.key === 'purpose')!;
+  item.inputType = 'BOOLEAN';
+  const user = userEvent.setup();
+  renderForEditing(controls.businessCase!.id);
+  await user.click(screen.getByRole('button', { name: '몰라요' }));
+  await waitFor(() =>
+    expect(controls.staffCheck).toHaveBeenCalledWith({
+      fieldKey: item.key,
+      expectedRevision: item.revision ?? 0,
+    }),
+  );
+  expect(controls.save).not.toHaveBeenCalled();
+  expect(screen.getByRole('status').textContent).toContain('담당자 확인 필요');
+});
+
+test('즉시 반영 성공 콜백은 다음 공통 질문으로 이동하고 마지막이면 완료 안내로 이동한다', async () => {
+  const user = userEvent.setup();
+  renderForEditing(controls.businessCase!.id);
+  expect(screen.getByText(/공통 질문 1 \/ \d+/)).toBeTruthy();
+  const input = screen.getByLabelText('사업 목적');
+  await user.clear(input);
+  await user.type(input, '반영 전 초안');
+  act(() => controls.onApplied!());
+  expect(screen.getByText(/공통 질문 2 \/ \d+/)).toBeTruthy();
+  const count = controls.businessCase!.answers.filter(
+    (answer) => answer.ownerRole === 'APPLICANT',
+  ).length;
+  for (let i = 1; i < count; i++) act(() => controls.onApplied!());
+  expect(screen.getByRole('button', { name: '공통 질문 다시 보기' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '공통 질문 다시 보기' }));
+  expect((screen.getByLabelText('사업 목적') as HTMLInputElement).value).not.toBe('반영 전 초안');
 });

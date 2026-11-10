@@ -53,7 +53,8 @@ export function useInterviewAssistance({
     try {
       const result = await ask.mutateAsync({
         fieldKey: question.key,
-        mode: requestMode,
+        // 설명 전용 ASK 대신 기존 후보 생성 계약으로 질문과 적용 가능한 답변을 함께 받는다.
+        mode: 'SUGGEST',
         text:
           requestMode === 'ASK'
             ? draft!.trim()
