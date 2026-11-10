@@ -12,6 +12,9 @@ const labels: Record<string, string> = {
   BOOLEAN: '선택형(예·아니요)',
   DATE_RANGE: '기간',
   NUMBER: '숫자',
+  IP_ADDRESS: 'IP 주소 / CIDR',
+  PORT: '포트 / 범위',
+  PROTOCOL: '프로토콜',
   true: '필수',
   false: '선택',
 };

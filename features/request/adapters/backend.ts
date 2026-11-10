@@ -60,7 +60,7 @@ export function adaptAnswers(
         source: a?.valueSource ?? null,
         evidence: a?.evidence ?? null,
         confirmed: a?.confirmed ?? false,
-        notApplicable: false,
+        notApplicable: a?.notApplicable ?? (a?.value === '미해당' && Boolean(a?.valueSource)),
         confirmation:
           a?.confirmedBy && a.confirmedAt
             ? { actorId: a.confirmedBy, actorName: a.confirmedBy, at: a.confirmedAt }

@@ -24,7 +24,18 @@ export const answerSchema = z.object({
   needsReview: z.boolean().optional(),
   key: z.string(),
   label: z.string(),
-  inputType: z.enum(['TEXT', 'LONG_TEXT', 'BOOLEAN', 'DATE_RANGE', 'NUMBER']).optional(),
+  inputType: z
+    .enum([
+      'TEXT',
+      'LONG_TEXT',
+      'BOOLEAN',
+      'DATE_RANGE',
+      'NUMBER',
+      'IP_ADDRESS',
+      'PORT',
+      'PROTOCOL',
+    ])
+    .optional(),
   hint: z.string().nullable().optional(),
   scope: z.enum(['CASE', 'REQUEST']),
   ownerRole: roleSchema,

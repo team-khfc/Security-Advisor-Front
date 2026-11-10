@@ -2,8 +2,8 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `fdb9d59898057c9c4159dfc344142c6c9d2c2cf3` (항목별 답변 검증 PR #24, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/fdb9d59898057c9c4159dfc344142c6c9d2c2cf3/docs/api/openapi.yaml
+- Back 커밋: `95cb8dde6b6e0c897a056eec9133a151954a6a3e` (답변 형식·미해당 저장 PR #26, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/95cb8dde6b6e0c897a056eec9133a151954a6a3e/docs/api/openapi.yaml
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
 - 모델 구성·연결 시험 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/22
 - 지식 게시본·지표 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/20

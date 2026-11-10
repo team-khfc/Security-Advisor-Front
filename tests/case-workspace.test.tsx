@@ -193,6 +193,26 @@ vi.mock('@/features/request/useInterviewAssistance', () => ({
 }));
 
 // 기존 합성 자료는 완료된 답변이다. 재작성 검사는 사용자가 다시 보기로 여는 흐름을 따른다.
+test('새 선택형 인터뷰의 선택 항목도 미해당 상태를 명시적으로 저장한다', async () => {
+  const first = controls.businessCase!.answers.find((answer) => answer.ownerRole === 'APPLICANT')!;
+  first.inputType = 'BOOLEAN';
+  first.required = false;
+  renderForEditing(controls.businessCase!.id);
+  await userEvent.setup().click(screen.getByRole('button', { name: '미해당으로 저장' }));
+  expect(controls.save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      answers: [
+        expect.objectContaining({
+          key: first.key,
+          value: '',
+          notApplicable: true,
+          confirmed: true,
+        }),
+      ],
+    }),
+  );
+});
+
 function renderForEditing(id: string) {
   const view = render(<CaseInterview id={id} />);
   const restart = screen.queryByRole('button', { name: '공통 질문 다시 보기' });

@@ -343,7 +343,7 @@ function updateAnswers(
 export function submissionBlockers(request: SecurityRequest): string[] {
   const answers = [...request.commonAnswers, ...request.answers];
   const blockers: string[] = [];
-  if (answers.some((answer) => answer.required && !answer.notApplicable && !answer.value.trim())) {
+  if (answers.some((answer) => answer.required && (answer.notApplicable || !answer.value.trim()))) {
     blockers.push('필수 항목을 작성해 주세요.');
   }
   if (answers.some((answer) => (answer.required || answer.value) && !validAnswer(answer))) {
@@ -1028,7 +1028,7 @@ export function applyAnalysis(
     answer.source = 'AI_INFERRED';
     answer.evidence = suggestion.evidence;
     answer.confirmed = false;
-    answer.notApplicable = false;
+    answer.notApplicable = suggestion.value.trim() === '미해당';
     answer.confirmation = null;
   }
   businessCase.revision += 1;

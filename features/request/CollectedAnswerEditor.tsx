@@ -85,7 +85,7 @@ export function CollectedAnswerEditor({
                   className="input"
                   rows={3}
                   maxLength={4000}
-                  value={edit.value}
+                  value={edit.notApplicable ? '' : edit.value}
                   disabled={pending || disabled || edit.notApplicable}
                   onChange={(event) => setEdit({ ...edit, value: event.target.value })}
                 />
@@ -98,10 +98,14 @@ export function CollectedAnswerEditor({
                       checked={edit.notApplicable}
                       disabled={pending || disabled}
                       onChange={(event) =>
-                        setEdit({ ...edit, notApplicable: event.target.checked })
+                        setEdit({
+                          ...edit,
+                          notApplicable: event.target.checked,
+                          value: edit.value === '미해당' ? '' : edit.value,
+                        })
                       }
                     />
-                    해당 없음
+                    미해당 (해당 없음)
                   </label>
                 )}
                 {conflict && !pending && (

@@ -334,12 +334,16 @@ async function saveAnswers(
     // 게시본에만 있고 아직 답변 행이 없는 다른 질문은 빈 값으로 생성하지 않는다.
     if (!a.notApplicable && !a.value.trim() && !old?.value.trim()) return false;
     return (
-      !old || old.revision === undefined || old.value !== (a.notApplicable ? '미해당' : a.value)
+      !old ||
+      old.revision === undefined ||
+      old.notApplicable !== a.notApplicable ||
+      (!a.notApplicable && old.value !== a.value)
     );
   });
   const payload = changed.map((a) => ({
     fieldKey: a.key,
-    value: a.notApplicable ? '미해당' : a.value,
+    value: a.notApplicable ? '' : a.value,
+    ...(a.notApplicable ? { notApplicable: true } : {}),
     expectedRevision: a.expectedRevision ?? existing.find((v) => v.key === a.key)?.revision,
   }));
   const saved = payload.length
