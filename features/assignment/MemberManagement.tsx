@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMembers, useSession, useUpdateMember } from '@/features/auth';
 import { Badge, ErrorState, LoadingState, Modal, Notice, PageHeading } from '@/components/ui';
 import { ROLE_LABELS, type Actor, type Role } from '@/lib/types';
+import { ReviewerPoolManagement } from './ReviewerPoolManagement';
 
 /** 역할 변경은 관리자 API가 검증하고 사유를 감사 이력에 남긴다. */
 export function MemberManagement() {
@@ -38,6 +39,8 @@ function MemberTable() {
         신청 담당자는 해당 신청 상세에서 재배정합니다. 자기 신청의 담당자가 될 수 없으며, 비활성
         담당자는 새 배정에서 제외됩니다.
       </Notice>
+      <ReviewerPoolManagement />
+      <h2 className="h-panel">계정 역할·활성 상태</h2>
       <div className="tbl-wrap">
         <table className="tbl">
           <caption className="sr-only">계정 목록</caption>
@@ -117,6 +120,10 @@ function MemberForm({ member, onClose }: { member: Actor; onClose: () => void })
       <p>
         <strong>{member.displayName}</strong> · {member.username}
       </p>
+      <Notice>
+        역할 변경·계정 비활성화 시 기존 로그인 세션은 차단됩니다. 진행 중 배정은 보존되며, 업무를
+        계속할 수 없는 신청은 재배정 대상으로 표시됩니다.
+      </Notice>
       <div className="field">
         <label htmlFor="member-role">역할</label>
         <select

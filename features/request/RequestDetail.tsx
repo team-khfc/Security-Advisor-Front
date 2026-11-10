@@ -13,6 +13,8 @@ import {
   PageHeading,
 } from '@/components/ui';
 import { useMembers, useSession } from '@/features/auth';
+import { useReviewerPools } from '@/features/assignment';
+import { reassignmentLabel } from '@/lib/assignmentStatus';
 import { StaffInquiryPanel } from '@/features/llm';
 import { auditActionLabel } from '@/features/audit/labels';
 import { RequestDocument } from '@/features/document/RequestDocument';
@@ -23,7 +25,7 @@ import { FinalDraftPanel } from './FinalDraftPanel';
 import { useFinalDraft } from './useFinalDraft';
 import { RequestTechnicalDetails } from './RequestTechnicalDetails';
 import { getRequestDetailData } from './requestDetailData';
-import { waitingLine } from './turns';
+import { waitingLine, handoffFields } from './turns';
 import { finalReviewReadiness, pendingReviews, reviewFields } from './readiness';
 import {
   DOCUMENT_LABELS,
@@ -547,6 +549,26 @@ function RequestWorkspace({
               </a>
             )}
             <h2 className="sr-only">담당자 협의 현황</h2>
+            {handoffFields(request).length > 0 && (
+              <Notice tone="warning">
+                <strong>담당자 재배정이 필요합니다.</strong>
+                {handoffFields(request).map((item) => (
+                  <p key={item.field}>
+                    {FIELD_LABELS[item.field]} · {reassignmentLabel(item.reassignmentReason!)}
+                  </p>
+                ))}
+                {actor.role === 'ADMIN' ? (
+                  <p>
+                    아래 ‘담당자 재배정’에서 업무를 인계하세요.{' '}
+                    <Link href="/members">담당자 등록·기본 지정 관리</Link>
+                  </p>
+                ) : (
+                  <p>
+                    기관 관리자가 새 담당자를 배정하면 기존 작성 내용으로 업무를 이어갈 수 있습니다.
+                  </p>
+                )}
+              </Notice>
+            )}
             <div className="consult">
               {reviewFields(request).map((field) => {
                 const review = request.reviews.find((item) => item.field === field);
@@ -1125,6 +1147,10 @@ function AssigneeSelector({
   ownerId: string;
 }) {
   const query = useMembers();
+  const pools = useReviewerPools();
+  const eligible = new Set(
+    (pools.data ?? []).filter((p) => p.field === field && p.eligible).map((p) => p.memberUsername),
+  );
   return (
     <>
       <div className="field">
@@ -1133,7 +1159,10 @@ function AssigneeSelector({
           id="assignment-field"
           className="input"
           value={field}
-          onChange={(event) => onField(event.target.value as ReviewField)}
+          onChange={(event) => {
+            onField(event.target.value as ReviewField);
+            onAssignee('');
+          }}
         >
           <option value="INFRA">ICT인프라</option>
           <option value="SECURITY">정보보안</option>
@@ -1150,15 +1179,33 @@ function AssigneeSelector({
         >
           <option value="">담당자를 선택해 주세요</option>
           {query.data
-            ?.filter((member) => member.role === field && member.active && member.id !== ownerId)
+            ?.filter(
+              (member) =>
+                member.role === field &&
+                member.active &&
+                member.id !== ownerId &&
+                eligible.has(member.username),
+            )
             .map((member) => (
               <option key={member.id} value={member.id}>
-                {member.displayName}
+                {member.displayName} · {member.username}
               </option>
             ))}
         </select>
       </div>
       {query.error && <ErrorState error={query.error} />}
+      {pools.error && (
+        <ErrorState
+          error={pools.error}
+          onRetry={() => {
+            void pools.refetch();
+          }}
+        />
+      )}
+      <p className="help">
+        해당 분야에 등록된 활성 담당자만 선택할 수 있습니다.{' '}
+        <Link href="/members">담당자 등록·기본 지정 관리</Link>
+      </p>
     </>
   );
 }

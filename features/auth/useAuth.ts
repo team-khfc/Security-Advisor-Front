@@ -160,6 +160,9 @@ export function useUpdateMember() {
         client.invalidateQueries({ queryKey: ['members'] }),
         client.invalidateQueries({ queryKey: ['audit'] }),
         client.invalidateQueries({ queryKey: ['requests'] }),
+        client.invalidateQueries({ queryKey: ['request'] }),
+        client.invalidateQueries({ queryKey: ['reviewer-pools'] }),
+        client.invalidateQueries({ queryKey: ['handoff-count'] }),
       ]);
     },
   });

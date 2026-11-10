@@ -491,16 +491,20 @@ function autoAssign(
         (item) =>
           item.id === candidateId &&
           item.active &&
+          item.registered !== false &&
           item.role === field &&
           item.id !== request.ownerId,
       );
-    if (current && eligible(current.assigneeId)) continue;
-    if (current) current.active = false;
+    if (current) continue;
     const sibling = state.requests
       .filter((item) => item.caseId === request.caseId && item.id !== request.id)
       .flatMap((item) => item.assignments)
       .find((item) => item.active && item.field === field && eligible(item.assigneeId));
-    const chosen = eligible(sibling?.assigneeId ?? DEFAULT_REVIEWER_IDS[field]);
+    const configured = members.find((m) => m.role === field && m.defaultReviewer)?.id;
+    const hasRegistrationData = members.some((m) => m.registered !== undefined);
+    const chosen = eligible(
+      sibling?.assigneeId ?? configured ?? (hasRegistrationData ? '' : DEFAULT_REVIEWER_IDS[field]),
+    );
     if (!chosen) continue;
     request.assignments.push({
       id: id(state, 'assignment'),
@@ -846,7 +850,11 @@ export function executeCommand(
         '재배정할 분야를 선택해 주세요.',
       );
       const reviewer = members.find(
-        (item) => item.id === input.assigneeId && item.role === field && item.active,
+        (item) =>
+          item.id === input.assigneeId &&
+          item.role === field &&
+          item.active &&
+          item.registered !== false,
       );
       requireRule(
         reviewer && reviewer.id !== request.ownerId,

@@ -6,7 +6,7 @@ import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useSession } from '@/features/auth';
 import { Badge, EmptyState, ErrorState, Icon, LoadingState, PageHeading } from '@/components/ui';
 import type { Actor } from '@/lib/types';
-import { waitingLine } from './turns';
+import { waitingLine, handoffFields } from './turns';
 import { useRequests } from './useRequests';
 import {
   DOCUMENT_LABELS,
@@ -72,15 +72,7 @@ function isMyTurn(request: SecurityRequest, actor: Actor) {
     );
   }
   if (actor.role === 'ADMIN') {
-    return (
-      request.stage >= 2 &&
-      ['INFRA', 'SECURITY'].some(
-        (field) =>
-          !request.assignments.some(
-            (assignment) => assignment.active && assignment.field === field,
-          ),
-      )
-    );
+    return handoffFields(request).length > 0;
   }
   return [
     'COMPLETE_ALLOCATION',
@@ -113,7 +105,7 @@ function activeDeadline(request: SecurityRequest, role?: Actor['role']) {
 function nextAction(request: SecurityRequest, actor: Actor) {
   if (!isMyTurn(request, actor)) return '';
   const actions = request.allowedActions;
-  if (actor.role === 'ADMIN') return '담당자 배정 확인';
+  if (actor.role === 'ADMIN') return '담당자 재배정 필요';
   if (actor.role === 'APPLICANT') {
     if (request.status === 'DRAFT') return '인터뷰 이어서 작성';
     if (request.status === 'SUPPLEMENT_REQUESTED') return '보완 답변 등록';
@@ -139,6 +131,8 @@ function nextAction(request: SecurityRequest, actor: Actor) {
 }
 
 function reviewState(request: SecurityRequest, field: ReviewField) {
+  if (handoffFields(request).some((f) => f.field === field))
+    return { kind: 'warn', label: '재배정 필요' };
   if (terminalStates.includes(request.status) && request.status !== 'FINALIZED')
     return { kind: 'wait', label: '종료' };
   if (request.stage === 4 && !request.listOverview) {

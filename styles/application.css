@@ -698,3 +698,24 @@
     min-height: 4.4rem;
   }
 }
+
+.reviewer-registration {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.6rem;
+  margin-block: 2rem;
+}
+.reviewer-registration .check-row {
+  grid-column: 1 / -1;
+}
+.reviewer-registration > .btn {
+  justify-self: start;
+}
+.reviewer-registration .field {
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .reviewer-registration {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

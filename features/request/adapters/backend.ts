@@ -234,6 +234,7 @@ export function adaptRequest(
         role === (requiredReviewFields.includes('SECURITY') ? 'SECURITY' : 'INFRA'),
     ),
     assignments: parts.assignments.map((v) => ({
+      reassignmentReason: v.reassignmentReason,
       id: String(v.assignmentId),
       field: v.field,
       assigneeId: v.assigneeUsername,

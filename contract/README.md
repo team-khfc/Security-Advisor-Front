@@ -2,8 +2,9 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `c583e90f49ff7e5d07956104a51d34bc38e7fecf` (목록·이력 API PR #10, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/c583e90f49ff7e5d07956104a51d34bc38e7fecf/docs/api/openapi.yaml
+- Back 커밋: `97cda3b4590018577174421a63a5092d5680db79` (담당자 업무 인계 PR #14, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/97cda3b4590018577174421a63a5092d5680db79/docs/api/openapi.yaml
+- 담당자 업무 인계 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/14
 - 목록·이력 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/10
 - 최종 보고서·PDF API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/4
 - 인터뷰 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/2
@@ -11,6 +12,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+배정과 목록의 분야별 요약은 `reassignmentReason`으로 인계 필요 사유를 전달한다. 담당자 목록은 `eligible`/`unavailableReason`으로 현재 계정 역할·활성·분야 등록 상태를 함께 판정한다. 프론트는 상태를 임의 변경하지 않고 관리자 등록·기본 지정·활성 관리 및 사유 있는 재배정 API를 사용한다. 실제 화면 검증은 [업무 인계 기록](../docs/ASSIGNMENT_HANDOFF_20261110.md)을 참고한다.
 
 `features/request/apiTypes.ts`는 실제 HTTP 응답을 검증한다. 숫자 ID, 답변의 fieldKey/valueSource/revision, Back 열거형, 게시본 질문, 독립된 하위 자원 DTO를 사용한다. `features/request/adapters/backend.ts`는 기존 화면 모델로 변환한다. 화면 내부의 문자열 id·상태 별칭은 HTTP 응답 타입이 아니다.
 
