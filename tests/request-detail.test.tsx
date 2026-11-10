@@ -68,6 +68,8 @@ function reviewPanel(name: string) {
 }
 
 beforeEach(() => {
+  // 담당자 대화는 별도 통합 테스트에서 검사한다. 검토 폼 테스트에도 빈 목록 계약을 제공한다.
+  vi.spyOn(http, 'requestJson').mockResolvedValue([]);
   const state = createMockState();
   const seeded = state.requests.find((item) => item.id === 'demo-request-1');
   if (!seeded) throw new Error('합성 테스트 신청 누락');

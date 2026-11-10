@@ -1,0 +1,1 @@
+export { StaffInquiryPanel } from './StaffInquiryPanel';
