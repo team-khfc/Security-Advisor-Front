@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useExtendSession, useLogout, useSession } from '@/features/auth';
+import { NotificationBell, useActivityCount } from '@/features/notification';
 import { hasInputDrafts, useHasInputDrafts } from '@/lib/inputDrafts';
 import { useInstallation } from '@/lib/queries';
 import { ROLE_LABELS, type Role } from '@/lib/types';
-import { Badge, ErrorState, Icon, LoadingState, Modal, Notice } from './ui';
+import { ErrorState, Icon, LoadingState, Modal, Notice } from './ui';
 
 interface MenuItem {
   href: string;
@@ -95,7 +96,6 @@ export function ServiceShell({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const [notificationOpen, setNotificationOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -106,11 +106,20 @@ export function ServiceShell({ children }: { children: ReactNode }) {
   const searchInput = useRef<HTMLInputElement>(null);
   const searchArea = useRef<HTMLDivElement>(null);
   const userArea = useRef<HTMLDivElement>(null);
-  const notificationArea = useRef<HTMLDivElement>(null);
   const member = session.data?.member;
   const actorId = member?.id ?? '';
   const hasDrafts = useHasInputDrafts(actorId);
-  const items = member ? menus[member.role] : [];
+  const todoCount = useActivityCount('todo');
+  const items = member
+    ? [
+        {
+          href: '/todos',
+          label: `처리할 일${todoCount.data === undefined ? '' : ` ${todoCount.data}건`}`,
+          icon: 'inbox',
+        },
+        ...menus[member.role],
+      ]
+    : [];
   const menuMatches = items.filter((item) => item.label.includes(search.trim()));
   const expiresAt = session.data?.expiresAt;
   const remaining = expiresAt ? Math.max(0, Math.ceil((Date.parse(expiresAt) - now) / 1000)) : null;
@@ -170,7 +179,6 @@ export function ServiceShell({ children }: { children: ReactNode }) {
       if (event.key === 'Escape') {
         setSearchOpen(false);
         setUserOpen(false);
-        setNotificationOpen(false);
       }
     };
     const outsideClick = (event: PointerEvent) => {
@@ -178,7 +186,6 @@ export function ServiceShell({ children }: { children: ReactNode }) {
       if (!(target instanceof Node)) return;
       if (!searchArea.current?.contains(target)) setSearchOpen(false);
       if (!userArea.current?.contains(target)) setUserOpen(false);
-      if (!notificationArea.current?.contains(target)) setNotificationOpen(false);
     };
     document.addEventListener('keydown', handleKey);
     document.addEventListener('pointerdown', outsideClick);
@@ -436,41 +443,7 @@ export function ServiceShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
             </div>
-            <div className="noti-wrap" ref={notificationArea}>
-              <button
-                type="button"
-                className="tbtn"
-                aria-label="알림 기능 안내"
-                aria-expanded={notificationOpen}
-                aria-controls="notification-panel"
-                onClick={() => setNotificationOpen(!notificationOpen)}
-              >
-                <Icon name="bell" />
-              </button>
-              <section
-                className="noti"
-                id="notification-panel"
-                aria-labelledby="notification-heading"
-                hidden={!notificationOpen}
-              >
-                <div className="noti-h">
-                  <h2 className="h-panel" id="notification-heading">
-                    <Icon name="bell" size={18} />
-                    알림·협의 소식
-                  </h2>
-                </div>
-                <div className="planned-notice">
-                  <Badge>설계 완료·구현 예정</Badge>
-                  <p className="help">
-                    화면 안 알림은 필수 업무 흐름 검증 후 제공할 예정입니다. 지금은 신청 현황에서
-                    다음 할 일을 확인할 수 있습니다.
-                  </p>
-                  <Link href="/requests" onClick={() => setNotificationOpen(false)}>
-                    신청 현황 보기
-                  </Link>
-                </div>
-              </section>
-            </div>
+            <NotificationBell key={`${member.id}:${member.role}`} />
             <div
               className="fontsz"
               role="group"

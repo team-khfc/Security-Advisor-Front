@@ -3,6 +3,7 @@ import { ContractMapper } from './contractMapper';
 import { MockPolicies } from './policies';
 import { MockInquiries } from './inquiries';
 import { MockReviewerPools } from './reviewerPools';
+import { MockActivity } from './activity';
 import { mockGeneratedDocument } from './generatedDocument';
 import type { GeneratedDocument } from '@/features/document/types';
 import type { InterviewTurn } from '@/features/request/useInterview';
@@ -69,6 +70,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  activity: MockActivity;
   reviewerPools: MockReviewerPools;
   inquiries: MockInquiries;
   generatedDocuments: Map<number, GeneratedDocument>;
@@ -205,6 +207,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   return {
     state: createMockState(),
     reviewerPools: new MockReviewerPools(MOCK_MEMBERS),
+    activity: new MockActivity(),
     policies: new MockPolicies(),
     inquiries: new MockInquiries(),
     members: MOCK_MEMBERS.map((actor) => ({ actor: structuredClone(actor), passwordHash })),
@@ -502,6 +505,12 @@ export function createMockApi(options: MockApiOptions = {}) {
         mapper.submissions(r);
       }
       response = await dispatchContract(runtime, request, now(), options, mapper, uploads);
+      if (response.ok)
+        runtime.activity.sync(
+          runtime.state,
+          runtime.members.map((m) => m.actor),
+          mapper,
+        );
     } catch (error) {
       response = problemResponse(error);
     }
@@ -1039,17 +1048,36 @@ async function dispatchContract(
       method === 'POST' ? 201 : 200,
     );
   if (resource === 'todo-summary' && method === 'GET') {
-    if (actor!.role !== 'ADMIN') return json({ unassignedRequests: 0 });
-    const count = runtime.state.requests.filter(
-      (r) =>
-        r.stage >= 2 &&
-        !['FINALIZED', 'CLOSED', 'WITHDRAWN'].includes(r.status) &&
-        (r.requiredReviewFields ?? ['INFRA', 'SECURITY']).some(
-          (field) =>
-            !r.assignments.some((a) => a.active && a.field === field && !a.reassignmentReason),
+    const items = runtime.activity.todos(actor!, runtime.state, wire);
+    const count = (kind: string) => items.filter((i) => i.kind === kind).length;
+    return json({
+      role: actor!.role,
+      total: items.length,
+      pendingReviews: count('REVIEW'),
+      answeredSupplements: count('SUPPLEMENT_ANSWERED'),
+      pendingFinalConfirmations: count('FINAL_CONFIRMATION'),
+      openSupplements: count('SUPPLEMENT_OPEN'),
+      finalReviews: count('FINAL_REVIEW'),
+      unassignedRequests: count('REASSIGNMENT'),
+    });
+  }
+  if (resource === 'todos' && method === 'GET')
+    return json(pageOf(runtime.activity.todos(actor!, runtime.state, wire), url));
+  if (resource === 'notifications') {
+    const items = runtime.activity.notifications(actor!, runtime.state);
+    if (method === 'GET' && numericId === 'unread-count')
+      return json({ unread: items.filter((n) => !n.readAt).length });
+    if (method === 'GET' && !numericId)
+      return json(
+        pageOf(
+          url.searchParams.get('unreadOnly') === 'true' ? items.filter((n) => !n.readAt) : items,
+          url,
         ),
-    ).length;
-    return json({ unassignedRequests: count });
+      );
+    if (method === 'PATCH' && numericId) {
+      const body = z.object({ read: z.literal(true) }).parse(await request.json());
+      if (body.read) return json(runtime.activity.read(actor!, runtime.state, Number(numericId)));
+    }
   }
   if (
     resource === 'firewall-rules' ||

@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { render } from './queryRender';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { ServiceShell } from '@/components/ServiceShell';
 import type { Role, Session } from '@/lib/types';
@@ -90,7 +91,10 @@ describe('공통 메뉴 아이콘(A01)', () => {
       ],
     ],
   ])('%s 메뉴의 이름·링크·아이콘 순서를 유지한다', (role, expected) => {
-    expect(renderAs(role)).toEqual(expected.map(([name, href, icon]) => ({ name, href, icon })));
+    expect(renderAs(role)).toEqual([
+      { name: '처리할 일', href: '/todos', icon: 'inbox' },
+      ...expected.map(([name, href, icon]) => ({ name, href, icon })),
+    ]);
   });
 
   test('메뉴 아이콘은 장식으로 숨기고 접근성 이름은 링크 글자에서 나온다', () => {

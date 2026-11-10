@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { render } from './queryRender';
 import userEvent from '@testing-library/user-event';
 import { ServiceShell } from '@/components/ServiceShell';
 import { AnswerEditor } from '@/features/request/AnswerEditor';
