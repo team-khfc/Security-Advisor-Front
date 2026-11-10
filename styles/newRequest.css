@@ -1011,16 +1011,27 @@ progress.prog::-moz-progress-bar {
 }
 .interview-input-modes {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.8rem;
+  border-bottom: 1px solid var(--sf-primary);
+  gap: 0;
 }
-.interview-input-modes > .btn {
-  min-width: 10.4rem;
+.interview-input-modes > [role='tab'] {
+  flex: 1;
+  min-width: 0;
+  padding: 1rem 0.6rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
-.interview-input-modes [aria-pressed='true'] {
+.interview-input-modes [aria-selected='true'] {
   color: var(--sf-primary-text);
   border-color: var(--sf-primary);
   background: var(--sf-primary-soft);
+}
+.interview-input-panel {
+  padding-top: 1.2rem;
 }
 .interview-current .qhelp {
   margin-bottom: 0;

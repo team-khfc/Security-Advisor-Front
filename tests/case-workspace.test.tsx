@@ -73,7 +73,7 @@ test('작업 영역은 대화 영역·질문 카드·수집 정보 영역과 서
     ).toBe(true);
   expect(screen.queryByText('기획서로 시작하거나 AI 제안 받기')).toBeNull();
   const chat = screen.getByRole('region', { name: '보안정보 도우미' });
-  expect(within(chat).getByRole('button', { name: '파일 첨부' })).toBeTruthy();
+  expect(within(chat).getByRole('tab', { name: '파일 첨부' })).toBeTruthy();
   expect(within(chat).queryByLabelText('분석할 사업 개요')).toBeNull();
 });
 
@@ -342,8 +342,8 @@ test('하단 답변하기에서 직접 답변을 기존 API로 저장한다', as
     ),
   );
   expect(screen.getByText(/공통 질문 2 \/ \d+/)).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'AI에게 질문' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: '파일 첨부' })).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'AI에게 질문' })).toBeTruthy();
+  expect(screen.getByRole('tab', { name: '파일 첨부' })).toBeTruthy();
 });
 
 test('선택형 질문은 질문 카드에서 보기를 눌러 저장할 수 있다', async () => {
@@ -368,7 +368,7 @@ test.each(['예', '아니요'])(
     const user = userEvent.setup();
     renderForEditing(controls.businessCase!.id);
     expect(screen.queryByRole('form', { name: '사업 목적 바로 답변' })).toBeNull();
-    expect(screen.getByRole('button', { name: '답변하기' }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('tab', { name: '답변하기' }).getAttribute('aria-selected')).toBe(
       'true',
     );
     const choices = screen.getByRole('group', { name: '사업 목적 답변 선택' });
@@ -377,9 +377,9 @@ test.each(['예', '아니요'])(
         .getAllByRole('button')
         .map((button) => button.textContent),
     ).toEqual(['예', '아니요', '몰라요']);
-    await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+    await user.click(screen.getByRole('tab', { name: 'AI에게 질문' }));
     expect(screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: '답변하기' }));
+    await user.click(screen.getByRole('tab', { name: '답변하기' }));
     await user.click(screen.getByRole('button', { name: option }));
     await waitFor(() =>
       expect(controls.save).toHaveBeenCalledWith(
@@ -411,7 +411,7 @@ test('즉시 반영 성공 콜백은 다음 공통 질문으로 이동하고 마
   const user = userEvent.setup();
   renderForEditing(controls.businessCase!.id);
   expect(screen.getByText(/공통 질문 1 \/ \d+/)).toBeTruthy();
-  const input = screen.getByLabelText('사업 목적');
+  const input = screen.getByRole('textbox', { name: '사업 목적' });
   await user.clear(input);
   await user.type(input, '반영 전 초안');
   act(() => controls.onApplied!());
@@ -423,4 +423,54 @@ test('즉시 반영 성공 콜백은 다음 공통 질문으로 이동하고 마
   expect(screen.getByRole('button', { name: '공통 질문 다시 보기' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '공통 질문 다시 보기' }));
   expect((screen.getByLabelText('사업 목적') as HTMLInputElement).value).not.toBe('반영 전 초안');
+});
+
+test('엔터는 답변 저장, Shift+Enter와 한글 조합 중 엔터는 저장하지 않는다', async () => {
+  controls.businessCase!.answers[0].inputType = 'LONG_TEXT';
+  renderForEditing(controls.businessCase!.id);
+  const input = screen.getByRole('textbox', { name: '사업 목적' });
+  fireEvent.change(input, { target: { value: '합성 엔터 저장 검증' } });
+  fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
+  fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+  fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 });
+  expect(controls.save).not.toHaveBeenCalled();
+  fireEvent.keyDown(input, { key: 'Enter' });
+  await waitFor(() => expect(controls.save).toHaveBeenCalledTimes(1));
+  expect(controls.save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      answers: [expect.objectContaining({ value: '합성 엔터 저장 검증', confirmed: true })],
+    }),
+  );
+});
+
+test('빈 기간은 오늘로 시작하고 탭 이동 후에도 입력을 유지한다', async () => {
+  Object.assign(controls.businessCase!.answers[0], {
+    inputType: 'DATE_RANGE',
+    value: '',
+    confirmed: false,
+  });
+  renderForEditing(controls.businessCase!.id);
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  expect((screen.getByLabelText('시작일') as HTMLInputElement).value).toBe(today);
+  expect((screen.getByLabelText('종료일') as HTMLInputElement).value).toBe(today);
+  fireEvent.change(screen.getByLabelText('시작일'), { target: { value: '2025-01-01' } });
+  fireEvent.click(screen.getByLabelText('상시 운영 (종료일 없음)'));
+  fireEvent.keyDown(screen.getByRole('tab', { name: '답변하기' }), { key: 'ArrowRight' });
+  expect(screen.getByRole('tab', { name: '파일 첨부' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('button', { name: '파일 선택' })).toBeTruthy();
+  fireEvent.keyDown(screen.getByRole('tab', { name: '파일 첨부' }), { key: 'ArrowLeft' });
+  expect((screen.getByLabelText('시작일') as HTMLInputElement).value).toBe('2025-01-01');
+  fireEvent.click(screen.getByRole('button', { name: '답변 저장하고 다음' }));
+  await waitFor(() =>
+    expect(controls.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        answers: [expect.objectContaining({ value: '2025-01-01 ~ 9999-12-31' })],
+      }),
+    ),
+  );
 });

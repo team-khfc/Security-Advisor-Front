@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Badge, Icon, Notice } from '@/components/ui';
 import type { Answer } from './types';
 import type { InterviewTurn } from './useInterview';
@@ -76,66 +76,99 @@ export function InterviewComposer({
   onModeChange?: (answer: boolean) => void;
   questionKey?: string;
 }) {
-  const [modeChoice, setModeChoice] = useState({ key: questionKey, answer: Boolean(answers) });
-  const answerMode = modeChoice.key === questionKey ? modeChoice.answer : Boolean(answers);
-  const setAnswerMode = (answer: boolean) => setModeChoice({ key: questionKey, answer });
+  const id = useId();
+  const [modeChoice, setModeChoice] = useState({
+    key: questionKey,
+    mode: answers ? 'answer' : 'ai',
+  });
+  const mode = modeChoice.key === questionKey ? modeChoice.mode : answers ? 'answer' : 'ai';
+  const tabs = [
+    { key: 'ai', label: 'AI에게 질문' },
+    ...(answers ? [{ key: 'answer', label: '답변하기' }] : []),
+    ...(attachment ? [{ key: 'file', label: '파일 첨부' }] : []),
+  ];
+  const select = (key: string) => {
+    setModeChoice({ key: questionKey, mode: key });
+    onModeChange?.(key === 'answer');
+  };
   return (
     <>
-      <div className="interview-input-modes" role="group" aria-label="입력 방식">
-        <button
-          type="button"
-          className="btn btn-sm"
-          aria-pressed={!answerMode}
-          disabled={state.apply.isPending}
-          onClick={() => {
-            setAnswerMode(false);
-            onModeChange?.(false);
-          }}
-        >
-          AI에게 질문
-        </button>
-        {answers && (
+      <div className="interview-input-modes" role="tablist" aria-label="입력 방식">
+        {tabs.map((tab, index) => (
           <button
+            key={tab.key}
+            id={`${id}-${tab.key}`}
             type="button"
-            className="btn btn-sm"
-            aria-pressed={answerMode}
-            disabled={state.apply.isPending}
-            onClick={() => {
-              setAnswerMode(true);
-              onModeChange?.(true);
+            role="tab"
+            aria-selected={mode === tab.key}
+            aria-controls={`${id}-panel`}
+            tabIndex={mode === tab.key ? 0 : -1}
+            disabled={state.busy}
+            onClick={() => select(tab.key)}
+            onKeyDown={(event) => {
+              const next =
+                event.key === 'ArrowRight'
+                  ? (index + 1) % tabs.length
+                  : event.key === 'ArrowLeft'
+                    ? (index + tabs.length - 1) % tabs.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? tabs.length - 1
+                        : null;
+              if (next === null) return;
+              event.preventDefault();
+              select(tabs[next].key);
+              event.currentTarget.parentElement
+                ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                [next]?.focus();
             }}
           >
-            답변하기
+            {tab.label}
           </button>
-        )}
-        {attachment}
+        ))}
       </div>
-      {answerMode && answers ? (
-        answers
-      ) : (
-        <div className="qrow">
-          <label className="sr-only" htmlFor="interview-ai-prompt">
-            이 항목을 AI에게 물어보기
-          </label>
-          <textarea
-            id="interview-ai-prompt"
-            className="input"
-            rows={2}
-            maxLength={4000}
-            placeholder="궁금한 점을 적어 주세요. AI 질문은 신청서 답변으로 저장되지 않습니다."
-            value={state.prompt}
-            disabled={state.ask.isPending || state.apply.isPending}
-            onChange={(e) => state.setPrompt(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={state.busy || !state.prompt.trim()}
-          >
-            {state.ask.isPending ? '답변 기다리는 중…' : '질문 보내기'}
-          </button>
-        </div>
-      )}
+      <div
+        role="tabpanel"
+        id={`${id}-panel`}
+        aria-labelledby={`${id}-${mode}`}
+        className="interview-input-panel"
+      >
+        {mode === 'file' ? (
+          <>
+            <p className="help">
+              문서를 선택한 뒤 대화에 표시되는 ‘첨부 문서 분석’을 눌러 주세요. 선택만으로 전송되지
+              않습니다.
+            </p>
+            {attachment}
+          </>
+        ) : mode === 'answer' && answers ? (
+          answers
+        ) : (
+          <div className="qrow">
+            <label className="sr-only" htmlFor="interview-ai-prompt">
+              이 항목을 AI에게 물어보기
+            </label>
+            <textarea
+              id="interview-ai-prompt"
+              className="input"
+              rows={2}
+              maxLength={4000}
+              placeholder="궁금한 점을 적어 주세요. AI 질문은 신청서 답변으로 저장되지 않습니다."
+              value={state.prompt}
+              disabled={state.ask.isPending || state.apply.isPending}
+              onChange={(e) => state.setPrompt(e.target.value)}
+            />
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={state.busy || !state.prompt.trim()}
+            >
+              {state.ask.isPending ? '답변 기다리는 중…' : '질문 보내기'}
+            </button>
+          </div>
+        )}
+      </div>
     </>
   );
 }
