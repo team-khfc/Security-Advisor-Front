@@ -1229,13 +1229,16 @@ async function dispatchContract(
   if (resource === 'security-requests' && sub === 'infrastructure-proposals' && method === 'POST') {
     const visible = getRequest(runtime, id, actor!);
     if (
-      actor!.role !== 'INFRA' ||
+      !['INFRA', 'SECURITY'].includes(actor!.role) ||
       !visible.assignments.some(
         (a) =>
-          a.active && a.field === 'INFRA' && a.assigneeId === actor!.id && !a.reassignmentReason,
+          a.active &&
+          a.field === actor!.role &&
+          a.assigneeId === actor!.id &&
+          !a.reassignmentReason,
       )
     )
-      fail(403, 'FORBIDDEN', '배정된 ICT인프라 담당자만 초안을 요청할 수 있습니다.');
+      fail(403, 'FORBIDDEN', '배정된 ICT인프라·정보보안 담당자만 초안을 요청할 수 있습니다.');
     if (visible.stage !== 2)
       fail(422, 'INVALID_STAGE', '담당자 협의 단계에서만 초안을 요청할 수 있습니다.');
     const input = parse(
@@ -1263,12 +1266,12 @@ async function dispatchContract(
     if (method === 'GET') return json(visible.infrastructurePlan ?? empty);
     if (method === 'PUT') {
       if (
-        actor!.role !== 'INFRA' ||
+        !['INFRA', 'SECURITY'].includes(actor!.role) ||
         !visible.assignments.some(
-          (a) => a.active && a.field === 'INFRA' && a.assigneeId === actor!.id,
+          (a) => a.active && a.field === actor!.role && a.assigneeId === actor!.id,
         )
       )
-        fail(403, 'FORBIDDEN', '배정된 ICT인프라 담당자만 수정할 수 있습니다.');
+        fail(403, 'FORBIDDEN', '배정된 ICT인프라·정보보안 담당자만 수정할 수 있습니다.');
       if (visible.stage !== 2)
         fail(422, 'INVALID_STAGE', '담당자 협의 단계에서만 수정할 수 있습니다.');
       const input = parse(

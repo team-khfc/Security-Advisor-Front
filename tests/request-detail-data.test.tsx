@@ -218,18 +218,21 @@ describe('request technical sections', () => {
     expect(field?.textContent).toContain('보완 필요');
   });
 
-  test('security review keeps its own questions and network answers without a firewall table', () => {
+  test('보안성검토도 통신 정보를 방화벽 표에 표시하고 추가 검토 항목을 유지한다', () => {
     const value = request({ docType: 'SECURITY_REVIEW' });
     expect(
       getRequestDetailData(value).businessAnswers.some((item) => item.key === 'network.source'),
-    ).toBe(true);
+    ).toBe(false);
     render(
       <RequestTechnicalDetails request={value}>
         <p>보안 대책 답변</p>
       </RequestTechnicalDetails>,
     );
-    expect(screen.getByRole('heading', { name: '보안성검토 사항' })).toBeTruthy();
-    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.getByRole('heading', { name: '방화벽 규칙' })).toBeTruthy();
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('192.0.2.10')).toBeTruthy();
+    expect(within(table).getByText('198.51.100.20')).toBeTruthy();
+    expect(within(table).getByText('443,8443')).toBeTruthy();
     expect(screen.getByText('보안 대책 답변')).toBeTruthy();
   });
 });
