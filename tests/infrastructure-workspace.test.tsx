@@ -69,4 +69,3 @@ test('배정된 인프라 담당자에게 입력 영역을 펼치고 여러 구�
   );
   expect(await screen.findByText('ICT인프라 검토 정보를 저장했습니다.')).toBeTruthy();
 });
-
