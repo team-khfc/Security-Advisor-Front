@@ -1,3 +1,4 @@
+import { networkValueValid, networkFormatHelp } from './networkAnswerFormat';
 import type { Role } from '@/lib/types';
 import type { Answer } from './types';
 
@@ -24,6 +25,14 @@ export function answerValueError(
     return error('예(true) 또는 아니요(false)를 선택해 주세요.');
   if (answer.inputType === 'NUMBER' && !/^-?[0-9]+(?:\.[0-9]+)?$/.test(text))
     return error('숫자를 입력해 주세요.');
+  if (
+    answer.inputType &&
+    networkFormatHelp[answer.inputType] &&
+    !networkValueValid(answer.inputType, text)
+  )
+    return error(
+      networkFormatHelp[answer.inputType] + ' 목록은 쉼표나 줄바꿈으로 구분하며 최대 100개입니다.',
+    );
   if (answer.inputType === 'DATE_RANGE') {
     const period = text.replace(/~\s*(상시|종료일 없음)$/, '~');
     const match = /^([0-9]{4}-[0-9]{2}-[0-9]{2})\s*~\s*([0-9]{4}-[0-9]{2}-[0-9]{2})?$/.exec(period);

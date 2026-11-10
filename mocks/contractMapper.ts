@@ -45,6 +45,7 @@ export class ContractMapper {
       fieldKey: a.key,
       scope: a.scope,
       value: a.value,
+      notApplicable: a.notApplicable,
       valueSource: a.source,
       evidence: a.evidence,
       confirmed: a.confirmed,

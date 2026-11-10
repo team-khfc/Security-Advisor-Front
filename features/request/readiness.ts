@@ -66,7 +66,7 @@ export function submissionBlockers(request: SecurityRequest) {
     (field) => `${FIELD_LABELS[field]} 협의가 완료되지 않았습니다.`,
   );
   for (const answer of [...request.commonAnswers, ...request.answers]) {
-    if (answer.required && !answer.value.trim() && !answer.notApplicable)
+    if (answer.required && (!answer.value.trim() || answer.notApplicable))
       blockers.push(`${answer.label}: 필수 답변을 입력해 주세요.`);
     else if (
       answer.needsReview ||

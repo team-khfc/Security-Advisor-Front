@@ -5,7 +5,16 @@ export const questionSchema = z.object({
   label: z.string(),
   scope: z.enum(['CASE', 'REQUEST']),
   docTypes: z.array(z.string()),
-  type: z.enum(['TEXT', 'LONG_TEXT', 'BOOLEAN', 'DATE_RANGE', 'NUMBER']),
+  type: z.enum([
+    'TEXT',
+    'LONG_TEXT',
+    'BOOLEAN',
+    'DATE_RANGE',
+    'NUMBER',
+    'IP_ADDRESS',
+    'PORT',
+    'PROTOCOL',
+  ]),
   required: z.boolean(),
   askRole: z.enum(['APPLICANT', 'INFRA', 'SECURITY']),
   hint: z.string().nullable(),
@@ -92,6 +101,9 @@ export const typeLabels = {
   BOOLEAN: '선택형(예·아니요)',
   DATE_RANGE: '기간',
   NUMBER: '숫자',
+  IP_ADDRESS: 'IP 주소 / CIDR',
+  PORT: '포트 / 범위',
+  PROTOCOL: '프로토콜',
 };
 
 /** 비어 있는 입력도 보존하면서 전체 탭의 잘못된 값을 저장 전에 안내한다. 서버가 최종 검증한다. */

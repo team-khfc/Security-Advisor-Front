@@ -1,4 +1,5 @@
 'use client';
+import { networkFormatHelp } from './networkAnswerFormat';
 
 import Link from 'next/link';
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
@@ -381,14 +382,14 @@ function InterviewWorkspace({
       },
     });
   };
-  const saveAnswer = async (value: string) => {
+  const saveAnswer = async (value: string, notApplicable = false) => {
     if (!question || !editable || conflict || answerBusy || savingRef.current) return;
     savingRef.current = true;
     setError('');
     // 선택형 답변도 저장 실패 시 직접 입력과 같은 초안으로 보존한다.
     updateAnswer(value);
     try {
-      const issue = answerValueError(question, value);
+      const issue = answerValueError(question, notApplicable ? '미해당' : value);
       if (issue) throw new Error(issue);
       await save.mutateAsync({
         expectedRevision: answerRevision,
@@ -397,14 +398,18 @@ function InterviewWorkspace({
             key: question.key,
             expectedRevision: draftAnswer?.answerRevision ?? question.revision,
             value,
-            confirmed: Boolean(value.trim()),
-            notApplicable: false,
+            confirmed: notApplicable || Boolean(value.trim()),
+            notApplicable,
           },
         ],
       });
       setChat((old) => [
         ...old,
-        { question: question.label, answer: value || '담당자 확인 필요', createdAt: Date.now() },
+        {
+          question: question.label,
+          answer: notApplicable ? '미해당' : value || '담당자 확인 필요',
+          createdAt: Date.now(),
+        },
       ]);
       const remaining = { ...draft?.answers };
       delete remaining[question.key];
@@ -726,6 +731,7 @@ function InterviewWorkspace({
                         className="input"
                         id="interview-answer"
                         type={question.inputType === 'NUMBER' ? 'number' : 'text'}
+                        step={question.inputType === 'NUMBER' ? 'any' : undefined}
                         aria-describedby="interview-question-help"
                         autoComplete="off"
                         maxLength={4000}
@@ -734,6 +740,16 @@ function InterviewWorkspace({
                         onChange={(e) => updateAnswer(e.target.value)}
                         placeholder={presentation.placeholder}
                       />
+                    )}
+                    {!question.required && (
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={answerBusy || conflict}
+                        onClick={() => void saveAnswer('', true)}
+                      >
+                        미해당으로 저장
+                      </button>
                     )}
                     <button
                       className="btn btn-primary"
@@ -883,7 +899,7 @@ function questionPresentation(question: Answer): InterviewQuestionPresentation {
     return {
       title: question.label,
       help:
-        question.hint ||
+        [question.hint, networkFormatHelp[question.inputType ?? '']].filter(Boolean).join(' ') ||
         '알고 있는 사실을 적어 주세요. 모르는 내용은 AI에게 물어보거나 담당자 확인을 요청할 수 있습니다.',
       placeholder:
         question.inputType === 'DATE_RANGE'

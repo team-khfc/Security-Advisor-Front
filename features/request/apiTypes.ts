@@ -18,6 +18,7 @@ export const statusDto = z.enum([
 ]);
 export const answerDto = z.object({
   answerId: id,
+  notApplicable: z.boolean().optional(),
   fieldKey: z.string(),
   scope: z.enum(['CASE', 'REQUEST']),
   value: text,
@@ -40,7 +41,18 @@ export const publicationDto = z.object({
       z.object({
         key: z.string(),
         label: z.string(),
-        type: z.enum(['TEXT', 'LONG_TEXT', 'BOOLEAN', 'DATE_RANGE', 'NUMBER']).optional(),
+        type: z
+          .enum([
+            'TEXT',
+            'LONG_TEXT',
+            'BOOLEAN',
+            'DATE_RANGE',
+            'NUMBER',
+            'IP_ADDRESS',
+            'PORT',
+            'PROTOCOL',
+          ])
+          .optional(),
         hint: z.string().nullable().optional(),
         scope: z.enum(['CASE', 'REQUEST']),
         docTypes: z.array(z.string()),

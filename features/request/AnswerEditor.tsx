@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Badge, Icon, Notice } from '@/components/ui';
 import { useInputDraft } from '@/lib/inputDrafts';
+import { networkFormatHelp } from './networkAnswerFormat';
 import type { Actor } from '@/lib/types';
 import type { Answer, AnswerInput } from './types';
 import { canConfirmAnswer, answerValueError } from './answerFieldPolicy';
@@ -267,6 +268,11 @@ export function AnswerEditor({
                 <Icon name="alert" size={16} /> 보완 필요 · 이전 값을 보존했습니다.
               </p>
             )}
+            {answer.inputType && networkFormatHelp[answer.inputType] && (
+              <p className="help">
+                {networkFormatHelp[answer.inputType]} 목록은 쉼표나 줄바꿈으로 구분합니다.
+              </p>
+            )}
             {answer.inputType === 'DATE_RANGE' && (
               <p className="help">
                 YYYY-MM-DD~YYYY-MM-DD 형식으로 입력하세요. 상시는 종료일을 비웁니다.
@@ -279,9 +285,9 @@ export function AnswerEditor({
               id={inputId}
               rows={2}
               maxLength={4000}
-              value={value.value}
+              value={value.notApplicable ? '' : value.value}
               readOnly={answer.ownerRole !== actor.role}
-              disabled={pending}
+              disabled={pending || value.notApplicable}
               onChange={(event) =>
                 update(answer.key, {
                   value: event.target.value,
@@ -313,11 +319,12 @@ export function AnswerEditor({
                   onChange={(event) =>
                     update(answer.key, {
                       notApplicable: event.target.checked,
+                      value: value.value === '미해당' ? '' : value.value,
                       confirmed: event.target.checked,
                     })
                   }
                 />
-                해당 없음
+                미해당 (해당 없음)
               </label>
             )}
           </div>

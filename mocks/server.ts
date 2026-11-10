@@ -1634,7 +1634,11 @@ async function dispatchContract(
     const a = [...common.answers, ...stored.answers].find((v) => v.key === fieldKey);
     if (!a) fail(404, 'ANSWER_NOT_FOUND', '답변을 찾을 수 없습니다.');
     const input = parse(
-      z.object({ value: z.string().max(4000).optional(), expectedRevision: z.number().optional() }),
+      z.object({
+        value: z.string().max(4000).optional(),
+        expectedRevision: z.number().optional(),
+        notApplicable: z.boolean().optional(),
+      }),
       body,
     );
     if (
@@ -1644,9 +1648,9 @@ async function dispatchContract(
       fail(409, 'REVISION_CONFLICT', '최신 답변을 확인해 주세요.');
     const value = {
       key: fieldKey,
-      value: input.value ?? a.value,
+      value: input.notApplicable ? '미해당' : (input.value ?? ''),
       confirmed: true,
-      notApplicable: false,
+      notApplicable: input.notApplicable ?? input.value === '미해당',
     };
     if (a.scope === 'CASE')
       runtime.state = saveCaseAnswers(runtime.state, actor!, common.id, common.revision, [value]);
@@ -1746,8 +1750,9 @@ async function dispatchContract(
       z.array(
         z.object({
           fieldKey: z.string(),
-          value: z.string().max(4000),
+          value: z.string().max(4000).default(''),
           expectedRevision: z.number().optional(),
+          notApplicable: z.boolean().optional(),
         }),
       ),
       body.answers,
@@ -1765,9 +1770,9 @@ async function dispatchContract(
       expectedRevision: c.revision,
       answers: items.map((v) => ({
         key: v.fieldKey,
-        value: v.value,
+        value: v.notApplicable ? '미해당' : v.value,
         confirmed: true,
-        notApplicable: false,
+        notApplicable: v.notApplicable ?? v.value === '미해당',
       })),
     };
     if (resource === 'business-cases') legacySub = undefined;
