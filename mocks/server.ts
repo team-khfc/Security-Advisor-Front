@@ -1,4 +1,5 @@
 import { ContractMapper } from './contractMapper';
+import { MockPolicies } from './policies';
 import type { InterviewTurn } from '@/features/request/useInterview';
 import type { FinalDraft } from '@/features/request/useFinalDraft';
 import { compare, hash } from 'bcryptjs';
@@ -63,6 +64,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  policies: MockPolicies;
   state: MockState;
   members: MemberRecord[];
   sessions: Map<string, StoredSession>;
@@ -194,6 +196,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   const passwordHash = configured ? await hash(configured, 10) : null;
   return {
     state: createMockState(),
+    policies: new MockPolicies(),
     members: MOCK_MEMBERS.map((actor) => ({ actor: structuredClone(actor), passwordHash })),
     sessions: new Map(),
     attempts: new Map(),
@@ -999,6 +1002,20 @@ async function dispatchContract(
     (resource === 'members' && method === 'POST' && !numericId)
       ? undefined
       : sessionMember(runtime, request, now);
+  if (
+    resource === 'firewall-rules' ||
+    (resource === 'security-requests' && sub === 'firewall-rules')
+  ) {
+    return runtime.policies.handle(
+      runtime.state,
+      wire,
+      actor!,
+      url,
+      method,
+      method === 'GET' ? undefined : await bodyJson(request),
+      now,
+    );
+  }
   const draftFingerprint = (r: SecurityRequest) =>
     JSON.stringify([r.revision, getCase(runtime, r.caseId, actor!).answers, r.answers]);
   if (resource === 'security-requests' && sub === 'final-draft' && method === 'GET') {

@@ -21,6 +21,99 @@ import { createMockApi, type MockApiOptions } from '@/mocks/server';
 
 const ORIGIN = 'https://security-advisor.example';
 
+test('방화벽 모의 계약은 역할·사유·충돌·연장 중복을 검사하고 기존 규칙과 제출본을 보존한다', async () => {
+  const { client, handler } = await setup('infra');
+  const before = await (await client.send('/api/firewall-rules')).json();
+  const rule = before[0];
+  expect(rule.status).toBe('PENDING_APPLY');
+  const original = await (await client.send(`/api/submissions/${rule.submissionId}`)).json();
+  const base = `/api/firewall-rules/${rule.firewallRuleId}`;
+  const applicant = makeClient(handler);
+  await applicant.send('/api/installation');
+  await applicant.send('/api/demo-sessions', 'POST', { username: 'applicant' });
+  expect(
+    (await applicant.send(`${base}/application`, 'PUT', { result: 'APPLIED', expectedRevision: 0 }))
+      .status,
+  ).toBe(403);
+  expect(
+    (
+      await client.send(`${base}/application`, 'PUT', {
+        result: 'NOT_APPLICABLE',
+        reason: ' ',
+        expectedRevision: 0,
+      })
+    ).status,
+  ).toBe(422);
+  expect(
+    (
+      await client.send(`${base}/application`, 'PUT', {
+        result: 'APPLIED',
+        note: '합성 적용 기록',
+        expectedRevision: 0,
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (await client.send(`${base}/revocation`, 'PUT', { reason: '합성 회수', expectedRevision: 0 }))
+      .status,
+  ).toBe(409);
+  const renewal = await applicant.send(`${base}/renewal-requests`, 'POST', {
+    newPeriod: '2027-01-01~2027-12-31',
+    note: '합성 연장',
+  });
+  expect(renewal.status).toBe(201);
+  const created = await renewal.json();
+  expect(created.rule).toMatchObject({
+    source: rule.source,
+    destination: rule.destination,
+    port: rule.port,
+    startDate: rule.startDate,
+    endDate: rule.endDate,
+    status: 'APPLIED',
+  });
+  const request = await (
+    await applicant.send(`/api/security-requests/${created.request.securityRequestId}`)
+  ).json();
+  expect(request).toMatchObject({ stage: 1, status: 'DRAFTING' });
+  const originalRequest = await (
+    await applicant.send(`/api/security-requests/${rule.securityRequestId}`)
+  ).json();
+  expect(request.businessCaseId).toBe(originalRequest.businessCaseId);
+  expect(
+    (
+      await applicant.send(`${base}/renewal-requests`, 'POST', {
+        newPeriod: '2027-01-01~2027-12-31',
+      })
+    ).status,
+  ).toBe(422);
+  const current = (await (await client.send('/api/firewall-rules')).json())[0];
+  expect(
+    (
+      await client.send(`${base}/revocation`, 'PUT', {
+        reason: '합성 회수',
+        expectedRevision: current.revision,
+      })
+    ).status,
+  ).toBe(200);
+  const after = (await (await client.send('/api/firewall-rules')).json())[0];
+  expect(after).toMatchObject({
+    status: 'REVOKED',
+    applicationNote: '합성 적용 기록',
+    renewalRequestId: created.request.securityRequestId,
+  });
+  expect(await (await client.send(`/api/submissions/${rule.submissionId}`)).json()).toEqual(
+    original,
+  );
+  const other = makeClient(handler);
+  await other.send('/api/installation');
+  await other.send('/api/demo-sessions', 'POST', { username: 'applicant2' });
+  expect(await (await other.send('/api/firewall-rules')).json()).toEqual([]);
+  expect(
+    (await other.send(`${base}/renewal-requests`, 'POST', { newPeriod: '2027-01-01~2027-12-31' }))
+      .status,
+  ).toBe(404);
+});
+
 test('모의 인터뷰도 대화·추천·적용·사람의 확인을 구분한다', async () => {
   const { client } = await setup();
   const created = await client.send('/api/business-cases', 'POST', {

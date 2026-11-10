@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfigurationPage } from '@/features/configuration';
 import { PolicyLifecycle } from '@/features/policy';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Role, Session } from '@/lib/types';
 import { MOCK_MEMBERS } from '@/mocks/seed';
 
@@ -54,16 +55,15 @@ test('관리자는 읽기 전용 게시본 표시와 탭을 보고, 편집·게�
   expect(screen.queryByRole('button', { name: '변경 검토·게시' })).toBeNull();
 });
 
-test('정책 수명주기는 데이터 연결 전임을 알리고 건수·거르기를 동작하는 것처럼 보이지 않게 한다', () => {
-  render(<PolicyLifecycle />);
-  expect(screen.getByText('P2 구현 예정 기능입니다.')).toBeTruthy();
-  const filters = within(screen.getByRole('group', { name: '정책 거르기' })).getAllByRole('button');
-  expect(filters).toHaveLength(3);
-  for (const filter of filters) expect((filter as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getAllByLabelText('데이터 연결 전')).toHaveLength(4);
-  expect(screen.queryByText(/\d+건/)).toBeNull();
-  expect(screen.getByText('연결된 정책이 없습니다')).toBeTruthy();
-  expect(screen.getByRole('link', { name: '신청 현황으로' }).getAttribute('href')).toBe(
-    '/requests',
+test('정책은 목록 조회 전 임의 건수를 표시하지 않고 장비 변경과 기록을 구분한다', () => {
+  controls.session = null;
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <PolicyLifecycle />
+    </QueryClientProvider>,
   );
+  expect(screen.getByText('서류 확정과 실제 장비 적용은 별개입니다.')).toBeTruthy();
+  expect(screen.getByText('내용을 불러오고 있습니다.')).toBeTruthy();
+  expect(screen.queryByRole('table')).toBeNull();
+  expect(screen.queryByText(/결과 \d+건/)).toBeNull();
 });
