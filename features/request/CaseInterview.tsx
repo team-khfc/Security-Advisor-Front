@@ -15,6 +15,7 @@ import { useSession } from '@/features/auth';
 import { useInputDraft } from '@/lib/inputDrafts';
 import { forgetUpload, getUpload } from '@/lib/uploadDraft';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
+import { answerValueError } from './answerFieldPolicy';
 import {
   InterviewAssistance,
   InterviewComposer,
@@ -387,6 +388,8 @@ function InterviewWorkspace({
     // 선택형 답변도 저장 실패 시 직접 입력과 같은 초안으로 보존한다.
     updateAnswer(value);
     try {
+      const issue = answerValueError(question, value);
+      if (issue) throw new Error(issue);
       await save.mutateAsync({
         expectedRevision: answerRevision,
         answers: [

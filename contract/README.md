@@ -2,8 +2,9 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `63e2a39abe8da006f523a20f35997343b11b8b20` (모델 관리 PR #22, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/63e2a39abe8da006f523a20f35997343b11b8b20/docs/api/openapi.yaml
+- Back 커밋: `fdb9d59898057c9c4159dfc344142c6c9d2c2cf3` (항목별 답변 검증 PR #24, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/fdb9d59898057c9c4159dfc344142c6c9d2c2cf3/docs/api/openapi.yaml
+- 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
 - 모델 구성·연결 시험 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/22
 - 지식 게시본·지표 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/20
 - 질문·기한 정책 게시 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/18
@@ -16,6 +17,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+담당자 답변 일괄 저장은 `PATCH /api/reviews/{id}/answers`를 사용한다. 기존 병렬 PUT의 부분 저장·동시 충돌을 피하고 항목별 권한·형식·revision을 한 트랜잭션으로 검사한다. [검증 기록](../docs/ANSWER_FIELD_POLICY_20261110.md).
 
 모델 관리 화면은 `/api/llm-configurations`의 목록·단건·선택 상태·변경 비교·페이지 이력·복원과 `/api/llm-connection-tests`를 사용한다. 관리자 전용이며 키 값은 받지 않는다. 연결 시험의 HTTP 201은 시험 자원 생성이며 성공은 응답의 `status=SUCCEEDED`로 판단한다. 화면 모의 모드의 `FAILED/SIMULATED`는 실제 연결 성공을 뜻하지 않는다. 변경·복원 시 `expectedRevision`을 보내고 409 충돌에서는 입력을 보존한다. [검증 기록](../docs/LLM_ADMINISTRATION_20261110.md)을 참고한다.
 
