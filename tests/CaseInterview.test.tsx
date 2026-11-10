@@ -36,7 +36,8 @@ vi.mock('@/features/request/useInterviewAssistance', () => ({
     showHelp: false,
     toggleHelp: vi.fn(),
     send: vi.fn(),
-    setMode: vi.fn(),
+    prompt: '',
+    setPrompt: vi.fn(),
     isStale: () => false,
   }),
 }));
@@ -340,17 +341,19 @@ test('답변 저장과 마지막 공통 답변 저장 후 새 답변의 끝을 �
   expect(scrollPage).not.toHaveBeenCalled();
 });
 
-test('대화 밖의 분석 패널이 열려 있어도 대화 영역에서 새로 저장한 답변을 보여 준다', async () => {
+test('채팅 첨부 영역이 있어도 대화 영역에서 새로 저장한 답변을 보여 준다', async () => {
   const user = userEvent.setup();
   renderForEditing(controls.businessCase!.id);
   const body = conversation();
   mockConversationLayout(body);
-  const analysisToggle = screen.getByText('기획서로 시작하거나 AI 제안 받기');
-  const analysisPanel = analysisToggle.closest('details');
-  await user.click(analysisToggle);
-  expect(analysisPanel?.open).toBe(true);
-  expect(body.contains(analysisPanel)).toBe(false);
-  expect(screen.getByRole('textbox', { name: '분석할 사업 개요' })).toBeTruthy();
+  const modes = screen.getByRole('group', { name: '입력 방식' });
+  expect(
+    within(modes)
+      .getAllByRole('button')
+      .map((button) => button.textContent),
+  ).toEqual(['AI에게 질문', '답변하기', '파일 첨부']);
+  expect(screen.queryByRole('region', { name: '채팅 첨부파일' })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: '분석할 사업 개요' })).toBeNull();
 
   await fillAnswer(user, '사업 목적', '첫 번째 합성 인터뷰 답변입니다.');
   await user.click(screen.getByRole('button', { name: '답변 저장하고 다음' }));
@@ -367,7 +370,7 @@ test('대화 밖의 분석 패널이 열려 있어도 대화 영역에서 새로
   expectLatestAnswerVisible(body);
   expectCurrentQuestionVisible(body);
   expect(body.scrollTop).toBeGreaterThan(0);
-  expect(analysisPanel?.open).toBe(true);
+  expect(within(modes).getByRole('button', { name: '파일 첨부' })).toBeTruthy();
 });
 
 test('입력·저장 실패 중에는 읽던 위치를 유지하고 나중에 입력을 선택하면 다음 질문을 보여 준다', async () => {

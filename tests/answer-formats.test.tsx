@@ -63,6 +63,36 @@ const dto = {
   notApplicable: true,
 };
 
+test('새 방화벽 입력 UI에서도 미해당만 있는 답변을 일괄 확인하고 해제한다', () => {
+  const [base] = adaptAnswers([dto], publication, 'CASE');
+  const answer: Answer = {
+    ...base,
+    key: 'firewall.port',
+    scope: 'REQUEST',
+    value: '',
+    notApplicable: true,
+    confirmed: true,
+  };
+  render(
+    <AnswerEditor
+      answers={[answer]}
+      revision={2}
+      actor={{ id: 'synthetic', role: 'APPLICANT' } as Actor}
+      onSave={vi.fn()}
+    />,
+  );
+  const input = screen.getByLabelText('합성 포트 (선택)') as HTMLInputElement;
+  expect(input.disabled).toBe(true);
+  const confirmation = screen.getByRole('checkbox', {
+    name: '작성한 답변의 내용을 확인했습니다',
+  }) as HTMLInputElement;
+  expect(confirmation.checked).toBe(true);
+  fireEvent.click(confirmation);
+  expect(confirmation.checked).toBe(false);
+  fireEvent.click(screen.getByRole('checkbox', { name: '미해당 (해당 없음)' }));
+  expect(input.disabled).toBe(false);
+});
+
 test('서버 미해당 상태를 복원하고 체크 해제 후 정상 값으로 저장한다', async () => {
   const [answer] = adaptAnswers([dto], publication, 'CASE');
   expect(answer.notApplicable).toBe(true);

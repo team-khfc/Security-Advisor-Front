@@ -14,9 +14,14 @@ const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'retr
 
 /** 업로드·JSON 모두 읽는 동안 상한을 적용해 무제한 버퍼링을 막는다. */
 export async function readLimitedBody(request: Request): Promise<Uint8Array> {
+  const upload =
+    request.method === 'POST' &&
+    /^\/api\/business-cases\/[^/]+\/uploaded-files$/.test(new URL(request.url).pathname);
+  const maxBytes = upload ? 22 * 1024 * 1024 : MAX_BODY_BYTES;
+  const sizeMessage = `전송 가능한 전체 크기는 ${upload ? 22 : 12}MB 이하입니다.`;
   const declaredSize = request.headers.get('content-length');
-  if (declaredSize && Number(declaredSize) > MAX_BODY_BYTES) {
-    throw new DomainError(413, 'BODY_TOO_LARGE', '전송 가능한 전체 크기는 12MB 이하입니다.');
+  if (declaredSize && Number(declaredSize) > maxBytes) {
+    throw new DomainError(413, 'BODY_TOO_LARGE', sizeMessage);
   }
   if (!request.body) return new Uint8Array();
   const reader = request.body.getReader();
@@ -27,9 +32,9 @@ export async function readLimitedBody(request: Request): Promise<Uint8Array> {
       const item = await reader.read();
       if (item.done) break;
       size += item.value.byteLength;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         await reader.cancel();
-        throw new DomainError(413, 'BODY_TOO_LARGE', '전송 가능한 전체 크기는 12MB 이하입니다.');
+        throw new DomainError(413, 'BODY_TOO_LARGE', sizeMessage);
       }
       chunks.push(item.value);
     }

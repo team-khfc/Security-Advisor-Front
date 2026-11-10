@@ -819,10 +819,10 @@ progress.prog::-moz-progress-bar {
 .infop-b > .help {
   margin: 0.8rem 0 0;
 }
-/* 수집 정보 값 목록은 시안 .irow(라벨 9.6rem · 값 · 출처) 한 줄 구성 */
+/* 긴 항목명도 읽을 수 있도록 라벨 폭을 확보하고 값과 출처는 남은 폭에서 줄바꿈한다. */
 .infop-b .answer-item {
   display: grid;
-  grid-template-columns: 9.6rem minmax(0, 1fr);
+  grid-template-columns: 14rem minmax(0, 1fr);
   gap: 0.4rem 0.8rem;
   align-items: baseline;
   padding: 1rem 0.4rem;
@@ -835,6 +835,8 @@ progress.prog::-moz-progress-bar {
   margin: 0;
 }
 .infop-b .answer-item dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -895,7 +897,33 @@ progress.prog::-moz-progress-bar {
 }
 .case-work .conversation-body {
   flex: 1 1 auto;
-  min-height: 24rem;
+  min-height: 12rem;
+}
+
+/* 첨부 목록은 채팅 입력 위에 두고 긴 목록·분석 결과만 내부 스크롤한다. */
+.case-work .chat-attachments {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 28%;
+  overflow: auto;
+  padding: 1.2rem 1.6rem;
+  border-top: 1px solid var(--sf-border);
+}
+.case-work .chat-attachments .field {
+  margin: 0;
+}
+.case-work .chat-attachments .pend {
+  width: 100%;
+  max-width: none;
+  margin: 0.8rem 0;
+}
+.case-work .chat-attachments .pend li {
+  flex-wrap: wrap;
+}
+.case-work .chat-attachments .pend .btn {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .case-work .conversation-log,
 .case-work .chat-pair {
@@ -986,6 +1014,9 @@ progress.prog::-moz-progress-bar {
   flex-wrap: wrap;
   gap: 0.8rem;
 }
+.interview-input-modes > .btn {
+  min-width: 10.4rem;
+}
 .interview-input-modes [aria-pressed='true'] {
   color: var(--sf-primary-text);
   border-color: var(--sf-primary);
@@ -1034,4 +1065,53 @@ progress.prog::-moz-progress-bar {
 }
 .interview-help cite {
   font-size: 0.9em;
+}
+
+/* 수집 정보는 항목별로 펼쳐 수정하고 좁은 패널 안에서 줄바꿈한다. */
+.collected-field {
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--sf-border);
+}
+.collected-field form {
+  display: grid;
+  gap: 0.8rem;
+}
+.collected-field .input {
+  width: 100%;
+  min-width: 0;
+}
+.collected-field .btn-row {
+  flex-wrap: wrap;
+}
+.collected-field .help {
+  overflow-wrap: anywhere;
+}
+
+.date-range-answer {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.date-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 0.8rem;
+}
+.date-range-fields label {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+@media (max-width: 480px) {
+  .date-range-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.interview-proposal .interview-apply-now {
+  justify-self: end;
+  order: 1;
 }
