@@ -4,6 +4,8 @@ import { MockPolicies } from './policies';
 import { MockInquiries } from './inquiries';
 import { MockReviewerPools } from './reviewerPools';
 import { MockActivity } from './activity';
+import { MockConfigurations } from './configurations';
+import { settingsSchema } from '@/features/configuration/types';
 import { mockGeneratedDocument } from './generatedDocument';
 import type { GeneratedDocument } from '@/features/document/types';
 import type { InterviewTurn } from '@/features/request/useInterview';
@@ -70,6 +72,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  configurations: MockConfigurations;
   activity: MockActivity;
   reviewerPools: MockReviewerPools;
   inquiries: MockInquiries;
@@ -204,8 +207,10 @@ function withCsrfCookie(response: Response, request: Request, cookieToken: strin
 async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   const configured = options.password ?? process.env.DEMO_ACCOUNT_PASSWORD;
   const passwordHash = configured ? await hash(configured, 10) : null;
+  const state = createMockState();
   return {
-    state: createMockState(),
+    state,
+    configurations: new MockConfigurations(state),
     reviewerPools: new MockReviewerPools(MOCK_MEMBERS),
     activity: new MockActivity(),
     policies: new MockPolicies(),
@@ -719,6 +724,7 @@ async function dispatch(
     );
     const result = createCase(runtime.state, actor, input);
     runtime.state = result.state;
+    runtime.configurations.pinNewCase(runtime.state, result.caseId);
     return json(
       caseDetail(runtime, getCase(runtime, result.caseId, actor), actor),
       201,
@@ -994,14 +1000,61 @@ async function dispatchContract(
     fieldKey = parts[4];
   const id = wire.original(numericId ?? '');
   const method = request.method;
+  if (resource === 'configurations') {
+    const actor = sessionMember(runtime, request, now);
+    if (actor.role !== 'ADMIN') fail(403, 'FORBIDDEN', '기관 관리자만 설정을 변경할 수 있습니다.');
+    if (numericId === 'current' && method === 'GET')
+      return json(runtime.configurations.current(actor));
+    if (numericId !== '1') fail(404, 'NOT_FOUND', '설정 초안을 찾을 수 없습니다.');
+    if (sub === 'comparison' && method === 'GET')
+      return json(runtime.configurations.comparison(actor));
+    if (sub === 'publications' && method === 'POST') {
+      const input = parse(
+        z.object({ expectedRevision: z.number().int().nonnegative() }),
+        await bodyJson(request),
+      );
+      const value = runtime.configurations.publish(
+        actor,
+        input.expectedRevision,
+        new Date(now).toISOString(),
+      );
+      return json(value, 201, `/api/publications/${value.publicationId}`);
+    }
+    if (!sub && method === 'PUT') {
+      const input = parse(
+        z.object({
+          draft: settingsSchema,
+          note: z.string().max(500).nullable(),
+          expectedRevision: z.number().int().nonnegative(),
+        }),
+        await bodyJson(request),
+      );
+      return json(
+        runtime.configurations.save(
+          actor,
+          input.draft,
+          input.note ?? '',
+          input.expectedRevision,
+          new Date(now).toISOString(),
+        ),
+      );
+    }
+    fail(404, 'NOT_FOUND', '설정 요청을 찾을 수 없습니다.');
+  }
   if (resource === 'publications' && method === 'GET') {
-    sessionMember(runtime, request, now);
+    const actor = sessionMember(runtime, request, now);
+    if (!numericId)
+      return json(
+        runtime.configurations.history(
+          actor,
+          Number(url.searchParams.get('page') ?? 0),
+          Number(url.searchParams.get('size') ?? 20),
+        ),
+      );
+    if (sub === 'comparison')
+      return json(runtime.configurations.publishedComparison(actor, Number(numericId)));
     return json(
-      wire.publication(
-        runtime.state.cases,
-        runtime.state.requests,
-        numericId === 'current' ? 1 : Number(numericId),
-      ),
+      runtime.configurations.publication(numericId === 'current' ? 'current' : Number(numericId)),
     );
   }
   if (resource === 'business-cases' && sub === 'uploaded-files' && method === 'POST') {
@@ -1268,7 +1321,11 @@ async function dispatchContract(
   )
     body = parse(z.record(z.string(), z.unknown()), await bodyJson(request));
   if (resource === 'field-help' && method === 'GET') {
-    const publication = wire.publication(runtime.state.cases, runtime.state.requests);
+    const publication = runtime.configurations.publication(
+      url.searchParams.has('publicationId')
+        ? Number(url.searchParams.get('publicationId'))
+        : 'current',
+    );
     const fields = publication.fieldSchema.fields as {
       key: string;
       label: string;

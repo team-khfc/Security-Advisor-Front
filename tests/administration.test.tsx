@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
+import * as http from '@/lib/httpClient';
 import { ConfigurationPage } from '@/features/configuration';
 import { PolicyLifecycle } from '@/features/policy';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -31,28 +31,18 @@ test.each(['APPLICANT', 'INFRA', 'SECURITY'] as const)(
   },
 );
 
-test('관리자는 읽기 전용 게시본 표시와 탭을 보고, 편집·게시 버튼은 사유와 함께 비활성이다', async () => {
+test('관리자 설정 조회가 끝나기 전에는 임의의 게시 버전이나 편집 버튼을 표시하지 않는다', () => {
   login('ADMIN');
-  const user = userEvent.setup();
-  render(<ConfigurationPage />);
-  expect(screen.getByText('게시본 v1')).toBeTruthy();
-  expect(screen.getByText('모의 seed 게시본 · 읽기 전용')).toBeTruthy();
-  for (const name of ['초안 변경 취소', '설정 초안 저장', '변경 검토·게시']) {
-    const button = screen.getByRole('button', { name }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(button.getAttribute('aria-describedby')).toBe('settings-disabled');
-  }
-  expect(document.getElementById('settings-disabled')?.textContent).toContain('P2 구현 예정');
-
-  const first = screen.getByRole('tab', { name: '인터뷰 질문' });
-  first.focus();
-  await user.keyboard('{ArrowRight}');
-  expect(screen.getByRole('tab', { name: '검토 절차' }).getAttribute('aria-selected')).toBe('true');
-  expect(within(screen.getByRole('tabpanel')).getByText('INFRA 선행 고정')).toBeTruthy();
-  await user.keyboard('{End}');
-  expect(screen.getByRole('tab', { name: '설정 버전' }).getAttribute('aria-selected')).toBe('true');
-  expect(within(screen.getByRole('tabpanel')).getByText('현재 게시본')).toBeTruthy();
+  const read = vi.spyOn(http, 'requestJson').mockImplementation(() => new Promise(() => {}));
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ConfigurationPage />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText('내용을 불러오고 있습니다.')).toBeTruthy();
+  expect(screen.queryByText('게시본 v1')).toBeNull();
   expect(screen.queryByRole('button', { name: '변경 검토·게시' })).toBeNull();
+  read.mockRestore();
 });
 
 test('정책은 목록 조회 전 임의 건수를 표시하지 않고 장비 변경과 기록을 구분한다', () => {

@@ -28,11 +28,15 @@ test('대화상자 양끝에서 Tab·Shift+Tab이 순환하고 숨김·비활성
     <Modal open title="최종 제출" onClose={close}>
       <button disabled>사용 불가</button>
       <button hidden>숨김</button>
+      <details>
+        <summary>게시본 질문 보기</summary>
+        <p>합성 질문</p>
+      </details>
       <button>되돌아가기</button>
       <button>최종 제출</button>
     </Modal>,
   );
-  const first = screen.getByRole('button', { name: '되돌아가기' });
+  const first = screen.getByText('게시본 질문 보기');
   const last = screen.getByRole('button', { name: '최종 제출 닫기' });
   const user = userEvent.setup();
   first.focus();
@@ -41,7 +45,7 @@ test('대화상자 양끝에서 Tab·Shift+Tab이 순환하고 숨김·비활성
   await user.tab();
   expect(document.activeElement).toBe(first);
   await user.tab();
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: '최종 제출' }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: '되돌아가기' }));
   fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
   expect(close).toHaveBeenCalledOnce();
 });

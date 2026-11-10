@@ -133,7 +133,7 @@ export function Modal({
         // 네이티브 dialog의 경계에서 브라우저 도구 모음으로 빠지지 않게 순환한다.
         const controls = Array.from(
           event.currentTarget.querySelectorAll<HTMLElement>(
-            'a[href], button, input, select, textarea, [tabindex]',
+            'a[href], button, input, select, textarea, summary, [tabindex]',
           ),
         ).filter(
           (element) =>
