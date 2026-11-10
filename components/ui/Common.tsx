@@ -113,8 +113,14 @@ export function Modal({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
+    return () => {
+      // 조건부 렌더링으로 제거해도 네이티브 닫기와 동일하게 열기 버튼으로 돌아간다.
+      if (dialog.open) dialog.close();
+      if (open && opener?.isConnected) opener.focus();
+    };
   }, [open]);
 
   return (

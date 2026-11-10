@@ -22,6 +22,46 @@ import { createMockApi, type MockApiOptions } from '@/mocks/server';
 
 const ORIGIN = 'https://security-advisor.example';
 
+test('AI 모델 관리 HTTP 계약은 권한·비교·충돌·이력 페이지·모의 연결을 구분한다', async () => {
+  const { client, handler } = await setup('admin');
+  const values = (await (await client.send('/api/llm-configurations')).json())[0];
+  const body = {
+    ...values,
+    model: 'synthetic/v2',
+    expectedRevision: values.revision,
+    reason: '합성 변경',
+  };
+  expect((await client.send('/api/llm-configurations/1/comparisons', 'POST', body)).status).toBe(
+    200,
+  );
+  expect((await client.send('/api/llm-configurations/1', 'PUT', body)).status).toBe(200);
+  expect((await client.send('/api/llm-configurations/1', 'PUT', body)).status).toBe(409);
+  const history = await (
+    await client.send('/api/llm-configurations/1/history?page=1&size=1')
+  ).json();
+  expect(history).toMatchObject({ page: 1, size: 1, totalElements: 2 });
+  expect(history.content[0].values.model).toBe('synthetic/model');
+  const result = await (
+    await client.send('/api/llm-connection-tests', 'POST', { configuration: body })
+  ).json();
+  expect(result).toMatchObject({ status: 'FAILED', outcome: 'SIMULATED' });
+  for (const username of ['applicant', 'infra', 'security']) {
+    const other = makeClient(handler);
+    await other.send('/api/installation');
+    await other.send('/api/demo-sessions', 'POST', { username });
+    for (const path of [
+      '/api/llm-configurations',
+      '/api/llm-configurations/management',
+      '/api/llm-configurations/1/history',
+      '/api/llm-connection-tests/1',
+    ])
+      expect((await other.send(path)).status).toBe(403);
+    expect(
+      (await other.send('/api/llm-connection-tests', 'POST', { configuration: body })).status,
+    ).toBe(403);
+  }
+});
+
 test('방화벽 모의 계약은 역할·사유·충돌·연장 중복을 검사하고 기존 규칙과 제출본을 보존한다', async () => {
   const { client, handler } = await setup('infra');
   const before = await (await client.send('/api/firewall-rules')).json();

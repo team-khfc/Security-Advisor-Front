@@ -45,6 +45,7 @@ const menus: Record<Role, MenuItem[]> = {
     { href: '/settings', label: '기관 설정', icon: 'settings' },
     { href: '/knowledge', label: '지식·비공개 정보', icon: 'document' },
     { href: '/insights', label: '업무 지표', icon: 'inbox' },
+    { href: '/models', label: 'AI 모델 구성', icon: 'settings' },
     { href: '/members', label: '계정·담당자 관리', icon: 'users' },
     { href: '/policies', label: '정책 수명주기', icon: 'timer' },
     { href: '/history', label: '감사 이력', icon: 'history' },

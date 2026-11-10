@@ -194,3 +194,8 @@ docker run --rm --name security-advisor-front -p 3000:3000 -e API_MODE=mock secu
 | [prototype-soo](https://github.com/team-khfc/prototype-soo)                   | 디자인 담당의 최신 시안 원본                                               |
 
 기능 변경은 개발 저장소의 브랜치와 PR에서 진행하고, [CONTRIBUTING.md](CONTRIBUTING.md)의 검토·승인 절차를 따릅니다. 다른 개발 저장소나 디자인 저장소를 이 작업에서 함께 수정한 것으로 간주하지 않습니다.
+
+
+## 관리자 AI 모델 구성·연결 점검
+
+관리자는 `/models`에서 용도별 구성과 우선순위를 편집하고 연결 시험·변경 비교·이력·복원을 사용할 수 있습니다. 실제 키 값은 설치 환경변수로만 관리하며 `LLM_ALLOWED_KEY_ENVS`에 허용한 참조만 선택합니다. 모델 구성 적용은 이후 호출에 영향을 주고 기존 신청·답변·제출본은 보존합니다. [실제 두 모델과 도커 검증 기록](docs/LLM_ADMINISTRATION_20261110.md)을 참고하세요.
