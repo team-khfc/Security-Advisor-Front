@@ -111,7 +111,7 @@ async function readTestEnvironment(stop) {
     'POSTGRES_USER=securityadvisor_test',
     `POSTGRES_PASSWORD=${randomBytes(24).toString('hex')}`,
     `DEMO_ACCOUNT_PASSWORD=Demo9!${randomBytes(20).toString('hex')}`,
-    'INSTITUTION_NAME=합성 연동 시험 기관',
+    'INSTITUTION_NAME=한국주택금융공사',
     'INSTITUTION_CODE=DEMO-INTEGRATION',
     'LLM_MODE=fake',
     'SECURITYADVISOR_FRONTEND_PORT=3001',
