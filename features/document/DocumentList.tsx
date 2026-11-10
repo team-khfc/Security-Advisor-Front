@@ -40,11 +40,17 @@ function documentLabel(request: SecurityRequest) {
 
 /** 초안은 최신 저장값으로, 제출본은 저장 당시 스냅샷으로 구분해 표시한다. */
 export function DocumentList() {
-  const requests = useRequests(true);
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<DocumentFilter>('all');
   const [page, setPage] = useState(1);
+  const requests = useRequests(true, {
+    page: page - 1,
+    size: PAGE_SIZE,
+    query: search,
+    documentKind: kind,
+    sort: 'createdAt,desc',
+  });
 
   function searchDocuments(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,18 +75,22 @@ export function DocumentList() {
         }}
       />
     );
-  const list = (requests.data ?? []).filter((request) => {
-    if (kind !== 'all' && documentKind(request) !== kind) return false;
-    return (
-      !search ||
-      `${request.caseTitle} ${request.id} ${DOCUMENT_LABELS[request.docType] ?? request.docType}`
-        .toLocaleLowerCase('ko-KR')
-        .includes(search.toLocaleLowerCase('ko-KR'))
-    );
-  });
-  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const list = requests.pagination
+    ? (requests.data ?? [])
+    : (requests.data ?? []).filter((request) => {
+        if (kind !== 'all' && documentKind(request) !== kind) return false;
+        return (
+          !search ||
+          `${request.caseTitle} ${request.id} ${DOCUMENT_LABELS[request.docType] ?? request.docType}`
+            .toLocaleLowerCase('ko-KR')
+            .includes(search.toLocaleLowerCase('ko-KR'))
+        );
+      });
+  const pages = Math.max(1, requests.pagination?.totalPages ?? Math.ceil(list.length / PAGE_SIZE));
   const currentPage = Math.max(1, Math.min(page, pages));
-  const visible = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visible = requests.pagination
+    ? list
+    : list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const pageStart = Math.max(1, Math.min(currentPage - 3, pages - 6));
   const pageNumbers = Array.from({ length: Math.min(7, pages) }, (_, index) => pageStart + index);
 
@@ -128,8 +138,9 @@ export function DocumentList() {
         </div>
       </form>
       <p className="filter-state" role="status">
-        문서 {list.length}건{list.length > 0 && ` · ${currentPage} / ${pages}페이지`}. 초안은 최신
-        저장 내용, 제출본은 제출 당시의 내용입니다.
+        문서 {requests.pagination?.totalElements ?? list.length}건
+        {list.length > 0 && ` · ${currentPage} / ${pages}페이지`}. 초안은 최신 저장 내용, 제출본은
+        제출 당시의 내용입니다.
       </p>
       {list.length ? (
         <div className="docs document-grid">

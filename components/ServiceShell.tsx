@@ -21,6 +21,7 @@ const menus: Record<Role, MenuItem[]> = {
     { href: '/requests', label: '신청 현황', icon: 'inbox' },
     { href: '/requests/new', label: '새 신청', icon: 'plus' },
     { href: '/supplements', label: '보완 요청', icon: 'message' },
+    { href: '/history', label: '내 신청 이력', icon: 'history' },
     { href: '/policies', label: '정책 수명주기', icon: 'timer' },
     { href: '/documents', label: '문서함', icon: 'document' },
   ],

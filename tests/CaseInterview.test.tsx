@@ -42,7 +42,7 @@ vi.mock('@/features/request/useInterviewAssistance', () => ({
 }));
 vi.mock('@/features/request/useRequests', () => ({
   useCase: () => ({ data: controls.businessCase, isPending: false }),
-  useRequests: () => ({ data: controls.requests, isPending: false }),
+  useRelatedRequests: () => ({ data: controls.requests, isPending: false }),
   useSaveCase: () => ({ mutateAsync: controls.save, isPending: controls.savePending }),
   useAnalysis: () => ({ reset: vi.fn(), isPending: false }),
   useApplyAnalysis: () => ({ reset: vi.fn(), isPending: false }),

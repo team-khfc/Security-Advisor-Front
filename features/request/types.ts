@@ -140,6 +140,23 @@ export const submissionSchema = z.object({
 });
 
 export const securityRequestSchema = z.object({
+  listOverview: z
+    .object({
+      myTurn: z.boolean(),
+      dueDate: z.string().nullable(),
+      submissionId: z.number().nullable(),
+      needsReview: z.boolean(),
+      fields: z.array(
+        z.object({
+          field: reviewFieldSchema,
+          assigneeUsername: z.string().nullable(),
+          reviewStatus: z.string().nullable(),
+          allocated: z.boolean(),
+          confirmed: z.boolean(),
+        }),
+      ),
+    })
+    .optional(),
   ...summaryShape,
   ownerId: z.string(),
   ownerName: z.string(),

@@ -54,6 +54,7 @@ describe('공통 메뉴 아이콘(A01)', () => {
         ['신청 현황', '/requests', 'inbox'],
         ['새 신청', '/requests/new', 'plus'],
         ['보완 요청', '/supplements', 'message'],
+        ['내 신청 이력', '/history', 'history'],
         ['정책 수명주기', '/policies', 'timer'],
         ['문서함', '/documents', 'document'],
       ],

@@ -1,4 +1,5 @@
 'use client';
+import { ListPager } from '@/components/ui';
 
 import Link from 'next/link';
 import { useState } from 'react';
@@ -17,7 +18,10 @@ import { useRequests } from './useRequests';
 
 /** 보완 답변은 신청 상세의 한 입력 영역으로 모아 중복 수정을 피한다. */
 export function SupplementList() {
-  const query = useRequests(true);
+  const [page, setPage] = useState(0);
+  const [state, setState] = useState('pending');
+  const [search, setSearch] = useState('');
+  const query = useRequests(true, { page, size: 20, supplementState: state, query: search });
   if (query.isPending) return <LoadingState />;
   if (query.error)
     return (
@@ -37,6 +41,43 @@ export function SupplementList() {
   return (
     <>
       <PageHeading title="보완 요청" />
+      <div className="toolbar">
+        <label htmlFor="supplement-state">확인 상태</label>
+        <select
+          id="supplement-state"
+          className="input"
+          value={state}
+          onChange={(event) => {
+            setState(event.target.value);
+            setPage(0);
+          }}
+        >
+          <option value="pending">답변·확인 필요</option>
+          <option value="resolved">확인 완료</option>
+          <option value="any">전체</option>
+        </select>
+        <label htmlFor="supplement-search">사업명·신청번호 검색</label>
+        <input
+          id="supplement-search"
+          className="input"
+          type="search"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(0);
+          }}
+        />
+      </div>
+      <ListPager
+        page={page}
+        size={20}
+        total={query.pagination?.totalElements ?? 0}
+        onChange={setPage}
+        label="보완 요청 페이지"
+      />
+      <p className="help">
+        보완 요청이 있는 신청을 페이지별로 표시합니다. 아래 건수는 현재 페이지 기준입니다.
+      </p>
       <section aria-labelledby="supplement-open-heading">
         <div className="sec-head sec-head-first">
           <h2 className="h-sec" id="supplement-open-heading">
@@ -162,9 +203,10 @@ function isMissing(answer: { value: string; notApplicable: boolean } | undefined
 
 /** 기재된 통신 사실만 보여 주며 변경은 배정된 신청 상세에서 처리한다. */
 export function NetworkList() {
-  const query = useRequests(true);
+  const [page, setPage] = useState(0);
   const session = useSession();
   const [search, setSearch] = useState('');
+  const query = useRequests(true, { page, size: 20, query: search });
   if (query.isPending || session.isPending) return <LoadingState />;
   if (query.error) return <ErrorState error={query.error} />;
   if (session.data?.member.role !== 'INFRA')
@@ -173,10 +215,19 @@ export function NetworkList() {
         ICT인프라 담당자 메뉴입니다. 신청 상세에서 허용된 정보만 확인할 수 있습니다.
       </Notice>
     );
-  const rows = (query.data ?? []).filter((request) => request.caseTitle.includes(search));
+  const rows = query.pagination
+    ? (query.data ?? [])
+    : (query.data ?? []).filter((request) => request.caseTitle.includes(search));
   return (
     <>
       <PageHeading title="통신 정보" />
+      <ListPager
+        page={page}
+        size={20}
+        total={query.pagination?.totalElements ?? 0}
+        onChange={setPage}
+        label="통신 정보 페이지"
+      />
       <div className="toolbar">
         <label className="sr-only" htmlFor="network-search">
           사업명 검색
@@ -186,11 +237,14 @@ export function NetworkList() {
           className="input"
           placeholder="사업명 검색"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
         />
       </div>
       <p className="filter-state" role="status">
-        신청 {rows.length}건
+        신청 {query.pagination?.totalElements ?? rows.length}건
       </p>
       {rows.length > 0 && (
         <div

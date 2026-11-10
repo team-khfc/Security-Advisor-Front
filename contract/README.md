@@ -2,8 +2,9 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `b3eca56560d24af73142bf198a7ad74d69c93f88` (PR #4의 main 병합본)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/b3eca56560d24af73142bf198a7ad74d69c93f88/docs/api/openapi.yaml
+- Back 커밋: `c583e90f49ff7e5d07956104a51d34bc38e7fecf` (목록·이력 API PR #10, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/c583e90f49ff7e5d07956104a51d34bc38e7fecf/docs/api/openapi.yaml
+- 목록·이력 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/10
 - 최종 보고서·PDF API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/4
 - 인터뷰 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/2
 - 요청서: https://github.com/team-khfc/Security-Advisor-Back/blob/74cbdfb5ef0896b2628d243e3bec7f01b183eaac/docs/FRONT_CHANGE_REQUEST_20261109.md
@@ -26,6 +27,8 @@
 5. 답변 확인: Answer 구현상 사용자 직접 입력은 저장 시 확정되고 confirmedBy는 null이다. 사용자 confirmation API는 AI_INFERRED에만 적용한다. 같은 AI 값을 확인할 때 다시 저장하여 USER_ANSWER로 바꾸지 않는다. 담당자 입력·확인은 `/api/reviews/{id}/answers/{fieldKey}` 경로를 사용한다.
 
 ## 검증
+
+신청 목록은 서버의 검색·필터·페이지·summary/overview를 사용하고, 사업별 관련 신청도 businessCaseId로 조회한다. 이력은 현재 계정 범위의 페이지 API를 사용하며 최초 throughId를 후속 페이지에 전달한다. 실제 도커의 합성 신청 220건과 이력 146건 검증은 [목록·이력 기록](../docs/PAGED_LISTS_20261110.md)에 있다.
 
 문서 미리보기·다운로드는 기존 GeneratedDocumentResponse를 공유한다. 생성 응답의 문서 번호를
 PDF 다운로드에 그대로 사용하며, 구현과 실제 화면 검증은 [정식 문서 통합 기록](../docs/SERVER_DOCUMENT_PREVIEW_20261110.md)에 있다.

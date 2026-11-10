@@ -36,7 +36,14 @@ import {
   type ReviewField,
   type SecurityRequest,
 } from './types';
-import { useCase, useRequest, useRequestCommand, useRequests, useSaveCase } from './useRequests';
+import { ListPager } from '@/components/ui';
+import {
+  useCase,
+  useRequest,
+  useRequestCommand,
+  useRelatedRequests,
+  useSaveCase,
+} from './useRequests';
 
 /** Back ReviewChecklist의 필수 항목. 확인 여부는 담당자가 직접 입력한다. */
 const REVIEW_CHECKLIST_ITEMS: Record<ReviewField, { key: string; label: string }[]> = {
@@ -120,7 +127,7 @@ function RequestWorkspace({
     actor.id === request.ownerId ||
     request.allowedActions.includes('EDIT_CASE');
   const caseQuery = useCase(request.caseId, canViewCase);
-  const allRequests = useRequests();
+  const allRequests = useRelatedRequests(request.caseId);
   const command = useRequestCommand(request);
   const saveCase = useSaveCase(request.caseId, request);
   const [dialogAction, setDialogAction] = useState<CommandAction | null>(null);
@@ -1157,7 +1164,10 @@ function AssigneeSelector({
 }
 
 function TerminalReason({ requestId, status }: { requestId: string; status: string }) {
-  const audit = useAudit(requestId);
+  const audit = useAudit(requestId, {
+    action: status === 'CLOSED' ? 'REQUEST_CLOSED' : 'REQUEST_WITHDRAWN',
+    size: 1,
+  });
   const event = audit.data?.find(
     (item) =>
       item.targetId === requestId &&
@@ -1176,7 +1186,9 @@ function TerminalReason({ requestId, status }: { requestId: string; status: stri
 }
 
 function RequestHistory({ requestId }: { requestId: string }) {
-  const audit = useAudit(requestId);
+  const [page, setPage] = useState(0);
+  const [throughId, setThroughId] = useState<number>();
+  const audit = useAudit(requestId, { page, size: 12, throughId });
   const events = (audit.data ?? []).filter((event) => event.targetId === requestId);
   return (
     <section className="card" id="request-history" aria-labelledby="d-hist">
@@ -1197,7 +1209,6 @@ function RequestHistory({ requestId }: { requestId: string }) {
           {events
             .slice()
             .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
-            .slice(0, 12)
             .map((event) => (
               <li key={event.id}>
                 <time dateTime={event.createdAt}>{formatTime(event.createdAt)}</time>
@@ -1210,6 +1221,18 @@ function RequestHistory({ requestId }: { requestId: string }) {
         </ol>
       ) : (
         <p className="help">이 신청의 처리 이력이 아직 없습니다.</p>
+      )}
+      {audit.pagination && (
+        <ListPager
+          page={page}
+          size={12}
+          total={audit.pagination.totalElements}
+          onChange={(next) => {
+            setThroughId(audit.throughId);
+            setPage(next);
+          }}
+          label="처리 이력 페이지"
+        />
       )}
     </section>
   );
