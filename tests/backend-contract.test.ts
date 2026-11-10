@@ -63,6 +63,7 @@ test('게시본의 단일 분야·적용 항목을 따르고 해결한 반환 �
       applicantUsername: 'synthetic',
       revision: 0,
       publicationId: 1,
+      knowledgePublicationId: 1,
       caseAnswers: [],
       createdAt: summary.updatedAt,
       updatedAt: summary.updatedAt,

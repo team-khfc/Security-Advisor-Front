@@ -723,3 +723,70 @@ test('PDF 대신 로그인 HTML이나 JSON이 오면 파일로 저장하지 않�
     'PDF 응답을 받지 못했습니다',
   );
 });
+
+test('지식 모의 API는 초안·게시를 분리하고 기존 사업 버전·현재 비공개 권한을 유지한다', async () => {
+  const { handler, client: admin } = await setup('admin');
+  const owner = makeClient(handler),
+    infra = makeClient(handler);
+  for (const [client, username] of [
+    [owner, 'applicant'],
+    [infra, 'infra'],
+  ] as const) {
+    await client.send('/api/installation');
+    expect((await client.send('/api/demo-sessions', 'POST', { username })).status).toBe(200);
+  }
+  const create = async (title: string) => {
+    const result = await owner.send('/api/business-cases', 'POST', {
+      title,
+      summary: '합성 지식 검증',
+      department: '합성부',
+      docTypes: ['FIREWALL'],
+    });
+    expect(result.status).toBe(201);
+    return result.json();
+  };
+  const old = await create('합성 게시 전');
+  const initial = await (await admin.send('/api/knowledge-drafts/current/snippets/1')).json();
+  const edit = await admin.send('/api/knowledge-snippets/1', 'PUT', {
+    ...initial,
+    body: '합성신규검색어',
+    expectedRevision: initial.revision,
+  });
+  expect(edit.status).toBe(200);
+  expect(
+    await (await owner.send('/api/knowledge-snippets/search?q=합성신규검색어')).json(),
+  ).toEqual([]);
+  const context = await (
+    await admin.send('/api/knowledge-drafts/current/private-contexts/1')
+  ).json();
+  expect(
+    (
+      await admin.send('/api/private-contexts/1', 'PUT', {
+        ...context,
+        visibleRoles: ['SECURITY'],
+        expectedRevision: context.revision,
+      })
+    ).status,
+  ).toBe(200);
+  expect((await (await infra.send('/api/private-contexts/suggestions')).json()).length).toBe(1);
+  const comparison = await (await admin.send('/api/knowledge-drafts/current/comparison')).json();
+  expect(
+    (
+      await admin.send('/api/knowledge-drafts/current/publications', 'POST', {
+        expectedRevision: comparison.revision,
+      })
+    ).status,
+  ).toBe(201);
+  const fresh = await create('합성 게시 후');
+  expect(fresh.knowledgePublicationId).toBe(2);
+  expect(
+    (await (await owner.send(`/api/business-cases/${old.businessCaseId}`)).json())
+      .knowledgePublicationId,
+  ).toBe(1);
+  expect(
+    await (await infra.send('/api/private-contexts/suggestions?knowledgePublicationId=1')).json(),
+  ).toEqual([]);
+  expect((await owner.send('/api/knowledge-publications/2')).status).toBe(403);
+  expect((await infra.send('/api/insights/summary')).status).toBe(403);
+  expect((await admin.send('/api/insights/summary')).status).toBe(200);
+});

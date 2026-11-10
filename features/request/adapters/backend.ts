@@ -83,6 +83,7 @@ export function adaptCase(value: z.infer<typeof caseDto>, publication: Publicati
     revision: value.revision,
     publicationVersion: publication.version,
     publicationId: publication.publicationId,
+    knowledgePublicationId: value.knowledgePublicationId,
     answers: adaptAnswers(value.caseAnswers, publication, 'CASE'),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,

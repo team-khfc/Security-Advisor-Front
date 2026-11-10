@@ -93,6 +93,7 @@ export const caseDto = z.object({
   summary: text,
   department: text,
   publicationId: id,
+  knowledgePublicationId: id.default(1),
   revision: id,
   caseAnswers: z.array(answerDto),
   createdAt: z.string(),

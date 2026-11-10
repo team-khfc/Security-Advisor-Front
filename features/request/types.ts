@@ -61,6 +61,7 @@ export const requestSummarySchema = z.object(summaryShape);
 export const businessCaseSchema = z.object({
   id: z.string(),
   publicationId: z.number().optional(),
+  knowledgePublicationId: z.number().optional(),
   title: z.string(),
   department: z.string(),
   description: z.string(),

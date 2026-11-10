@@ -110,14 +110,15 @@ export function useInterviewHelp(
   fieldKey: string,
   publicationId: number | undefined,
   enabled: boolean,
+  knowledgePublicationId = 1,
 ) {
   return useQuery({
-    queryKey: ['field-help', publicationId, fieldKey],
+    queryKey: ['field-help', publicationId, knowledgePublicationId, fieldKey],
     enabled: enabled && publicationId !== undefined,
     queryFn: async ({ signal }) =>
       fieldHelpDto.parse(
         await requestJson(
-          `/api/field-help/${encodeURIComponent(fieldKey)}?publicationId=${publicationId}`,
+          `/api/field-help/${encodeURIComponent(fieldKey)}?publicationId=${publicationId}&knowledgePublicationId=${knowledgePublicationId}`,
           { signal },
         ),
       ),

@@ -5,6 +5,8 @@ import { MockInquiries } from './inquiries';
 import { MockReviewerPools } from './reviewerPools';
 import { MockActivity } from './activity';
 import { MockConfigurations } from './configurations';
+import { MockKnowledge } from './knowledge';
+import { mockInsights } from './insights';
 import { settingsSchema } from '@/features/configuration/types';
 import { mockGeneratedDocument } from './generatedDocument';
 import type { GeneratedDocument } from '@/features/document/types';
@@ -72,6 +74,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  knowledge: MockKnowledge;
   configurations: MockConfigurations;
   activity: MockActivity;
   reviewerPools: MockReviewerPools;
@@ -208,9 +211,13 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   const configured = options.password ?? process.env.DEMO_ACCOUNT_PASSWORD;
   const passwordHash = configured ? await hash(configured, 10) : null;
   const state = createMockState();
+  const configurations = new MockConfigurations(state);
   return {
     state,
-    configurations: new MockConfigurations(state),
+    configurations,
+    knowledge: new MockKnowledge(state, () =>
+      configurations.publication('current').fieldSchema.fields.map((f) => f.key),
+    ),
     reviewerPools: new MockReviewerPools(MOCK_MEMBERS),
     activity: new MockActivity(),
     policies: new MockPolicies(),
@@ -725,6 +732,7 @@ async function dispatch(
     const result = createCase(runtime.state, actor, input);
     runtime.state = result.state;
     runtime.configurations.pinNewCase(runtime.state, result.caseId);
+    runtime.knowledge.pinCase(runtime.state, result.caseId);
     return json(
       caseDetail(runtime, getCase(runtime, result.caseId, actor), actor),
       201,
@@ -1000,6 +1008,94 @@ async function dispatchContract(
     fieldKey = parts[4];
   const id = wire.original(numericId ?? '');
   const method = request.method;
+  if (
+    [
+      'knowledge-drafts',
+      'knowledge-publications',
+      'knowledge-snippets',
+      'private-contexts',
+      'insights',
+    ].includes(resource)
+  ) {
+    const actor = sessionMember(runtime, request, now);
+    const knowledge = runtime.knowledge;
+    knowledge.bindState(runtime.state);
+    const page = Number(url.searchParams.get('page') ?? 0),
+      size = Number(url.searchParams.get('size') ?? 20);
+    const q = url.searchParams.get('q') ?? '';
+    const publicationId = url.searchParams.has('knowledgePublicationId')
+      ? Number(url.searchParams.get('knowledgePublicationId'))
+      : undefined;
+    const timestamp = new Date(now).toISOString();
+    if (resource === 'insights' && numericId === 'summary' && method === 'GET') {
+      if (actor.role !== 'ADMIN')
+        fail(403, 'FORBIDDEN', '기관 관리자만 업무 지표를 조회할 수 있습니다.');
+      const rules = await runtime.policies
+        .handle(runtime.state, wire, actor, new URL('/api/firewall-rules', url), 'GET', null, now)
+        .json();
+      return json(mockInsights(runtime.state, actor, timestamp, rules));
+    }
+    if (resource === 'knowledge-drafts' && numericId === 'current') {
+      if (!sub && method === 'GET') return json(knowledge.current(actor));
+      if (!sub && method === 'PUT') {
+        const input = parse(
+          z.object({
+            expectedRevision: z.number().int().nonnegative(),
+            note: z.string().max(500).nullable(),
+          }),
+          await bodyJson(request),
+        );
+        return json(knowledge.saveNote(actor, input.note, input.expectedRevision, timestamp));
+      }
+      if (sub === 'comparison' && method === 'GET') return json(knowledge.compare(actor));
+      if (sub === 'publications' && method === 'POST') {
+        const input = parse(
+          z.object({ expectedRevision: z.number().int().nonnegative() }),
+          await bodyJson(request),
+        );
+        return json(knowledge.publish(actor, input.expectedRevision, timestamp), 201);
+      }
+      if (['snippets', 'private-contexts'].includes(sub) && method === 'GET') {
+        const kind = sub === 'snippets' ? 'public' : 'private';
+        return json(
+          fieldKey
+            ? knowledge.item(actor, kind, Number(fieldKey))
+            : knowledge.list(actor, kind, q, page, size),
+        );
+      }
+    }
+    if (resource === 'knowledge-publications' && method === 'GET')
+      return json(
+        !numericId
+          ? knowledge.history(actor, page, size)
+          : sub === 'comparison'
+            ? knowledge.comparison(actor, Number(numericId))
+            : knowledge.published(actor, Number(numericId)),
+      );
+    if (['knowledge-snippets', 'private-contexts'].includes(resource)) {
+      const kind = resource === 'knowledge-snippets' ? 'public' : 'private';
+      if (method === 'GET')
+        return json(
+          kind === 'public'
+            ? knowledge.publicSearch(q, publicationId)
+            : numericId === 'suggestions'
+              ? knowledge.suggestions(actor, q, publicationId)
+              : knowledge.list(actor, 'private', q, page, size).content,
+        );
+      if ((method === 'POST' && !numericId) || (method === 'PUT' && numericId))
+        return json(
+          knowledge.save(
+            actor,
+            kind,
+            numericId ? Number(numericId) : null,
+            parse(z.record(z.string(), z.unknown()), await bodyJson(request)),
+            timestamp,
+          ),
+          method === 'POST' ? 201 : 200,
+        );
+    }
+    fail(404, 'NOT_FOUND', '지식·지표 요청을 찾을 수 없습니다.');
+  }
   if (resource === 'configurations') {
     const actor = sessionMember(runtime, request, now);
     if (actor.role !== 'ADMIN') fail(403, 'FORBIDDEN', '기관 관리자만 설정을 변경할 수 있습니다.');
@@ -1341,7 +1437,13 @@ async function dispatchContract(
       required: field.required,
       askRole: field.askRole,
       whyAsked: field.hint ?? '사업의 보안 검토 범위를 확인하기 위한 항목입니다. (모의 안내)',
-      snippets: [],
+      snippets: runtime.knowledge.publicSearch(
+        '',
+        url.searchParams.has('knowledgePublicationId')
+          ? Number(url.searchParams.get('knowledgePublicationId'))
+          : undefined,
+        field.key,
+      ),
     });
   }
   if (resource === 'business-cases' && sub === 'interview-turns') {

@@ -63,6 +63,7 @@ export class ContractMapper {
       summary: c.description,
       department: c.department,
       publicationId: c.publicationVersion,
+      knowledgePublicationId: c.knowledgePublicationId ?? 1,
       revision: c.revision,
       caseAnswers: c.answers.map((a) => this.answer(a, c.id, c.revision)),
       requests: requests.filter((r) => r.caseId === c.id).map((r) => this.summary(r)),

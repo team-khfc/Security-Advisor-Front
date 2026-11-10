@@ -836,6 +836,8 @@ function InterviewWorkspace({
             <h3 className="grp">사업 정보</h3>
             <p className="help">
               {businessCase.department} · 설정 게시본 v{businessCase.publicationVersion}
+              {businessCase.knowledgePublicationId != null &&
+                ` · 지식 기준 #${businessCase.knowledgePublicationId}`}
             </p>
             <AnswerView
               answers={businessCase.answers.filter((answer) => answer.ownerRole === 'APPLICANT')}
