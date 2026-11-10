@@ -31,6 +31,38 @@ function answer(overrides: Partial<Answer> = {}): Answer {
 }
 
 describe('답변의 출처와 입력 보존', () => {
+  test('다른 담당 분야의 AI 값·재검토 항목은 확인 UI도 제공하지 않는다', () => {
+    render(
+      <AnswerEditor
+        answers={[answer({ ownerRole: 'SECURITY', source: 'AI_INFERRED', needsReview: true })]}
+        revision={1}
+        actor={infra}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: '답변 저장' })).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  test('잘못된 기간은 전송하지 않고 입력과 오류를 보존한다', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <AnswerEditor
+        answers={[answer({ inputType: 'DATE_RANGE', value: '2028-01-01~2028-12-31' })]}
+        revision={1}
+        actor={applicant}
+        onSave={onSave}
+      />,
+    );
+    const input = screen.getByRole('textbox');
+    await user.clear(input);
+    await user.type(input, '2028-12-31~2028-01-01');
+    await user.click(screen.getByRole('button', { name: '답변 저장' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText(/종료일은 시작일보다 빠를 수 없습니다/)).toBeTruthy();
+    expect((input as HTMLTextAreaElement).value).toBe('2028-12-31~2028-01-01');
+  });
   test('반환된 사용자 답변은 담당자가 원문을 바꾸지 않고 명시적으로 재확인한다', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
@@ -287,6 +319,21 @@ describe('답변의 출처와 입력 보존', () => {
   );
 });
 
+test('방화벽 통신 항목의 필수 표시는 게시본 설정을 따른다', () => {
+  render(
+    <AnswerEditor
+      actor={applicant}
+      revision={1}
+      onSave={vi.fn()}
+      answers={[
+        answer({ key: 'firewall.protocol', label: '프로토콜', scope: 'REQUEST', required: true }),
+      ]}
+    />,
+  );
+  expect(screen.getByRole('textbox', { name: '프로토콜 (필수)' })).toBeTruthy();
+  expect(screen.queryByText('(선택)')).toBeNull();
+});
+
 test('현업 방화벽 답변은 선택형 통신 입력과 달력을 제공하고 저장 위에서 한 번 확인한다', async () => {
   const user = userEvent.setup();
   const onSave = vi.fn().mockResolvedValue(undefined);
@@ -298,6 +345,7 @@ test('현업 방화벽 답변은 선택형 통신 입력과 달력을 제공하�
       answers={[
         answer({
           key: 'firewall.protocol',
+          required: false,
           label: '프로토콜',
           scope: 'REQUEST',
           value: '',
@@ -305,6 +353,7 @@ test('현업 방화벽 답변은 선택형 통신 입력과 달력을 제공하�
         }),
         answer({
           key: 'firewall.port',
+          required: false,
           label: '포트',
           scope: 'REQUEST',
           value: '',

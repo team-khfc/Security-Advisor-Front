@@ -1,5 +1,7 @@
 'use client';
 
+import { answerValueError } from './answerFieldPolicy';
+
 import Link from 'next/link';
 import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import {
@@ -506,6 +508,8 @@ function InterviewWorkspace({
     // 선택형 답변도 저장 실패 시 직접 입력과 같은 초안으로 보존한다.
     updateAnswer(value);
     try {
+      const issue = answerValueError(question, value);
+      if (issue) throw new Error(issue);
       await save.mutateAsync({
         expectedRevision: answerRevision,
         answers: [
@@ -780,7 +784,19 @@ function InterviewWorkspace({
                     </span>
                     <div className="body">
                       <div className="bubble" aria-label={`${item.file.name} 분석 결과`}>
-                        {item.status === 'pending' ? (
+                        {item.status === 'selected' ? (
+                          <>
+                            <p>선택됨 · 분석을 요청하면 문서를 전송합니다.</p>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              disabled={answerBusy}
+                              onClick={() => void attachments.retry(item)}
+                            >
+                              첨부 문서 분석
+                            </button>
+                          </>
+                        ) : item.status === 'pending' ? (
                           <p role="status">
                             문서를 업로드하고 분석하고 있습니다… 완료되면 질문을 보낼 수 있습니다.
                           </p>
@@ -1018,7 +1034,7 @@ function InterviewWorkspace({
                     type="button"
                     className="btn btn-sm"
                     disabled={answerBusy || assistance.ask.isPending}
-                    title="한 번에 최대 3개 · 파일당 20MB · 합계 60MB · 선택하면 자동 분석"
+                    title="한 번에 최대 3개 · 파일당 20MB · 합계 60MB · 선택 후 분석 요청"
                     onClick={() => chatUploadInput.current?.click()}
                   >
                     파일 첨부

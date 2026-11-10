@@ -1,4 +1,5 @@
 import { DomainError } from './problem';
+import { fetchLongRunningApi, upstreamTimeoutMs } from './aiProxy';
 
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
 const FORWARDED_REQUEST_HEADERS = [
@@ -13,9 +14,14 @@ const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'retr
 
 /** 업로드·JSON 모두 읽는 동안 상한을 적용해 무제한 버퍼링을 막는다. */
 export async function readLimitedBody(request: Request): Promise<Uint8Array> {
+  const upload =
+    request.method === 'POST' &&
+    /^\/api\/business-cases\/[^/]+\/uploaded-files$/.test(new URL(request.url).pathname);
+  const maxBytes = upload ? 22 * 1024 * 1024 : MAX_BODY_BYTES;
+  const sizeMessage = `전송 가능한 전체 크기는 ${upload ? 22 : 12}MB 이하입니다.`;
   const declaredSize = request.headers.get('content-length');
-  if (declaredSize && Number(declaredSize) > MAX_BODY_BYTES) {
-    throw new DomainError(413, 'BODY_TOO_LARGE', '전송 가능한 전체 크기는 12MB 이하입니다.');
+  if (declaredSize && Number(declaredSize) > maxBytes) {
+    throw new DomainError(413, 'BODY_TOO_LARGE', sizeMessage);
   }
   if (!request.body) return new Uint8Array();
   const reader = request.body.getReader();
@@ -26,9 +32,9 @@ export async function readLimitedBody(request: Request): Promise<Uint8Array> {
       const item = await reader.read();
       if (item.done) break;
       size += item.value.byteLength;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         await reader.cancel();
-        throw new DomainError(413, 'BODY_TOO_LARGE', '전송 가능한 전체 크기는 12MB 이하입니다.');
+        throw new DomainError(413, 'BODY_TOO_LARGE', sizeMessage);
       }
       chunks.push(item.value);
     }
@@ -48,7 +54,7 @@ export async function readLimitedBody(request: Request): Promise<Uint8Array> {
 export async function forwardApiRequest(
   request: Request,
   apiBaseUrl: string | undefined,
-  fetcher: typeof fetch = fetch,
+  fetcher?: typeof fetch,
 ): Promise<Response> {
   let base: URL;
   try {
@@ -85,10 +91,12 @@ export async function forwardApiRequest(
   }
   const changesState = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
   const body = changesState ? await readLimitedBody(request) : undefined;
-  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(30_000)]);
+  const timeoutMs = upstreamTimeoutMs(request.method, source.pathname);
+  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)]);
   let response: Response;
   try {
-    response = await fetcher(target, {
+    const forward = fetcher ?? (timeoutMs > 30_000 ? fetchLongRunningApi : fetch);
+    response = await forward(target, {
       method: request.method,
       headers,
       body: body && body.byteLength ? (body as Uint8Array<ArrayBuffer>) : undefined,
@@ -102,7 +110,7 @@ export async function forwardApiRequest(
       signal.aborted ? 504 : 502,
       signal.aborted ? 'API_TIMEOUT' : 'API_UNAVAILABLE',
       signal.aborted
-        ? '업무 서버 응답 시간이 초과되었습니다. 입력한 내용을 유지한 채 다시 시도해 주세요.'
+        ? '업무 서버 응답 대기 시간이 초과되었습니다. 로그인 만료와는 다릅니다. 서버 처리가 진행됐을 수 있으니 입력을 유지하고 결과·이력을 확인한 뒤 다시 시도해 주세요.'
         : '업무 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.',
     );
   }

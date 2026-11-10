@@ -1,5 +1,5 @@
 /* 화면 구성은 prototype-soo 1af32fb의 시안을 따릅니다.
- * design.md v3.1에 따라 본문 축소를 제거하고 17px·1920px 기준을 적용했습니다.
+ * 사용자 요청에 따라 화면 전체를 기본 크기의 90%로 표시합니다.
  */
 @import './tokens.css';
 @import './base.css';
@@ -11,6 +11,12 @@
 @import './policy.css';
 @import './knowledge.css';
 @import './llm.css';
+
+@media screen {
+  html {
+    zoom: 0.9;
+  }
+}
 
 .hd-in,
 .shell,

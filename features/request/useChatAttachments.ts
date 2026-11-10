@@ -8,13 +8,13 @@ import { useAnalysis } from './useRequests';
 export interface ChatAttachment {
   id: number;
   file: File;
-  status: 'pending' | 'done' | 'failed';
+  status: 'selected' | 'pending' | 'done' | 'failed';
   summary: string;
   error: string;
   createdAt: number;
 }
 
-/** 첨부를 즉시 분석하되 결과를 정식 답변으로 자동 적용하지 않는다. */
+/** 첨부는 명시적 요청 후 분석하며 결과를 정식 답변으로 자동 적용하지 않는다. */
 export function useChatAttachments(businessCase: BusinessCase) {
   const analysis = useAnalysis();
   const [items, setItems] = useState<ChatAttachment[]>([]);
@@ -78,13 +78,12 @@ export function useChatAttachments(businessCase: BusinessCase) {
     const batch: ChatAttachment[] = files.map((file) => ({
       id: ++sequence.current,
       file,
-      status: 'pending',
+      status: 'selected',
       summary: '',
       error: '',
       createdAt: Date.now(),
     }));
     setItems((old) => [...old, ...batch]);
-    await run(batch);
   };
   return { items, busy, error, attach, retry: (item: ChatAttachment) => run([item]) };
 }

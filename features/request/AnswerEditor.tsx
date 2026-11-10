@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Badge, Icon, Notice } from '@/components/ui';
 import { DateRangeAnswer } from './DateRangeAnswer';
+import { canConfirmAnswer, answerValueError } from './answerFieldPolicy';
 import { useInputDraft } from '@/lib/inputDrafts';
 import type { Actor } from '@/lib/types';
 import type { Answer, AnswerInput } from './types';
@@ -113,7 +114,7 @@ export function AnswerEditor({
   const eligible = answers.filter(
     (answer) =>
       answer.ownerRole === actor.role ||
-      (['INFRA', 'SECURITY'].includes(actor.role) &&
+      (canConfirmAnswer(answer, actor.role) &&
         (answer.source === 'AI_INFERRED' || answer.needsReview)),
   );
   const {
@@ -186,6 +187,12 @@ export function AnswerEditor({
         setPending(true);
         setError(null);
         try {
+          for (const answer of eligible) {
+            const input = values?.[answer.key] ?? inputValue(answer);
+            if (!input.value.trim() && !input.confirmed && !input.notApplicable) continue;
+            const issue = answerValueError(answer, input.notApplicable ? '미해당' : input.value);
+            if (issue) throw new Error(issue);
+          }
           await onSave(
             dirty ? baseRevision : revision,
             eligible
@@ -265,7 +272,7 @@ export function AnswerEditor({
             >
               <label htmlFor={inputId}>
                 {answer.label}{' '}
-                {compactNetwork ? (
+                {compactNetwork && !answer.required ? (
                   <span className="help">(선택)</span>
                 ) : (
                   answer.required && <span className="required">(필수)</span>

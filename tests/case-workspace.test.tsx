@@ -241,11 +241,13 @@ test('우측에서 저장한 항목은 대화 입력과 수집 정보에 갱신�
   expect(screen.queryByText('공통 답변 전체 수정·AI 제안 확인')).toBeNull();
 });
 
-test('채팅 파일 선택 즉시 분석하고 별도 분석 패널 없이 대화에 요약을 표시한다', async () => {
+test('채팅 파일은 선택만으로 전송하지 않고 명시적 분석 후 대화에 요약을 표시한다', async () => {
   const user = userEvent.setup();
   renderForEditing(controls.businessCase!.id);
   const file = new File(['synthetic'], '자동분석.txt');
   await user.upload(screen.getByLabelText('문서 첨부 (선택)'), file);
+  expect(controls.analyze).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: '첨부 문서 분석' }));
   await waitFor(() =>
     expect(controls.analyze).toHaveBeenCalledWith(expect.objectContaining({ file })),
   );
@@ -264,6 +266,7 @@ test('분석 실패는 채팅에 남기고 재시도하면 같은 메시지에 �
     screen.getByLabelText('문서 첨부 (선택)'),
     new File(['synthetic'], '재시도.txt'),
   );
+  await user.click(screen.getByRole('button', { name: '첨부 문서 분석' }));
   const retry = await screen.findByRole('button', { name: '다시 분석' });
   await user.click(retry);
   expect(await screen.findByText('합성 첨부문서 요약')).toBeTruthy();
