@@ -208,8 +208,9 @@ export function AnswerEditor({
     >
       <h3 className="h-panel">{title}</h3>
       <p className="help">
-        본인이 작성하는 항목만 수정합니다. AI 추론과 재검토 대상은 내용을 읽고 확인해 주세요. 다른
-        사람이 작성한 항목은 값을 바꾸지 않고 확인만 기록합니다.
+        현재 역할의 담당 항목을 수정합니다. 인계받은 항목도 기존 내용을 이어서 수정할 수 있습니다.
+        AI 추론과 재검토 대상은 내용을 읽고 확인해 주세요. 다른 역할의 항목은 값을 바꾸지 않고
+        확인만 기록합니다.
       </p>
       {draftKey && dirty && (
         <p className="help" role="status">

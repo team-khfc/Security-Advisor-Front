@@ -23,6 +23,11 @@ function overview(r: SecurityRequest, actor: Actor, wire: ContractMapper) {
     const review = r.reviews.find((v) => v.field === field);
     return {
       field,
+      reassignmentReason:
+        r.stage >= 2 && !['FINALIZED', 'CLOSED', 'WITHDRAWN'].includes(r.status)
+          ? (r.assignments.find((a) => a.active && a.field === field)?.reassignmentReason ??
+            (r.assignments.some((a) => a.active && a.field === field) ? null : 'UNASSIGNED'))
+          : null,
       assigneeUsername: wire.username(
         r.assignments.find((a) => a.active && a.field === field)?.assigneeId ?? null,
       ),
@@ -46,7 +51,7 @@ function overview(r: SecurityRequest, actor: Actor, wire: ContractMapper) {
     (actor.role === 'APPLICANT'
       ? ['DRAFT', 'SUPPLEMENT_REQUESTED', 'FINAL_REVIEW'].includes(r.status)
       : actor.role === 'ADMIN'
-        ? r.stage >= 2 && fields.some((f) => !f.assigneeUsername)
+        ? r.stage >= 2 && fields.some((f) => !!f.reassignmentReason)
         : !!own &&
           own.assigneeUsername === actor.username &&
           ((r.stage === 2 &&

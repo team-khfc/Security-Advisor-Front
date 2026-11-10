@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { reassignmentReasonSchema } from '@/lib/assignmentStatus';
 import type { Actor } from '@/lib/types';
 
 const roleSchema = z.enum(['APPLICANT', 'INFRA', 'SECURITY', 'ADMIN']);
@@ -93,6 +94,7 @@ export const reviewSchema = z.object({
 });
 
 export const assignmentSchema = z.object({
+  reassignmentReason: reassignmentReasonSchema.nullish(),
   id: z.string(),
   field: reviewFieldSchema,
   assigneeId: z.string(),
@@ -153,6 +155,7 @@ export const securityRequestSchema = z.object({
           reviewStatus: z.string().nullable(),
           allocated: z.boolean(),
           confirmed: z.boolean(),
+          reassignmentReason: reassignmentReasonSchema.nullish(),
         }),
       ),
     })
@@ -345,4 +348,7 @@ export const FIELD_LABELS: Record<ReviewField, string> = {
   SECURITY: '정보보안',
 };
 
-export type ReviewerDirectory = readonly Actor[];
+export type ReviewerDirectory = readonly (Actor & {
+  registered?: boolean;
+  defaultReviewer?: boolean;
+})[];

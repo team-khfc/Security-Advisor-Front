@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { reassignmentReasonSchema } from '@/lib/assignmentStatus';
 
 const id = z.number().int().nonnegative();
 const text = z.string().nullable();
@@ -79,6 +80,7 @@ export const requestListDto = requestDto.omit({ answers: true, createdAt: true }
           reviewStatus: text,
           allocated: z.boolean(),
           confirmed: z.boolean(),
+          reassignmentReason: reassignmentReasonSchema.nullish(),
         }),
       ),
     })
@@ -123,6 +125,7 @@ export const reviewDto = z.object({
   checklist: z.record(z.string(), z.boolean()),
 });
 export const assignmentDto = z.object({
+  reassignmentReason: reassignmentReasonSchema.nullish(),
   assignmentId: id,
   field,
   assigneeUsername: z.string(),

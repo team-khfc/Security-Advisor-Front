@@ -127,6 +127,7 @@ export class ContractMapper {
   }
   assignments(r: SecurityRequest) {
     return r.assignments.map((v) => ({
+      reassignmentReason: v.reassignmentReason ?? null,
       assignmentId: this.id(v.id),
       securityRequestId: this.id(r.id),
       field: v.field,

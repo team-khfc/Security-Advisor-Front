@@ -2,6 +2,7 @@ import { mockRequestListing, mockAuditListing } from './listing';
 import { ContractMapper } from './contractMapper';
 import { MockPolicies } from './policies';
 import { MockInquiries } from './inquiries';
+import { MockReviewerPools } from './reviewerPools';
 import { mockGeneratedDocument } from './generatedDocument';
 import type { GeneratedDocument } from '@/features/document/types';
 import type { InterviewTurn } from '@/features/request/useInterview';
@@ -68,6 +69,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  reviewerPools: MockReviewerPools;
   inquiries: MockInquiries;
   generatedDocuments: Map<number, GeneratedDocument>;
   policies: MockPolicies;
@@ -202,6 +204,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   const passwordHash = configured ? await hash(configured, 10) : null;
   return {
     state: createMockState(),
+    reviewerPools: new MockReviewerPools(MOCK_MEMBERS),
     policies: new MockPolicies(),
     inquiries: new MockInquiries(),
     members: MOCK_MEMBERS.map((actor) => ({ actor: structuredClone(actor), passwordHash })),
@@ -481,6 +484,16 @@ export function createMockApi(options: MockApiOptions = {}) {
         mapper.businessCase(c, runtime.state.requests);
       }
       for (const r of runtime.state.requests) {
+        for (const a of r.assignments) {
+          const username = runtime.members.find((m) => m.actor.id === a.assigneeId)?.actor.username;
+          a.reassignmentReason = a.active
+            ? runtime.reviewerPools.reason(
+                username,
+                a.field,
+                runtime.members.map((m) => m.actor),
+              )
+            : null;
+        }
         for (const a of r.answers) a.revision ??= r.revision;
         mapper.request(r);
         mapper.reviews(r);
@@ -601,7 +614,7 @@ async function dispatch(
   }
 
   const actor = sessionMember(runtime, request, now);
-  const members = runtime.members.map((entry) => entry.actor);
+  const members = runtime.reviewerPools.directory(runtime.members.map((entry) => entry.actor));
   if (
     resource === 'sessions' &&
     id === 'current' &&
@@ -1010,6 +1023,34 @@ async function dispatchContract(
     (resource === 'members' && method === 'POST' && !numericId)
       ? undefined
       : sessionMember(runtime, request, now);
+  if (resource === 'reviewer-pools')
+    return json(
+      runtime.reviewerPools.handle(
+        actor!,
+        runtime.state,
+        runtime.members.map((m) => m.actor),
+        method,
+        numericId,
+        sub,
+        method === 'POST' || (method === 'PUT' && sub === 'activation')
+          ? await request.json()
+          : undefined,
+      ),
+      method === 'POST' ? 201 : 200,
+    );
+  if (resource === 'todo-summary' && method === 'GET') {
+    if (actor!.role !== 'ADMIN') return json({ unassignedRequests: 0 });
+    const count = runtime.state.requests.filter(
+      (r) =>
+        r.stage >= 2 &&
+        !['FINALIZED', 'CLOSED', 'WITHDRAWN'].includes(r.status) &&
+        (r.requiredReviewFields ?? ['INFRA', 'SECURITY']).some(
+          (field) =>
+            !r.assignments.some((a) => a.active && a.field === field && !a.reassignmentReason),
+        ),
+    ).length;
+    return json({ unassignedRequests: count });
+  }
   if (
     resource === 'firewall-rules' ||
     (resource === 'security-requests' && sub === 'firewall-rules')
