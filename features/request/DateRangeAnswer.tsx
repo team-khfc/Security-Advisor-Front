@@ -5,7 +5,11 @@ export function DateRangeAnswer({
   value,
   disabled,
   onChange,
+  label = '사업·서비스 기간',
+  required = true,
 }: {
+  label?: string;
+  required?: boolean;
   value: string;
   disabled: boolean;
   onChange: (value: string) => void;
@@ -21,14 +25,14 @@ export function DateRangeAnswer({
     onChange(`${nextStart} ~ ${permanent ? '종료일 없음' : nextEnd || '종료일 선택'}`);
   return (
     <fieldset className="date-range-answer" disabled={disabled}>
-      <legend className="sr-only">사업·서비스 기간</legend>
+      <legend className="sr-only">{label}</legend>
       <div className="date-range-fields">
         <label>
           시작일
           <input
             className="input"
             type="date"
-            required
+            required={required || Boolean(end) || ongoing}
             value={start}
             max={end || undefined}
             onChange={(event) => update(event.target.value, end, ongoing)}
@@ -39,7 +43,7 @@ export function DateRangeAnswer({
           <input
             className="input"
             type="date"
-            required={!ongoing}
+            required={!ongoing && (required || Boolean(start))}
             disabled={disabled || ongoing}
             value={end}
             min={start || undefined}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Badge, Icon, Notice } from '@/components/ui';
+import { DateRangeAnswer } from './DateRangeAnswer';
 import { useInputDraft } from '@/lib/inputDrafts';
 import type { Actor } from '@/lib/types';
 import type { Answer, AnswerInput } from './types';
@@ -128,6 +129,9 @@ export function AnswerEditor({
     : localDraft?.actorId === actor.id
       ? localDraft.draft
       : undefined;
+  const compactFirewall =
+    actor.role === 'APPLICANT' &&
+    eligible.some((answer) => answer.scope === 'REQUEST' && answer.key.startsWith('firewall.'));
   const values = draft?.values;
   const baseRevision = draft?.baseRevision ?? revision;
   const dirty = Boolean(draft);
@@ -244,71 +248,145 @@ export function AnswerEditor({
           <Icon name="check" size={16} /> 답변을 저장했습니다.
         </p>
       )}
-      {eligible.map((answer) => {
-        const value = values?.[answer.key] ?? inputValue(answer);
-        const inputId = `edit-${answer.scope}-${answer.key}`;
-        return (
-          <div
-            className={`field ${highlighted.includes(answer.key) ? 'needs-supplement' : ''}`}
-            key={answer.key}
-          >
-            <label htmlFor={inputId}>
-              {answer.label} {answer.required && <span className="required">(필수)</span>}
-            </label>
-            {highlighted.includes(answer.key) && (
-              <p className="help warning-text">
-                <Icon name="alert" size={16} /> 보완 필요 · 이전 값을 보존했습니다.
-              </p>
-            )}
-            <textarea
-              className="input"
-              id={inputId}
-              rows={2}
-              maxLength={4000}
-              value={value.value}
-              readOnly={answer.ownerRole !== actor.role}
-              disabled={pending}
-              onChange={(event) =>
-                update(answer.key, {
-                  value: event.target.value,
-                  confirmed: false,
-                  notApplicable: false,
-                })
-              }
-              aria-describedby={`${inputId}-source`}
-            />
-            <div id={`${inputId}-source`}>
-              <SourceBadge answer={answer} />
-              {answer.evidence && <p className="help evidence-text">근거: {answer.evidence}</p>}
-            </div>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={value.confirmed}
-                disabled={pending}
-                onChange={(event) => update(answer.key, { confirmed: event.target.checked })}
-              />
-              이 항목의 내용을 확인했습니다
-            </label>
-            {!answer.required && (
-              <label className="check-row">
+      <div className={compactFirewall ? 'firewall-answer-fields' : undefined}>
+        {eligible.map((answer) => {
+          const value = values?.[answer.key] ?? inputValue(answer);
+          const compactNetwork =
+            compactFirewall && ['firewall.protocol', 'firewall.port'].includes(answer.key);
+          const calendar = compactFirewall && answer.key === 'firewall.period';
+          const shortPurpose = compactFirewall && answer.key === 'firewall.purpose';
+          const changeValue = (value: string) =>
+            update(answer.key, { value, confirmed: false, notApplicable: false });
+          const inputId = `edit-${answer.scope}-${answer.key}`;
+          return (
+            <div
+              className={`field ${compactNetwork ? 'firewall-network-field' : ''} ${shortPurpose ? 'firewall-purpose-field' : ''} ${highlighted.includes(answer.key) ? 'needs-supplement' : ''}`}
+              key={answer.key}
+            >
+              <label htmlFor={inputId}>
+                {answer.label}{' '}
+                {compactNetwork ? (
+                  <span className="help">(선택)</span>
+                ) : (
+                  answer.required && <span className="required">(필수)</span>
+                )}
+              </label>
+              {highlighted.includes(answer.key) && (
+                <p className="help warning-text">
+                  <Icon name="alert" size={16} /> 보완 필요 · 이전 값을 보존했습니다.
+                </p>
+              )}
+              {calendar ? (
+                <DateRangeAnswer
+                  label={answer.label}
+                  required={false}
+                  value={value.value}
+                  disabled={pending}
+                  onChange={changeValue}
+                />
+              ) : compactNetwork ? (
                 <input
-                  type="checkbox"
-                  checked={value.notApplicable}
-                  disabled={pending || answer.ownerRole !== actor.role}
+                  className="input"
+                  id={inputId}
+                  type="text"
+                  maxLength={4000}
+                  value={value.value}
+                  disabled={pending}
+                  onChange={(event) => changeValue(event.target.value)}
+                  aria-describedby={`${inputId}-source`}
+                />
+              ) : (
+                <textarea
+                  className="input"
+                  id={inputId}
+                  rows={2}
+                  maxLength={4000}
+                  value={value.value}
+                  readOnly={answer.ownerRole !== actor.role}
+                  disabled={pending}
                   onChange={(event) =>
                     update(answer.key, {
-                      notApplicable: event.target.checked,
-                      confirmed: event.target.checked,
+                      value: event.target.value,
+                      confirmed: false,
+                      notApplicable: false,
                     })
                   }
+                  aria-describedby={`${inputId}-source`}
                 />
-                해당 없음
-              </label>
-            )}
-          </div>
-        );
-      })}
+              )}
+              <div id={`${inputId}-source`}>
+                <SourceBadge answer={answer} />
+                {answer.evidence && <p className="help evidence-text">근거: {answer.evidence}</p>}
+              </div>
+              {!compactFirewall && (
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={value.confirmed}
+                    disabled={pending}
+                    onChange={(event) => update(answer.key, { confirmed: event.target.checked })}
+                  />
+                  이 항목의 내용을 확인했습니다
+                </label>
+              )}
+              {!answer.required && (
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={value.notApplicable}
+                    disabled={pending || answer.ownerRole !== actor.role}
+                    onChange={(event) =>
+                      update(answer.key, {
+                        notApplicable: event.target.checked,
+                        confirmed: event.target.checked,
+                      })
+                    }
+                  />
+                  해당 없음
+                </label>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {compactFirewall && (
+        <label className="check-row">
+          <input
+            type="checkbox"
+            disabled={pending || conflict}
+            checked={
+              eligible.some((answer) =>
+                (values?.[answer.key] ?? inputValue(answer)).value.trim(),
+              ) &&
+              eligible.every((answer) => {
+                const value = values?.[answer.key] ?? inputValue(answer);
+                return !value.value.trim() || value.confirmed;
+              })
+            }
+            onChange={(event) => {
+              const checked = event.target.checked;
+              writeDraft({
+                baseRevision,
+                confirmedForeignKeys: [],
+                values: Object.fromEntries(
+                  eligible.map((answer) => {
+                    const value = values?.[answer.key] ?? inputValue(answer);
+                    return [
+                      answer.key,
+                      {
+                        ...value,
+                        confirmed: checked && Boolean(value.value.trim() || value.notApplicable),
+                      },
+                    ];
+                  }),
+                ),
+              });
+              setSaved(false);
+            }}
+          />
+          작성한 답변의 내용을 확인했습니다
+        </label>
+      )}
       <div className="btn-row">
         <button className="btn" disabled={pending || conflict}>
           {pending ? '저장 중…' : '답변 저장'}
