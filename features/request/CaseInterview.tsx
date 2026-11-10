@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import {
   EmptyState,
   ErrorState,
@@ -13,8 +13,15 @@ import {
 } from '@/components/ui';
 import { useSession } from '@/features/auth';
 import { useInputDraft } from '@/lib/inputDrafts';
-import { forgetUpload, getUpload } from '@/lib/uploadDraft';
-import { AnswerEditor, AnswerView } from './AnswerEditor';
+import {
+  getUploads,
+  getInitialAnalysis,
+  rememberUpload,
+  validateUploadFiles,
+} from '@/lib/uploadDraft';
+import { AnswerView } from './AnswerEditor';
+import { CollectedAnswerEditor } from './CollectedAnswerEditor';
+import { useChatAttachments } from './useChatAttachments';
 import {
   InterviewAssistance,
   InterviewComposer,
@@ -33,72 +40,143 @@ import {
 } from './useRequests';
 
 /** 명시적 분석 요청과 제안 적용을 구분하고 실패 시 직접 입력을 유지한다. */
-export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) {
+export function AnalysisPanel({
+  businessCase,
+  chat = false,
+  uploadInput,
+}: {
+  businessCase: BusinessCase;
+  chat?: boolean;
+  uploadInput?: RefObject<HTMLInputElement | null>;
+}) {
+  const attachmentInput = useRef<HTMLInputElement>(null);
   const session = useSession();
   const actorId = session.data?.member.id ?? '';
-  const { draft, saveDraft, clearDraft } = useInputDraft<{ text: string; file?: File }>(
+  const { draft, saveDraft, clearDraft } = useInputDraft<{ text: string; files?: File[] }>(
     actorId,
     `case:${businessCase.id}:analysis`,
   );
-  const file = draft?.file ?? getUpload(actorId, businessCase.id);
-  const text = draft?.text ?? businessCase.description;
+  const files = draft?.files ?? getUploads(actorId, businessCase.id);
+  const [fileIndex, setFileIndex] = useState(0);
+  const file = files[fileIndex];
+  const text = chat ? businessCase.description : (draft?.text ?? businessCase.description);
   const [fileError, setFileError] = useState('');
   const analysis = useAnalysis();
   const apply = useApplyAnalysis();
   const [applied, setApplied] = useState(false);
 
   return (
-    <section className="analysis-panel" aria-labelledby="analysis-title">
-      <h3 className="h-panel" id="analysis-title">
-        <Icon name="sparkles" /> 기획서·개요에서 정보 찾기
-      </h3>
-      <p className="help">
-        {session.data?.mock
-          ? '모의 분석은 합성 후보를 반환합니다. 실제 파일 파싱·LLM 호출은 Back 연동 후 지원합니다.'
-          : '분석 결과는 제안입니다. 출처와 내용을 읽고 사람이 확인해 주세요.'}
-      </p>
+    <section
+      className={`analysis-panel${chat ? ' chat-attachments' : ''}`}
+      aria-label={chat ? '채팅 첨부파일' : '문서 분석'}
+      hidden={Boolean(uploadInput) && !files.length && !fileError}
+    >
+      {!chat && (
+        <>
+          <h3 className="h-panel" id="analysis-title">
+            <Icon name="sparkles" /> 기획서·개요에서 정보 찾기
+          </h3>
+          <p className="help">
+            {session.data?.mock
+              ? '모의 분석은 합성 후보를 반환합니다. 실제 파일 파싱·LLM 호출은 Back 연동 후 지원합니다.'
+              : '분석 결과는 제안입니다. 출처와 내용을 읽고 사람이 확인해 주세요.'}
+          </p>
+          <div className="field">
+            <label htmlFor="analysis-text">분석할 사업 개요</label>
+            <textarea
+              id="analysis-text"
+              className="input"
+              rows={3}
+              value={text}
+              maxLength={4000}
+              disabled={analysis.isPending || apply.isPending}
+              onChange={(e) => {
+                saveDraft({ text: e.target.value, files });
+                setApplied(false);
+                analysis.reset();
+              }}
+              placeholder="업무 목적과 다루는 정보를 적어 주세요."
+            />
+          </div>
+        </>
+      )}
       <div className="field">
-        <label htmlFor="analysis-text">분석할 사업 개요</label>
-        <textarea
-          id="analysis-text"
-          className="input"
-          rows={3}
-          value={text}
-          maxLength={4000}
-          onChange={(e) => {
-            saveDraft({ text: e.target.value, file });
-            setApplied(false);
-            analysis.reset();
-          }}
-          placeholder="업무 목적과 다루는 정보를 적어 주세요."
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="analysis-file">문서 첨부 (선택)</label>
+        {chat && !uploadInput ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={analysis.isPending || apply.isPending}
+            onClick={() => attachmentInput.current?.click()}
+          >
+            <Icon name="file" size={18} /> 파일 첨부
+          </button>
+        ) : !chat ? (
+          <label htmlFor="analysis-file">문서 첨부 (선택)</label>
+        ) : null}
         <input
+          ref={uploadInput ?? attachmentInput}
+          className={chat ? 'sr-only' : undefined}
+          tabIndex={chat ? -1 : undefined}
+          aria-label="문서 첨부 (선택)"
           id="analysis-file"
           type="file"
           accept=".pdf,.hwpx,.docx,.txt"
+          multiple
+          disabled={analysis.isPending || apply.isPending}
           onChange={(e) => {
-            const selected = e.target.files?.[0];
-            setFileError('');
+            const selected = Array.from(e.target.files ?? []);
+            e.target.value = '';
+            if (!selected.length) return;
+            const next = [...files, ...selected];
+            const message = validateUploadFiles(next);
+            setFileError(message);
+            if (message) return;
             analysis.reset();
             setApplied(false);
-            if (
-              selected &&
-              (!/\.(pdf|hwpx|docx|txt)$/i.test(selected.name) || selected.size > 10 * 1024 * 1024)
-            ) {
-              setFileError(
-                /\.hwp$/i.test(selected.name)
-                  ? 'HWPX 로 변환해 올려 주세요.'
-                  : '허용된 문서 형식으로 10MB 이하의 파일을 선택해 주세요.',
-              );
-              return;
-            }
-            if (!selected) forgetUpload(actorId, businessCase.id);
-            saveDraft({ text, file: selected });
+            saveDraft({ text, files: next });
           }}
         />
+        <p className="help">
+          최대 3개 · 파일당 20MB · 합계 60MB. 문서는 한 개씩 분석하고 제안을 확인합니다.
+        </p>
+        {files.length > 0 && (
+          <ul className="pend" aria-label="분석할 파일 목록">
+            {files.map((item, index) => (
+              <li key={`${item.name}-${index}`}>
+                <button
+                  type="button"
+                  className="btn"
+                  aria-pressed={index === fileIndex}
+                  disabled={analysis.isPending || apply.isPending}
+                  onClick={() => {
+                    setFileIndex(index);
+                    analysis.reset();
+                    apply.reset();
+                    setApplied(false);
+                  }}
+                >
+                  {item.name}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-tertiary"
+                  aria-label={`${item.name} 선택 취소`}
+                  disabled={analysis.isPending || apply.isPending}
+                  onClick={() => {
+                    saveDraft({ text, files: files.filter((_, i) => i !== index) });
+                    setFileIndex(0);
+                    setFileError('');
+                    analysis.reset();
+                    apply.reset();
+                    setApplied(false);
+                  }}
+                >
+                  선택 취소
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {file && (
           <p className="help file-name">
             {file.name} · 선택됨, 분석 요청 전에는 전송하지 않습니다.
@@ -106,30 +184,32 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
         )}
       </div>
       {fileError && <Notice tone="danger">{fileError}</Notice>}
-      <button
-        className="btn"
-        type="button"
-        disabled={analysis.isPending || (!text.trim() && !file) || Boolean(fileError)}
-        onClick={async () => {
-          analysis.reset();
-          apply.reset();
-          setApplied(false);
-          try {
-            await analysis.mutateAsync({
-              caseId: businessCase.id,
-              expectedRevision: businessCase.revision,
-              text,
-              file,
-            });
-            forgetUpload(actorId, businessCase.id);
-          } catch {
-            /* mutation 오류 영역에서 재시도 수단과 함께 설명한다. */
-          }
-        }}
-      >
-        <Icon name="sparkles" />
-        {analysis.isPending ? '처리 중…' : file ? '문서 분석 요청' : '사업 개요 저장'}
-      </button>
+      {(!chat || files.length > 0) && (
+        <button
+          className="btn"
+          type="button"
+          disabled={analysis.isPending || (!text.trim() && !file) || Boolean(fileError)}
+          onClick={async () => {
+            analysis.reset();
+            apply.reset();
+            setApplied(false);
+            try {
+              await analysis.mutateAsync({
+                caseId: businessCase.id,
+                expectedRevision: businessCase.revision,
+                text,
+                file,
+              });
+              saveDraft({ text, files });
+            } catch {
+              /* mutation 오류 영역에서 재시도 수단과 함께 설명한다. */
+            }
+          }}
+        >
+          <Icon name="sparkles" />
+          {analysis.isPending ? '처리 중…' : file ? '문서 분석 요청' : '사업 개요 저장'}
+        </button>
+      )}
       {analysis.isPending && (
         <p role="status">
           파일을 전송하고 분석 결과를 기다리고 있습니다. 입력한 개요는 유지됩니다.
@@ -142,6 +222,11 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
       )}
       {analysis.data && !analysis.error && (
         <div className="analysis-result">
+          {chat && !analysis.data.summaryOnly && (
+            <p role="status">
+              문서 분석을 완료했습니다. 이제 도우미가 분석 요약을 참고할 수 있습니다.
+            </p>
+          )}
           {!analysis.data.summaryOnly && (
             <>
               <Badge tone="warning">
@@ -185,6 +270,7 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
                     id: analysis.data.id,
                     expectedRevision: businessCase.revision,
                   });
+                  rememberUpload(actorId, businessCase.id, files);
                   clearDraft();
                   setApplied(true);
                 } catch {
@@ -238,6 +324,7 @@ function InterviewWorkspace({
   actor: NonNullable<ReturnType<typeof useSession>['data']>['member'];
 }) {
   const save = useSaveCase(businessCase.id);
+  const initialAnalysis = getInitialAnalysis(actor.id, businessCase.id);
   const questions = businessCase.answers.filter((answer) => answer.ownerRole === 'APPLICANT');
   const { draft, saveDraft, clearDraft } = useInputDraft<{
     questionIndex: number;
@@ -263,8 +350,10 @@ function InterviewWorkspace({
   const conversationRef = useRef<HTMLDivElement>(null);
   const latestMessageRef = useRef<HTMLDivElement>(null);
   const questionCardRef = useRef<HTMLFormElement>(null);
+  const chatUploadInput = useRef<HTMLInputElement>(null);
   const currentQuestionRef = useRef<HTMLDivElement>(null);
   const latestAiRef = useRef<HTMLDivElement>(null);
+  const latestAttachmentRef = useRef<HTMLDivElement>(null);
   const [panelWidth, setPanelWidth] = useState(380);
   const [error, setError] = useState('');
   const savingRef = useRef(false);
@@ -303,7 +392,9 @@ function InterviewWorkspace({
     actor.role === 'APPLICANT' && actor.id === businessCase.ownerId,
   );
   const staffCheck = useInterviewStaffCheck(businessCase.id);
+  const attachments = useChatAttachments(businessCase);
   const [staffNotice, setStaffNotice] = useState('');
+  const [sideEditing, setSideEditing] = useState(false);
   const clearCurrentDraft = () => {
     if (!question || !draft) return;
     const remaining = { ...draft.answers };
@@ -317,10 +408,21 @@ function InterviewWorkspace({
     actorId: actor.id,
     answerText,
     turns: turns.data ?? [],
-    disabled: !editable || save.isPending || staffCheck.isPending || conflict,
+    disabled:
+      !editable ||
+      sideEditing ||
+      attachments.busy ||
+      save.isPending ||
+      staffCheck.isPending ||
+      conflict,
     onApplied: clearCurrentDraft,
   });
-  const answerBusy = save.isPending || staffCheck.isPending || assistance.apply.isPending;
+  const answerBusy =
+    sideEditing ||
+    attachments.busy ||
+    save.isPending ||
+    staffCheck.isPending ||
+    assistance.apply.isPending;
   const latestTurnId = assistance.history.at(-1)?.interviewTurnId;
   const messages = [
     ...chat.map((item, index) => ({ kind: 'answer' as const, item, index, at: item.createdAt })),
@@ -365,6 +467,17 @@ function InterviewWorkspace({
         ? bounds.top - top
         : Math.max(0, bounds.bottom - top - container.clientHeight + 24);
   }, [latestTurnId, assistance.ask.isPending, assistance.ask.error, assistance.apply.error]);
+  useLayoutEffect(() => {
+    const container = conversationRef.current;
+    const message = latestAttachmentRef.current;
+    if (!container || !message) return;
+    const bounds = message.getBoundingClientRect();
+    const top = container.getBoundingClientRect().top + container.clientTop;
+    container.scrollTop +=
+      bounds.height > container.clientHeight
+        ? bounds.top - top
+        : Math.max(0, bounds.bottom - top - container.clientHeight + 24);
+  }, [attachments.items]);
   const presentation = question ? questionPresentation(question) : undefined;
   const updateAnswer = (value: string) => {
     if (!question) return;
@@ -441,11 +554,28 @@ function InterviewWorkspace({
           </Link>
         ))}
       </div>
-      {editable && (
-        <details className="docbar case-analysis">
-          <summary>기획서로 시작하거나 AI 제안 받기</summary>
-          <AnalysisPanel businessCase={businessCase} />
-        </details>
+      {initialAnalysis && (
+        <Notice tone={initialAnalysis.failures.length ? 'warning' : 'info'}>
+          작성 시작 시 첨부 문서 {initialAnalysis.total}개 중{' '}
+          {initialAnalysis.total - initialAnalysis.failures.length}개를 분석했습니다.
+          {initialAnalysis.failures.length ? (
+            <>
+              <p>
+                분석하지 못한 문서는 보안정보 도우미의 ‘파일 첨부’로 다시 올려 주세요. 도우미는
+                완료된 분석 요약만 참조합니다.
+              </p>
+              <ul>
+                {initialAnalysis.failures.map((failure, index) => (
+                  <li key={index}>
+                    {failure.name}: {failure.message}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            ' 보안정보 도우미가 분석 요약을 미확정 참고자료로 사용합니다.'
+          )}
+        </Notice>
       )}
       <div className="work case-work" style={viewStyle}>
         <section className="chatp" aria-labelledby="chat-heading">
@@ -526,6 +656,62 @@ function InterviewWorkspace({
                   </div>
                 ),
               )}
+              {attachments.items.map((item) => (
+                <div
+                  className="chat-pair"
+                  key={`attachment-${item.id}`}
+                  ref={item.id === attachments.items.at(-1)?.id ? latestAttachmentRef : undefined}
+                >
+                  <p className="m-me">첨부: {item.file.name}</p>
+                  <div className="m-ai">
+                    <span className="av" aria-hidden="true">
+                      <Icon name="file" size={18} />
+                    </span>
+                    <div className="body">
+                      <div className="bubble" aria-label={`${item.file.name} 분석 결과`}>
+                        {item.status === 'pending' ? (
+                          <p role="status">
+                            문서를 업로드하고 분석하고 있습니다… 완료되면 질문을 보낼 수 있습니다.
+                          </p>
+                        ) : item.status === 'failed' ? (
+                          <>
+                            <Notice tone="danger">
+                              {item.error} 이 문서는 아직 도우미에 반영되지 않았습니다.
+                            </Notice>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              disabled={
+                                attachments.busy ||
+                                sideEditing ||
+                                save.isPending ||
+                                assistance.ask.isPending ||
+                                assistance.apply.isPending
+                              }
+                              onClick={() => void attachments.retry(item)}
+                            >
+                              다시 분석
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <Badge tone="warning">문서 분석 요약 · 미확정</Badge>
+                            <p className="interview-ai-text">
+                              {item.summary || '분석이 완료됐지만 요약이 없습니다.'}
+                            </p>
+                            <p className="help">
+                              {item.summary
+                                ? '도우미가 다음 질문·추천부터 이 요약을 참고합니다. 신청서 답변은 자동 변경하지 않습니다.'
+                                : '문서 내용을 확인하거나 다시 첨부해 주세요.'}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {attachments.error && <Notice tone="danger">{attachments.error}</Notice>}
               {assistance.ask.isPending && (
                 <div className="interview-pending">
                   <p className="m-me">{assistance.ask.variables?.text}</p>
@@ -669,6 +855,23 @@ function InterviewWorkspace({
               </Notice>
             )}
           </div>
+          {editable && (
+            <input
+              ref={chatUploadInput}
+              type="file"
+              className="sr-only"
+              tabIndex={-1}
+              aria-label="문서 첨부 (선택)"
+              accept=".pdf,.hwpx,.docx,.txt"
+              multiple
+              disabled={answerBusy || assistance.ask.isPending}
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = '';
+                void attachments.attach(files);
+              }}
+            />
+          )}
           {editable && question && presentation && (
             <form
               ref={questionCardRef}
@@ -680,7 +883,20 @@ function InterviewWorkspace({
                 else void saveAnswer(answerText);
               }}
             >
-              <InterviewComposer state={assistance}>
+              <InterviewComposer
+                state={assistance}
+                attachment={
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={answerBusy || assistance.ask.isPending}
+                    title="한 번에 최대 3개 · 파일당 20MB · 합계 60MB · 선택하면 자동 분석"
+                    onClick={() => chatUploadInput.current?.click()}
+                  >
+                    파일 첨부
+                  </button>
+                }
+              >
                 {presentation.options && (
                   <div
                     className="qchips"
@@ -782,6 +998,14 @@ function InterviewWorkspace({
                 >
                   공통 질문 다시 보기
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={attachments.busy}
+                  onClick={() => chatUploadInput.current?.click()}
+                >
+                  파일 첨부
+                </button>
               </div>
             </div>
           )}
@@ -839,9 +1063,40 @@ function InterviewWorkspace({
               {businessCase.knowledgePublicationId != null &&
                 ` · 지식 기준 #${businessCase.knowledgePublicationId}`}
             </p>
-            <AnswerView
-              answers={businessCase.answers.filter((answer) => answer.ownerRole === 'APPLICANT')}
-            />
+            {editable ? (
+              <CollectedAnswerEditor
+                answers={questions}
+                revision={businessCase.revision}
+                disabled={
+                  attachments.busy ||
+                  save.isPending ||
+                  staffCheck.isPending ||
+                  assistance.ask.isPending ||
+                  assistance.apply.isPending
+                }
+                onEditingChange={setSideEditing}
+                onSave={async (expectedRevision, answer) => {
+                  await save.mutateAsync({ expectedRevision, answers: [answer] });
+                  if (draft?.answers[answer.key]) {
+                    const remaining = { ...draft.answers };
+                    delete remaining[answer.key];
+                    if (Object.keys(remaining).length)
+                      saveDraft({ questionIndex, answers: remaining });
+                    else clearDraft();
+                  }
+                  setChat((old) => [
+                    ...old,
+                    {
+                      question: `${questions.find((item) => item.key === answer.key)?.label ?? answer.key} · 수집 정보 수정`,
+                      answer: answer.notApplicable ? '미해당' : answer.value,
+                      createdAt: Date.now(),
+                    },
+                  ]);
+                }}
+              />
+            ) : (
+              <AnswerView answers={questions} />
+            )}
             <h3 className="grp">담당자 확인 항목</h3>
             <p className="help">내부 시스템 정보는 담당자가 직접 입력합니다.</p>
             <AnswerView
@@ -850,19 +1105,6 @@ function InterviewWorkspace({
           </div>
         </aside>
       </div>
-      {editable && (
-        <details className="card manual-editor">
-          <summary>공통 답변 전체 수정·AI 제안 확인</summary>
-          <AnswerEditor
-            key={`${businessCase.id}-${actor.id}`}
-            draftKey={`case:${businessCase.id}:answers`}
-            answers={businessCase.answers}
-            actor={actor}
-            revision={businessCase.revision}
-            onSave={(expectedRevision, answers) => save.mutateAsync({ expectedRevision, answers })}
-          />
-        </details>
-      )}
     </>
   );
 }

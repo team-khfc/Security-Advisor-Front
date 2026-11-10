@@ -6,9 +6,9 @@ import { Icon, LoadingState, Modal, Notice, PageHeading } from '@/components/ui'
 import { useSession } from '@/features/auth';
 import { useInputDraft } from '@/lib/inputDrafts';
 import type { Actor } from '@/lib/types';
-import { rememberUpload } from '@/lib/uploadDraft';
+import { rememberUpload, rememberInitialAnalysis, validateUploadFiles } from '@/lib/uploadDraft';
 import { DOCUMENT_LABELS, type DocumentType } from './types';
-import { useCreateCase } from './useRequests';
+import { useCreateCase, useAnalysis } from './useRequests';
 
 /** 시안의 파일 선택 화면에서 시작 의도를 확인한 뒤 사업 정보를 입력받는다. */
 export function NewRequest() {
@@ -31,7 +31,7 @@ export function NewRequest() {
 }
 
 interface NewCaseDraft {
-  file?: File;
+  files?: File[];
   title: string;
   department: string;
   description: string;
@@ -43,6 +43,10 @@ type StartMode = 'conversation' | 'file';
 function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
   const router = useRouter();
   const create = useCreateCase();
+  const analysis = useAnalysis();
+  const [preparing, setPreparing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState('');
+  const busy = create.isPending || preparing;
   const inputRef = useRef<HTMLInputElement>(null);
   const pickButton = useRef<HTMLButtonElement>(null);
   const startTrigger = useRef<HTMLButtonElement | null>(null);
@@ -54,7 +58,8 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
     description: '',
     docTypes: ['FIREWALL', 'SECURITY_REVIEW'],
   };
-  const { file, title, department, description, docTypes } = values;
+  const { title, department, description, docTypes } = values;
+  const files = values.files ?? [];
   const update = (change: Partial<NewCaseDraft>) => saveDraft({ ...values, ...change });
   const [startMode, setStartMode] = useState<StartMode | null>(null);
   const [error, setError] = useState('');
@@ -65,40 +70,29 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
     if (startMode === null) startTrigger.current?.focus();
   }, [startMode]);
 
-  const selectFiles = (files: FileList | null) => {
-    setFileError('');
-    if (!files?.length) return;
-    if (files.length > 1) {
-      setFileError('파일은 한 번에 1개만 선택해 주세요.');
-      return;
-    }
-    const next = files[0];
-    if (!/\.(pdf|hwpx|docx|txt)$/i.test(next.name) || next.size > 10 * 1024 * 1024) {
-      setFileError('PDF, HWPX, DOCX, TXT 파일을 10MB 이하로 선택해 주세요.');
-      return;
-    }
-    if (next.size === 0) {
-      setFileError('빈 파일은 선택할 수 없습니다.');
-      return;
-    }
-    update({ file: next });
+  const selectFiles = (selected: FileList | null) => {
+    if (!selected?.length) return;
+    const next = [...files, ...Array.from(selected)];
+    const message = validateUploadFiles(next);
+    setFileError(message);
+    if (!message) update({ files: next });
   };
 
   const openStart = (mode: StartMode, trigger: HTMLButtonElement) => {
-    if (create.isPending || submitting.current) return;
+    if (busy || submitting.current) return;
     startTrigger.current = trigger;
     setError('');
     setStartMode(mode);
   };
   const closeStart = () => {
-    if (create.isPending || submitting.current) return;
+    if (busy || submitting.current) return;
     setStartMode(null);
     setError('');
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (create.isPending || submitting.current || !startMode) return;
+    if (busy || submitting.current || !startMode) return;
     setError('');
     if (!title.trim()) {
       setError('사업명을 입력해 주세요.');
@@ -113,6 +107,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
       return;
     }
     submitting.current = true;
+    setPreparing(true);
     try {
       const result = await create.mutateAsync({
         title: title.trim(),
@@ -121,7 +116,27 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
         docTypes,
       });
       // 대화로 시작한 경우에는 선택해 둔 파일을 자동 첨부하지 않는다.
-      if (startMode === 'file' && file) rememberUpload(actor.id, result.id, file);
+      if (startMode === 'file' && files.length) {
+        rememberUpload(actor.id, result.id, files);
+        const failures: { name: string; message: string }[] = [];
+        for (const [index, file] of files.entries()) {
+          setAnalysisProgress(`문서 분석 중 ${index + 1}/${files.length}: ${file.name}`);
+          try {
+            await analysis.mutateAsync({
+              caseId: result.id,
+              expectedRevision: result.revision,
+              text: description,
+              file,
+            });
+          } catch (cause) {
+            failures.push({
+              name: file.name,
+              message: cause instanceof Error ? cause.message : '문서 분석에 실패했습니다.',
+            });
+          }
+        }
+        rememberInitialAnalysis(actor.id, result.id, { total: files.length, failures });
+      }
       clearDraft();
       router.push(`/cases/${encodeURIComponent(result.id)}`);
     } catch (cause) {
@@ -130,6 +145,8 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
       );
     } finally {
       submitting.current = false;
+      setPreparing(false);
+      setAnalysisProgress('');
     }
   };
 
@@ -141,7 +158,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
           className={`dropzone${dragging ? ' drag' : ''}`}
           onDragOver={(event) => {
             event.preventDefault();
-            if (!create.isPending) setDragging(true);
+            if (!busy) setDragging(true);
           }}
           onDragLeave={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null))
@@ -150,7 +167,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
           onDrop={(event) => {
             event.preventDefault();
             setDragging(false);
-            if (!create.isPending) selectFiles(event.dataTransfer.files);
+            if (!busy) selectFiles(event.dataTransfer.files);
           }}
         >
           <span className="dz-ic" aria-hidden="true">
@@ -176,6 +193,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
           <input
             ref={inputRef}
             type="file"
+            multiple
             accept=".pdf,.hwpx,.docx,.txt"
             className="sr-only"
             tabIndex={-1}
@@ -190,54 +208,56 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
             type="button"
             className="btn"
             aria-describedby="file-help"
-            disabled={create.isPending}
+            disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
             파일 선택
           </button>
           <p className="help" id="file-help">
-            PDF, HWPX, DOCX, TXT 파일, 파일 1개, 최대 10MB
+            PDF, HWPX, DOCX, TXT 파일, 최대 3개 · 파일당 20MB · 합계 60MB
           </p>
           {fileError && (
             <p className="ferr" role="alert">
               {fileError}
             </p>
           )}
-          {file && (
+          {files.length > 0 && (
             <>
               <ul className="pend" aria-label="분석 전 파일">
-                <li>
-                  <Icon name="file" size={18} />
-                  <span className="pn" title={file.name}>
-                    {file.name}
-                  </span>
-                  <span className="help">
-                    {(file.name.split('.').pop() ?? '').toUpperCase()},{' '}
-                    {file.size >= 1024 * 1024
-                      ? `${(file.size / 1024 / 1024).toFixed(1)}MB`
-                      : `${(file.size / 1024).toFixed(1)}KB`}
-                  </span>
-                  <span className="badge b-neutral">분석 전</span>
-                  <button
-                    type="button"
-                    className="iedit-btn"
-                    aria-label={`${file.name} 선택 취소`}
-                    title="선택 취소"
-                    disabled={create.isPending}
-                    onClick={() => {
-                      update({ file: undefined });
-                      setFileError('');
-                      if (inputRef.current) inputRef.current.value = '';
-                      pickButton.current?.focus();
-                    }}
-                  >
-                    <Icon name="x" size={18} />
-                  </button>
-                </li>
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${index}`}>
+                    <Icon name="file" size={18} />
+                    <span className="pn" title={file.name}>
+                      {file.name}
+                    </span>
+                    <span className="help">
+                      {(file.name.split('.').pop() ?? '').toUpperCase()},{' '}
+                      {file.size >= 1024 * 1024
+                        ? `${(file.size / 1024 / 1024).toFixed(1)}MB`
+                        : `${(file.size / 1024).toFixed(1)}KB`}
+                    </span>
+                    <span className="badge b-neutral">분석 전</span>
+                    <button
+                      type="button"
+                      className="iedit-btn"
+                      aria-label={`${file.name} 선택 취소`}
+                      title="선택 취소"
+                      disabled={busy}
+                      onClick={() => {
+                        update({ files: files.filter((_, fileIndex) => fileIndex !== index) });
+                        setFileError('');
+                        if (inputRef.current) inputRef.current.value = '';
+                        pickButton.current?.focus();
+                      }}
+                    >
+                      <Icon name="x" size={18} />
+                    </button>
+                  </li>
+                ))}
               </ul>
               <p className="help">
-                선택한 파일은 아직 전송되지 않았습니다. 인터뷰 화면에서 ‘분석 요청’을 누르면
-                전송합니다.
+                선택한 파일은 아직 전송되지 않았습니다. 신청 정보를 입력하고 ‘인터뷰 시작’을 누르면
+                파일을 전송·분석한 뒤 인터뷰로 이동합니다.
               </p>
             </>
           )}
@@ -247,18 +267,18 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
             type="button"
             className="btn btn-tertiary"
             onClick={(event) => openStart('conversation', event.currentTarget)}
-            disabled={create.isPending}
+            disabled={busy}
           >
             기획서 없이 대화로 시작
           </button>
-          {file && (
+          {files.length > 0 && (
             <button
               type="button"
               className="btn btn-primary"
               onClick={(event) => openStart('file', event.currentTarget)}
-              disabled={create.isPending}
+              disabled={busy}
             >
-              기획서와 함께 작성 시작 (1)
+              기획서와 함께 작성 시작 ({files.length})
             </button>
           )}
         </div>
@@ -270,7 +290,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
             onSubmit={(event) => {
               void submit(event);
             }}
-            aria-busy={create.isPending}
+            aria-busy={busy}
           >
             <p className="help">사업 정보를 입력하면 공통 인터뷰를 시작합니다.</p>
             <section className="card new-case-basics" aria-labelledby="case-title">
@@ -287,7 +307,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
                     id="business-title"
                     value={title}
                     onChange={(e) => update({ title: e.target.value })}
-                    disabled={create.isPending}
+                    disabled={busy}
                     required
                     maxLength={120}
                     placeholder="예: 공공자료 안내 서비스 구축"
@@ -303,7 +323,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
                     value={department}
                     onChange={(e) => update({ department: e.target.value })}
                     required
-                    disabled={create.isPending}
+                    disabled={busy}
                     maxLength={80}
                     placeholder="담당 부서명"
                   />
@@ -321,7 +341,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
                     <input
                       type="checkbox"
                       checked={docTypes.includes(type)}
-                      disabled={create.isPending}
+                      disabled={busy}
                       onChange={(e) =>
                         update({
                           docTypes: e.target.checked
@@ -356,7 +376,7 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
                   id="business-description"
                   value={description}
                   onChange={(e) => update({ description: e.target.value })}
-                  disabled={create.isPending}
+                  disabled={busy}
                   maxLength={4000}
                   rows={4}
                   placeholder="어떤 업무를 위해 어떤 서비스를 만드는지 알려주세요."
@@ -364,10 +384,19 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
               </div>
             </details>
 
-            {startMode === 'file' && file && (
+            {startMode === 'file' && files.length > 0 && (
               <p className="help">
-                선택한 기획서: <strong>{file.name}</strong>
+                선택한 기획서: <strong>{files.map((file) => file.name).join(', ')}</strong>
               </p>
+            )}
+            {startMode === 'file' && (
+              <p className="help">
+                인터뷰를 시작하면 첨부 문서를 AI로 분석합니다. 완료된 분석 요약은 보안정보 도우미가
+                미확정 참고자료로 사용합니다.
+              </p>
+            )}
+            {analysisProgress && (
+              <p role="status">{analysisProgress} · 분석이 끝날 때까지 이 화면을 유지해 주세요.</p>
             )}
             {error && <Notice tone="danger">{error}</Notice>}
             {draft && (
@@ -381,13 +410,13 @@ function NewRequestForm({ actor, mock }: { actor: Actor; mock: boolean }) {
               <button
                 type="button"
                 className="btn btn-tertiary"
-                disabled={create.isPending}
+                disabled={busy}
                 onClick={closeStart}
               >
                 취소
               </button>
-              <button className="btn btn-primary" disabled={create.isPending}>
-                {create.isPending ? '사업 건 생성 중…' : '인터뷰 시작'}
+              <button className="btn btn-primary" disabled={busy}>
+                {busy ? (analysisProgress ? '문서 분석 중…' : '사업 건 생성 중…') : '인터뷰 시작'}
               </button>
             </div>
           </form>

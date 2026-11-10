@@ -211,3 +211,25 @@ function renderForEditing(id: string) {
   if (restart) fireEvent.click(restart);
   return view;
 }
+
+test('다중 문서를 보존하고 선택한 파일만 명시적 분석 요청에 전달한다', async () => {
+  const user = userEvent.setup();
+  const businessCase = controls.businessCase!;
+  const files = ['기획서.txt', '구성도.txt', '요구사항.txt'].map(
+    (name) => new File(['synthetic'], name),
+  );
+  const first = render(<AnalysisPanel businessCase={businessCase} />);
+  await user.upload(screen.getByLabelText('문서 첨부 (선택)'), files);
+  expect(controls.analyze).not.toHaveBeenCalled();
+  first.unmount();
+  render(<AnalysisPanel businessCase={businessCase} />);
+  for (const file of files) {
+    await user.click(screen.getByRole('button', { name: file.name }));
+    await user.click(screen.getByRole('button', { name: '문서 분석 요청' }));
+    await waitFor(() =>
+      expect(controls.analyze).toHaveBeenLastCalledWith(expect.objectContaining({ file })),
+    );
+  }
+  expect(controls.analyze).toHaveBeenCalledTimes(3);
+  expect(screen.getByRole('list', { name: '분석할 파일 목록' }).children).toHaveLength(3);
+});

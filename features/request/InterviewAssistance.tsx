@@ -66,9 +66,11 @@ export function InterviewAssistance({
 export function InterviewComposer({
   state,
   children,
+  attachment,
 }: {
   state: InterviewAssistanceState;
   children: ReactNode;
+  attachment?: ReactNode;
 }) {
   return (
     <>
@@ -91,6 +93,7 @@ export function InterviewComposer({
         >
           AI에게 질문
         </button>
+        {attachment}
       </div>
       {state.mode === 'ANSWER' ? (
         children

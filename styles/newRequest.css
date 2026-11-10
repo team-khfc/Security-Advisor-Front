@@ -895,7 +895,33 @@ progress.prog::-moz-progress-bar {
 }
 .case-work .conversation-body {
   flex: 1 1 auto;
-  min-height: 24rem;
+  min-height: 12rem;
+}
+
+/* 첨부 목록은 채팅 입력 위에 두고 긴 목록·분석 결과만 내부 스크롤한다. */
+.case-work .chat-attachments {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 28%;
+  overflow: auto;
+  padding: 1.2rem 1.6rem;
+  border-top: 1px solid var(--sf-border);
+}
+.case-work .chat-attachments .field {
+  margin: 0;
+}
+.case-work .chat-attachments .pend {
+  width: 100%;
+  max-width: none;
+  margin: 0.8rem 0;
+}
+.case-work .chat-attachments .pend li {
+  flex-wrap: wrap;
+}
+.case-work .chat-attachments .pend .btn {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .case-work .conversation-log,
 .case-work .chat-pair {
@@ -986,6 +1012,9 @@ progress.prog::-moz-progress-bar {
   flex-wrap: wrap;
   gap: 0.8rem;
 }
+.interview-input-modes > .btn {
+  min-width: 10.4rem;
+}
 .interview-input-modes [aria-pressed='true'] {
   color: var(--sf-primary-text);
   border-color: var(--sf-primary);
@@ -1034,4 +1063,24 @@ progress.prog::-moz-progress-bar {
 }
 .interview-help cite {
   font-size: 0.9em;
+}
+
+/* 수집 정보는 항목별로 펼쳐 수정하고 좁은 패널 안에서 줄바꿈한다. */
+.collected-field {
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--sf-border);
+}
+.collected-field form {
+  display: grid;
+  gap: 0.8rem;
+}
+.collected-field .input {
+  width: 100%;
+  min-width: 0;
+}
+.collected-field .btn-row {
+  flex-wrap: wrap;
+}
+.collected-field .help {
+  overflow-wrap: anywhere;
 }
