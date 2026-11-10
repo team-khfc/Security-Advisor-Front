@@ -91,6 +91,12 @@ export function InfrastructureWorkspace({
     );
   return (
     <>
+      {canEdit && actor.role === 'SECURITY' && (
+        <Notice tone="warning">
+          서버·네트워크·운영 정보를 저장하면 완료된 ICT인프라 협의가 재검토로 전환됩니다. ICT인프라
+          담당자가 다시 협의를 완료한 뒤 정보보안 협의를 완료할 수 있습니다.
+        </Notice>
+      )}
       {canEdit && query.data && (
         <InfrastructureEditor
           reviewerLabel={actor.role === 'SECURITY' ? '정보보안' : 'ICT인프라'}
@@ -375,7 +381,9 @@ function InfrastructureEditor({
             setSaved(
               temporary
                 ? '임시 저장했습니다. 입력은 보존되며 확인 저장 전에는 협의를 완료할 수 없습니다.'
-                : `${reviewerLabel} 검토 정보를 저장했습니다.`,
+                : reviewerLabel === '정보보안'
+                  ? '검토 정보를 저장했습니다. ICT인프라 재협의가 완료된 뒤 정보보안 협의를 완료해 주세요.'
+                  : `${reviewerLabel} 검토 정보를 저장했습니다.`,
             );
             setAiApplied(next.aiPending);
             setAiConfirmed(false);
