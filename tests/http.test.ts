@@ -2,7 +2,8 @@
 
 import { afterEach, expect, test, vi } from 'vitest';
 import { GET, POST } from '@/app/api/[...path]/route';
-import { ApiError, requestJson } from '@/lib/httpClient';
+import { generatedDocumentSchema } from '@/features/document/types';
+import { ApiError, requestJson, requestPdf } from '@/lib/httpClient';
 import { forwardApiRequest, readLimitedBody } from '@/lib/serverProxy';
 import type { Actor, PageResponse } from '@/lib/types';
 import type { BusinessCase, SecurityRequest } from '@/features/request';
@@ -662,5 +663,63 @@ test('확인된 사업 개요는 분석 제안으로 덮어쓰지 않고 경고�
   );
   expect(after.caseAnswers.find((a) => a.fieldKey === 'purpose')).toEqual(
     before.caseAnswers.find((a) => a.fieldKey === 'purpose'),
+  );
+});
+
+test('정식 문서 모의 계약은 생성·조회·불변 스냅샷을 제공하고 PDF 미지원은 명시한다', async () => {
+  const { client } = await setup();
+  const businessCase = await (await client.send('/api/business-cases/demo-case-1')).json();
+  const id = businessCase.requests[0].securityRequestId;
+  const base = `/api/security-requests/${id}/generated-documents`;
+  const response = await client.send(base, 'POST', { aiSupplement: false });
+  expect(response.status).toBe(201);
+  const doc = generatedDocumentSchema.parse(await response.json());
+  expect(doc.securityRequestId).toBe(id);
+  expect(doc.kind).toBe('DRAFT');
+  expect(await (await client.send(base)).json()).toEqual([doc]);
+  expect(
+    await (await client.send(`/api/generated-documents/${doc.generatedDocumentId}`)).json(),
+  ).toEqual(doc);
+  const file = await client.send(
+    `/api/generated-documents/${doc.generatedDocumentId}/download?format=PDF`,
+  );
+  expect(file.status).toBe(503);
+  expect(await file.json()).toHaveProperty('code', 'PDF_REQUIRES_BACKEND');
+  expect(
+    (await client.send(base, 'POST', { submissionId: 999999, aiSupplement: false })).status,
+  ).toBe(404);
+});
+
+test.each([
+  ["attachment; filename*=UTF-8''%ED%99%95%EC%A0%95%EB%B3%B8_42_v9.pdf", '확정본_42_v9.pdf'],
+  ['attachment; filename="safe.pdf"', 'safe.pdf'],
+  ["attachment; filename*=UTF-8''%2E%2E%2Fsecret.pdf", undefined],
+  ["attachment; filename*=UTF-8''%5Csecret.pdf", undefined],
+  ["attachment; filename*=UTF-8''%00evil.pdf", undefined],
+  ["attachment; filename*=UTF-8''bad%ZZ.pdf", undefined],
+  ['attachment; filename="evil.html"', undefined],
+])('PDF 파일명의 유효성을 검사한다: %s', async (disposition, expected) => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(
+      new Response('%PDF 합성 바이트', {
+        headers: { 'content-type': 'application/pdf', 'content-disposition': disposition },
+      }),
+    ),
+  );
+  const file = await requestPdf('/api/generated-documents/88/download?format=PDF');
+  expect(file.fileName).toBe(expected);
+  expect(file.blob.size).toBeGreaterThan(0);
+});
+
+test('PDF 대신 로그인 HTML이나 JSON이 오면 파일로 저장하지 않는다', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { headers: { 'content-type': 'application/json' } })),
+  );
+  await expect(requestPdf('/api/generated-documents/88/download?format=PDF')).rejects.toThrow(
+    'PDF 응답을 받지 못했습니다',
   );
 });

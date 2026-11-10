@@ -1,7 +1,9 @@
+import * as http from '@/lib/httpClient';
+import { serverDocument } from './documentFixture';
 import { render } from './queryRender';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { DocumentList } from '@/features/document';
 import type { SecurityRequest } from '@/features/request';
 import { createMockState } from '@/mocks/seed';
@@ -58,7 +60,9 @@ function createDocuments(count = 13): SecurityRequest[] {
     const number = String(index + 1).padStart(2, '0');
     return {
       ...structuredClone(index < 6 ? draft : finalized),
-      id: `demo-document-${number}`,
+      id: String(index + 1),
+      currentSubmissionId: index < 6 ? null : '123',
+      submissions: index < 6 ? [] : finalized.submissions.map((v) => ({ ...v, id: '123' })),
       caseId: `demo-document-case-${number}`,
       caseTitle: `합성 문서 ${number}`,
     };
@@ -75,6 +79,8 @@ function pageButton(name: string) {
   const pager = screen.getByRole('navigation', { name: '문서함 페이지' });
   return within(pager).getByRole('button', { name }) as HTMLButtonElement;
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 beforeEach(() => {
   controls.requests = createDocuments();
@@ -208,14 +214,17 @@ test('뒤쪽 페이지의 미리보기와 상세·다운로드 링크가 선택�
   const card = screen.getAllByRole('article')[0];
   expect(within(card).getByRole('heading', { name: '합성 문서 07' })).toBeTruthy();
   expect(within(card).getByRole('link', { name: '신청 상세' }).getAttribute('href')).toBe(
-    '/requests/demo-document-07#documents',
+    '/requests/7#documents',
   );
   expect(within(card).getByRole('button', { name: 'PDF 다운로드' })).toBeTruthy();
 
+  vi.spyOn(http, 'requestJson').mockResolvedValue(
+    serverDocument({ securityRequestId: 7, submissionId: 123, title: '서버 문서 07' }),
+  );
   await user.click(within(card).getByRole('button', { name: '미리보기' }));
-  const dialog = screen.getByRole('dialog', { name: '방화벽신청서 미리보기' });
-  expect(dialog.textContent).toContain('사업명: 합성 문서 07');
-  expect(dialog.textContent).toContain('신청번호: demo-document-07');
+  const dialog = screen.getByRole('dialog', { name: '문서 미리보기' });
+  await within(dialog).findByText('서버 문서 07');
+  expect(dialog.textContent).toContain('신청 7');
   expect(within(dialog).getByRole('button', { name: 'PDF 다운로드' })).toBeTruthy();
 
   await user.click(within(dialog).getByRole('button', { name: '닫기' }));
@@ -232,9 +241,9 @@ test('4단계 제출본 정보가 없으면 현재 초안 PDF를 대신 다운�
   expect((screen.getByRole('button', { name: 'PDF 다운로드' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
+  expect((screen.getByRole('button', { name: '미리보기' }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
   await user.click(screen.getByRole('button', { name: '미리보기' }));
-  const dialog = screen.getByRole('dialog');
-  expect(
-    (within(dialog).getByRole('button', { name: 'PDF 다운로드' }) as HTMLButtonElement).disabled,
-  ).toBe(true);
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
