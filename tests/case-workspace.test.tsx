@@ -12,6 +12,7 @@ const controls = vi.hoisted(() => ({
   businessCase: undefined as BusinessCase | undefined,
   requests: [] as SecurityRequest[],
   save: vi.fn(),
+  saving: false,
   analyze: vi.fn(),
   staffCheck: vi.fn(),
   onApplied: undefined as (() => void) | undefined,
@@ -23,7 +24,7 @@ vi.mock('@/features/auth', () => ({
 vi.mock('@/features/request/useRequests', () => ({
   useCase: () => ({ data: controls.businessCase, isPending: false }),
   useRelatedRequests: () => ({ data: controls.requests, isPending: false }),
-  useSaveCase: () => ({ mutateAsync: controls.save, isPending: false }),
+  useSaveCase: () => ({ mutateAsync: controls.save, isPending: controls.saving }),
   useAnalysis: () => ({
     data: undefined,
     mutateAsync: controls.analyze,
@@ -42,6 +43,7 @@ beforeEach(() => {
   controls.requests = state.requests.filter((request) => request.caseId === businessCase.id);
   controls.session = { member: applicant, mock: true, expiresAt: null };
   controls.save.mockReset().mockResolvedValue({});
+  controls.saving = false;
   controls.staffCheck.mockReset().mockResolvedValue({ revision: 2 });
   controls.analyze
     .mockReset()
@@ -197,6 +199,28 @@ function renderForEditing(id: string) {
   if (restart) fireEvent.click(restart);
   return view;
 }
+
+test('인터뷰 저장 중 캐시 갱신의 충돌 안내는 숨기고 저장 종료 뒤 충돌은 유지한다', async () => {
+  const user = userEvent.setup();
+  const id = controls.businessCase!.id;
+  const view = renderForEditing(id);
+  const composer = screen.getByRole('form', { name: '어떤 사업인가요?' });
+  await user.clear(within(composer).getByLabelText('사업 목적'));
+  await user.type(within(composer).getByLabelText('사업 목적'), '보존할 합성 답변');
+  controls.saving = true;
+  controls.businessCase = {
+    ...controls.businessCase!,
+    revision: controls.businessCase!.revision + 1,
+  };
+  view.rerender(<CaseInterview id={id} />);
+  expect(screen.queryByText(/서버에 새 내용이 있습니다/)).toBeNull();
+  controls.saving = false;
+  view.rerender(<CaseInterview id={id} />);
+  expect(screen.getByText(/서버에 새 내용이 있습니다/)).toBeTruthy();
+  expect((within(composer).getByLabelText('사업 목적') as HTMLTextAreaElement).value).toBe(
+    '보존할 합성 답변',
+  );
+});
 
 test('우측에서 저장한 항목은 대화 입력과 수집 정보에 갱신되고 기존 미저장 채팅 초안이 남지 않는다', async () => {
   const user = userEvent.setup();

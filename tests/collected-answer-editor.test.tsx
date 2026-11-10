@@ -1,10 +1,44 @@
 import { expect, test, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CollectedAnswerEditor } from '@/features/request/CollectedAnswerEditor';
 import { createMockState } from '@/mocks/seed';
 
 const answer = createMockState().cases[0].answers.find((item) => item.ownerRole === 'APPLICANT')!;
+
+test('저장 중 캐시 갱신은 충돌로 알리지 않으며 실패 뒤 실제 충돌은 보여 준다', async () => {
+  const user = userEvent.setup();
+  let fail!: (error: Error) => void;
+  const props = {
+    answers: [answer],
+    revision: 7,
+    disabled: false,
+    onSave: vi.fn(
+      () =>
+        new Promise<void>((_, reject) => {
+          fail = reject;
+        }),
+    ),
+    onEditingChange: vi.fn(),
+  };
+  const view = render(<CollectedAnswerEditor {...props} />);
+  await user.click(screen.getByRole('button', { name: `${answer.label} 수정` }));
+  await user.clear(screen.getByLabelText(answer.label));
+  await user.type(screen.getByLabelText(answer.label), '합성 변경 답변');
+  await user.click(screen.getByRole('button', { name: '확인하고 저장' }));
+  view.rerender(
+    <CollectedAnswerEditor
+      {...props}
+      revision={8}
+      answers={[{ ...answer, revision: 9, value: '서버 변경 답변' }]}
+    />,
+  );
+  expect(screen.queryByText(/서버 내용이 변경되었습니다/)).toBeNull();
+  expect(screen.getByRole('button', { name: '저장 중…' })).toBeTruthy();
+  await act(async () => fail(new Error('충돌 오류')));
+  expect(screen.getByText(/서버 내용이 변경되었습니다/)).toBeTruthy();
+  expect((screen.getByLabelText(answer.label) as HTMLTextAreaElement).value).toBe('합성 변경 답변');
+});
 
 test('한 항목을 명시적으로 확인 저장하며 답변 수정본과 확인 의사를 전달한다', async () => {
   const user = userEvent.setup();

@@ -887,7 +887,7 @@ function InterviewWorkspace({
                           사라집니다.
                         </p>
                       )}
-                      {conflict && (
+                      {conflict && !save.isPending && (
                         <Notice tone="warning">
                           <p>서버에 새 내용이 있습니다. 작성한 답변은 유지했습니다.</p>
                           <p>서버 최신 값: {question.value || '입력 없음'}</p>
