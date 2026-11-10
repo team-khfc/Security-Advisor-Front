@@ -528,13 +528,6 @@ function RequestWorkspace({
               ))}
             </section>
           )}
-          {request.stage === 3 && (
-            <ConsultationReview
-              requestId={request.id}
-              actorId={actor.id}
-              canSummarize={actor.role === 'APPLICANT'}
-            />
-          )}
           {has('GENERATE_DRAFT') &&
             (finalDraft.isPending ? (
               <LoadingState />
