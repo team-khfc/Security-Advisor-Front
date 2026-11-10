@@ -1,6 +1,6 @@
 # 보안길잡이 팀 공통 개발 규칙 (CONTRIBUTING)
 
-v0.16 · 2026-11-07 · 저장소 개발 2 + 배포 1, 독립 개발·릴리스 스냅샷 절차 · v0.15: 저장소를 Back·Front로 분리, 저장소 간 계약·PR 연결 규칙 · v0.14: 운영 기관 1곳 고정에 맞춰 오류 코드·수용 기준 표현 정리 · v0.13: 3장 팀장 PM 및 개발(총괄) 역할 추가 · v0.12: 6장 API 계약을 RESTful 기준(AGENTS.md 5장)에 맞춤 · v0.11: 디자인 시안 저장소(prototype-soo)와 화면 PR의 시안 커밋 기록 · v0.10: 인증·회원가입·신청 상태·확정 수용 기준 추가 · v0.9: 운영 업무 도메인 수용 기준 · 채택·수정은 PR로
+v0.17 · 2026-11-07 · 중복 정리 — 2장은 저장소 간 규칙·릴리스 절차의 원본만, 6장 API 상세는 AGENTS.md 5장 링크 · 이력은 문서 끝 "변경 이력" · 채택·수정은 PR로
 
 이 문서는 사람과 AI가 함께 개발할 때의 협업 기준이다. 일상 작업 규칙(명령·계층·이름·DDD·Git)은 AGENTS.md가 기준이고, 이 문서는 절차·계약·수용 기준·CI처럼 협업의 뼈대를 담는다. 둘이 다르면 모순을 수정하는 PR을 올린다.
 
@@ -15,25 +15,20 @@ v0.16 · 2026-11-07 · 저장소 개발 2 + 배포 1, 독립 개발·릴리스 �
 | SECURE_CODING.md | KISA 시큐어코딩 가이드 기반 보안 규칙 | 개발자 + 팀장 |
 | PROJECT_RULES.md | 팀·범위·일정·제출 책임·문서 개정 절차 등 운영 규칙 | 팀장 |
 | design.md | KRDS 토큰·UI·상호작용·접근성 기준 | 메인 디자이너 |
+| BACKLOG.md | 개발 후속 작업 목록 — 팀 Claude 프로젝트 `claude/BACKLOG.md`에만 두고 GitHub 이슈로 일괄 등록(등록 후 이슈가 원본) | 팀장 + 각 담당자 |
 | docs/adr/ · docs/glossary.md | 기술 결정과 이유 · 유비쿼터스 언어 대응표 | 결정의 영향받는 담당자 / 개발자+기획 |
 
 동일 규칙을 여러 문서에 길게 복사하지 않는다. 세부 규칙이 충돌하면 분야별 기준 문서와 채택된 ADR을 확인하고 모순을 수정한다.
 
 문서별 현재 버전은 PROJECT_CONTEXT.md 5장 기준 버전 표가 정하고, 문서를 개정할 때는 PROJECT_RULES.md 7-1의 개정 절차를 따른다. 규칙 문서를 바꾸는 PR은 머리말 버전·기준 버전 표 갱신을 함께 담고, `tools/check_doc_versions.py` 실행 결과를 PR 설명에 적는다.
 
-## 2. 저장소와 시작점
+## 2. 저장소와 릴리스 절차
 
-**개발은 Security-Advisor-Back(서버·DB)과 Security-Advisor-Front(화면)에서 각각 하고, 완성본·배포·제출은 Security-Advisor로 한다. 개발 작업 시작점은 prototype, 디자인 시안은 prototype-soo다**(2026-11-07 확정, 상세 AGENTS.md 0장).
+저장소 5개의 역할·구성 원칙은 AGENTS.md 0장, 기술 스택은 AGENTS.md 1장이 원본이다. 이 장은 저장소 사이의 협업 절차와 **릴리스 절차의 원본**이다.
 
-| 저장소 | 역할 |
-|---|---|
-| team-khfc/Security-Advisor-Back | 백엔드 개발 — Spring Boot·Flyway·seed·개발용 DB compose·OpenAPI 계약 파일·ADR·용어집. Front 없이 개발·테스트 |
-| team-khfc/Security-Advisor-Front | 프론트엔드 개발 — Next.js 화면·컴포넌트·모의 API·프론트 테스트. Back 없이 개발·테스트(모의 API 기본) |
-| team-khfc/Security-Advisor | 완성본·배포·공공GitLab 제출 — Back·Front 릴리스 스냅샷 + 전체 실행 compose·`.env.example`·구동안내서. 기능 수정 금지 |
-| team-khfc/prototype | 개발 작업 시작점 — 선행 Next.js 화면·도메인 검사 15종(프론트 기반), 초기 백엔드 예제(참고). 이전 시안 폴더는 참고하지 않음 |
-| team-khfc/prototype-soo | 디자인 시안 원본 — 디자이너 작업 영역, 수시 변경. 화면 PR은 구현 직전 최신본·`MERGE_NOTES.md`를 확인하고 **PR 설명에 참고한 시안 커밋을 적는다**. 시안이 FUNCTIONAL_SPEC과 다르면 업무 규칙을 따르고 디자이너에게 알린다. 시안 파일은 디자이너만 수정(AGENTS.md 6장) |
-
-확정 스택: Next.js(App Router)+React 19+TS 5.9+TanStack Query / **Java 25(LTS)**+Spring Boot 4.1+Gradle(Kotlin DSL)+Spring Data JPA+**Spring AI 2.0**(ChatClient·PGVector, ADR 0002) / PostgreSQL 17+Flyway+pgvector / Docker Compose. **개발 방법론은 DDD**(전술 패턴 범위 — AGENTS.md 5장). 프론트는 prototype 산출물을 기반으로 Security-Advisor-Front에서 발전시키고, 백엔드는 확정 스택으로 Security-Advisor-Back에 구축한다. **저장소 간 규칙:** 규칙 문서는 세 저장소 루트에 같은 버전으로 둔다. **릴리스 절차:** ① Back·Front가 각자 검사 통과 후 태그(`vX.Y.Z`) → ② Security-Advisor에 스냅샷 갱신 PR(`back/`·`front/` 교체, `RELEASE.md`에 출처 태그·커밋) → ③ `docker compose up -d --build` + 통합 smoke 검사 결과를 PR에 기록 → ④ 병합 후 Security-Advisor 태그. 스냅샷 폴더를 직접 고치는 PR은 받지 않는다. API 계약(OpenAPI)은 Back이 소유하며, 계약 변경은 Back PR을 먼저 올리고 Front PR에 그 링크를 적는다. 양쪽에 걸친 기능은 저장소마다 이슈를 만들어 서로 링크한다. 한 저장소에 다른 쪽 코드를 넣지 않는다. 문서에 적힌 구성이 실제 저장소와 다르면 코드가 기준이고 문서를 고친다. 검토 문서만 있는 기능을 완료로 표시하지 않는다.
+- **저장소 간 규칙:** 한 저장소에 다른 쪽 코드를 넣지 않는다. API 계약(OpenAPI) 변경은 Back PR을 먼저 올리고 Front PR 설명에 그 링크와 계약 버전을 적는다. 양쪽에 걸친 기능은 저장소마다 이슈를 만들어 서로 링크한다. 화면 PR에는 참고한 디자인 시안 커밋(prototype-soo)을 적는다.
+- **릴리스 절차:** ① Back·Front가 각자 검사를 통과한 뒤 태그(`vX.Y.Z`)를 단다 → ② Security-Advisor에 스냅샷 갱신 PR(`back/`·`front/` 교체, `RELEASE.md`에 출처 태그·커밋) → ③ `docker compose up -d --build` + 통합 smoke 검사 결과를 PR에 기록 → ④ 병합 후 Security-Advisor 태그. 스냅샷 폴더를 직접 고치는 PR은 받지 않는다.
+- 문서에 적힌 구성이 실제 저장소와 다르면 코드가 기준이고 문서를 고친다. 검토 문서만 있는 기능을 완료로 표시하지 않는다.
 
 개발 순서: ① 프론트 이관·시연 정리 → ② API 계약·용어집(glossary) 확정 → ③ 백엔드 업무 구현 → ④ 통합 검증. 2026-11-11 대회 제출까지는 PROJECT_RULES.md의 일정(11-08 기능 동결)이 우선한다.
 
@@ -73,15 +68,11 @@ v0.16 · 2026-11-07 · 저장소 개발 2 + 배포 1, 독립 개발·릴리스 �
 
 ## 6. API와 데이터 계약
 
-- **API는 RESTful로 설계한다**(상세 규칙·상태 전이 경로 제안은 AGENTS.md 5장 "API 규칙"). 경로는 자원 명사, 행위는 HTTP 메서드로 표현하고, 상태 전이는 `status`를 직접 바꾸지 않고 하위 자원 생성(POST)·단일 하위 자원 설정(PUT)으로 표현한다. 리뷰에서 동사 경로·status 직접 PATCH·200 안의 실패를 발견하면 고친다.
+- API 설계 규칙(RESTful 경로·메서드, 상태 전이의 자원 표현, 상태 코드, 표현 형식, 동시성)의 원본은 AGENTS.md 5장이다. 이 장은 계약을 정하고 바꾸는 절차와 데이터 계약을 다룬다. 리뷰에서 동사 경로·`status` 직접 PATCH·200 안의 실패를 발견하면 고친다.
 - API 연동 전 경로·HTTP 메서드·입출력 DTO·오류·권한·상태 전이·revision 조건을 함께 정한다. 기계 검증 가능한 계약(OpenAPI/Swagger)으로 관리한다. 경로·DTO의 명칭은 glossary.md의 용어를 쓴다.
-- JSON 필드는 lowerCamelCase. **오류 응답은 ProblemDetail로 통일한다**(AGENTS.md 5장). 내부 스택·비밀값은 응답에 담지 않는다.
-- HTTP 200에 업무 실패를 숨기지 않는다. 형식 검증(400)·인증(401)·권한(403)·없음 또는 조회 권한 없는 타인 자원(404)·동시성·중복(409)·업무 규칙 위반(422)을 구분한다. 생성은 201 + `Location`, 비동기 작업은 202.
-- 목록의 page/size·정렬·필터 의미를 정한다. 제안 기본값: 0부터 시작하는 page, size 20, 최대 100.
-- 날짜만 나타내는 값과 시각을 구분한다. 시각은 시간대 포함 형식으로 교환하고 화면 표시는 Asia/Seoul 기준.
 - JavaScript 안전 정수 범위를 넘을 수 있는 식별자는 문자열 계약을 검토한다.
 - 사업 건(BusinessCase)과 신청(SecurityRequest)은 별도 자원이다: `/api/business-cases`, `/api/business-cases/{id}/security-requests`, `/api/security-requests/{id}`. 사업 건 응답의 진행 상태는 하위 신청에서 계산한 요약이며 쓰기 대상이 아니다. 답변 DTO에는 범위(scope: CASE/REQUEST)를 포함한다.
-- 변경 요청은 optimistic locking을 요청 본문 `expectedRevision`으로 통일하고(If-Match 미사용), 제출·게시 같은 명령은 멱등성(`Idempotency-Key`)을 설계한다. 409 응답은 비교할 최신 정보를 제공하고 사용자의 미저장 값을 보존한다.
+- 409(revision 충돌) 응답은 비교할 최신 정보를 제공하고, 화면은 사용자의 미저장 값을 보존한다. 내부 스택·비밀값은 오류 응답에 담지 않는다. 화면 표시 시각은 Asia/Seoul 기준이다.
 - 스키마는 Flyway로만 변경한다(파일명·불변 규칙은 AGENTS.md 5장). 마이그레이션 스크립트에는 기존 데이터 영향·복구 계획을 적는다. 운영 데이터 삭제·스키마 초기화를 개발 편의 명령에 넣지 않는다.
 
 ## 7. 보안길잡이 업무 수용 기준
@@ -137,3 +128,19 @@ PR 완료 조건: 수용 기준 충족, 필요한 문서·계약 갱신, 해당 
 ## 10. 규칙 변경과 예외
 
 규칙은 이유·적용 범위·검증 방법이 설명될 때 추가한다. "깔끔하게"처럼 판정할 수 없는 문장을 피한다. 예외에는 이유·영향·만료 조건 또는 재검토 이슈를 남긴다. 팀원은 규칙 변경을 PR로 제안하고, AI는 확정되지 않은 제안을 기존 결정처럼 취급하지 않는다.
+
+## 변경 이력
+
+최신순. 머리말에는 현재 버전만 둔다.
+
+| 버전 | 날짜 | 변경 |
+|---|---|---|
+| v0.17 | 2026-11-07 | 중복 정리 — 2장은 저장소 간 규칙·릴리스 절차의 원본만, 6장 API 상세는 AGENTS.md 5장 링크 |
+| v0.16 | 2026-11-07 | 저장소 개발 2 + 배포 1, 독립 개발·릴리스 스냅샷 절차 |
+| v0.15 | — | 저장소를 Back·Front로 분리, 저장소 간 계약·PR 연결 규칙 |
+| v0.14 | — | 운영 기관 1곳 고정에 맞춰 오류 코드·수용 기준 표현 정리 |
+| v0.13 | — | 3장 팀장 PM 및 개발(총괄) 역할 추가 |
+| v0.12 | — | 6장 API 계약을 RESTful 기준(AGENTS.md 5장)에 맞춤 |
+| v0.11 | — | 디자인 시안 저장소(prototype-soo)와 화면 PR의 시안 커밋 기록 |
+| v0.10 | — | 인증·회원가입·신청 상태·확정 수용 기준 추가 |
+| v0.9 | — | 운영 업무 도메인 수용 기준 |

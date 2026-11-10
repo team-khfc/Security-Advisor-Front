@@ -1,6 +1,6 @@
 # 보안길잡이 코딩 스타일
 
-v0.5 · 2026-11-07 · 적용 저장소를 Security-Advisor-Back(Java)·Front(TS)로 변경 · v0.4: 화면 참고 원본을 prototype-soo 최신 시안으로 변경 · v0.3: Security-Advisor 저장소 기준(Next.js + Spring Boot/Gradle Kotlin DSL/PostgreSQL) · 채택·수정은 PR로
+v0.6 · 2026-11-07 · Lombok 허용 목록 반영(1장 Java) · 이력은 문서 끝 "변경 이력" · 채택·수정은 PR로
 
 팀 기준은 **Google 공식 스타일 가이드 준수**다(팀장 확정, 2026-11-05). Google 원문에서 필요한 규칙을 채택하고 React·Next.js·Spring Boot에 맞춰 보완한다. 아래 `[G]`는 Google 원문 기반, `[P]`는 프로젝트 선택·예외, `[F]`는 프레임워크 요구다. Google 문서의 후속 변경을 개발 중인 코드에 자동 적용하지 않는다. 보안 관련 작성 규칙은 SECURE_CODING.md가 같은 비중의 기준이다.
 
@@ -30,7 +30,7 @@ v0.5 · 2026-11-07 · 적용 저장소를 Security-Advisor-Back(Java)·Front(TS)
 
 ### Spring Boot 프로젝트 규칙
 
-- `[P]` 생성자 주입만 사용(@Autowired 필드 주입 금지). Lombok을 쓰지 않는다.
+- `[P]` 생성자 주입만 사용(@Autowired 필드 주입 금지). Lombok은 AGENTS.md 5장의 허용 목록만 쓰고(`@Getter`·`@RequiredArgsConstructor`·`@NoArgsConstructor(PROTECTED)`·`@Slf4j`), 금지 항목은 `lombok.config`로 컴파일 오류가 나게 한다. google-java-format은 Lombok 애너테이션을 일반 애너테이션처럼 정렬한다.
 - `[P]` 요청·응답은 record DTO(XxxRequest/XxxResponse). 엔티티를 API 응답으로 직접 내보내지 않고 XxxResponse.from(entity)로 변환한다.
 - `[P]` Controller는 입출력, Service는 업무 검증·트랜잭션(@Transactional 규칙은 AGENTS.md 5장), Repository는 저장소를 맡는다. 계층 의존 방향은 ArchUnit이 강제한다.
 - `[P]` Map<String, Object>·JsonNode로 운영 계약을 대신하지 않는다. 오류는 GlobalExceptionHandler → ProblemDetail로 모은다.
@@ -92,3 +92,14 @@ v0.5 · 2026-11-07 · 적용 저장소를 Security-Advisor-Back(Java)·Front(TS)
 - Spotless: https://github.com/diffplug/spotless
 - Prettier 옵션: https://prettier.io/docs/options
 - KISA JavaScript 시큐어코딩 가이드(2023): 팀 Claude 프로젝트에 PDF 보관, 실행 규칙은 SECURE_CODING.md
+
+## 변경 이력
+
+최신순. 머리말에는 현재 버전만 둔다.
+
+| 버전 | 날짜 | 변경 |
+|---|---|---|
+| v0.6 | 2026-11-07 | Lombok 허용 목록 반영(1장 Java) |
+| v0.5 | 2026-11-07 | 적용 저장소를 Security-Advisor-Back(Java)·Front(TS)로 변경 |
+| v0.4 | — | 화면 참고 원본을 prototype-soo 최신 시안으로 변경 |
+| v0.3 | — | Security-Advisor 저장소 기준(Next.js + Spring Boot/Gradle Kotlin DSL/PostgreSQL) |
