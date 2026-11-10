@@ -1,3 +1,5 @@
+import { infrastructurePlanSchema, connectionSchema } from '@/features/request/infrastructurePlan';
+import { networkValueValid } from '@/features/request/networkAnswerFormat';
 import { mockRequestListing, mockAuditListing } from './listing';
 import { ContractMapper } from './contractMapper';
 import { MockPolicies } from './policies';
@@ -1218,6 +1220,85 @@ async function dispatchContract(
     (resource === 'members' && method === 'POST' && !numericId)
       ? undefined
       : sessionMember(runtime, request, now);
+  if (resource === 'security-requests' && sub === 'infrastructure-proposals' && method === 'POST') {
+    const visible = getRequest(runtime, id, actor!);
+    if (
+      actor!.role !== 'INFRA' ||
+      !visible.assignments.some(
+        (a) =>
+          a.active && a.field === 'INFRA' && a.assigneeId === actor!.id && !a.reassignmentReason,
+      )
+    )
+      fail(403, 'FORBIDDEN', '배정된 ICT인프라 담당자만 초안을 요청할 수 있습니다.');
+    if (visible.stage !== 2)
+      fail(422, 'INVALID_STAGE', '담당자 협의 단계에서만 초안을 요청할 수 있습니다.');
+    const input = parse(
+      z.object({
+        expectedRevision: z.number().int().nonnegative(),
+        explanation: z.string().max(6000),
+      }),
+      await bodyJson(request),
+    );
+    if (input.expectedRevision !== (visible.infrastructurePlan?.revision ?? 0))
+      fail(409, 'REVISION_CONFLICT', '망 구성 정보가 변경되었습니다.');
+    return json({
+      baseRevision: input.expectedRevision,
+      connections: [],
+      warnings: [
+        '모의 API에서는 실제 AI 분석을 하지 않습니다. 직접 입력하거나 업무 서버에 연결해 주세요.',
+      ],
+      modelReference: 'mock/offline',
+    });
+  }
+  if (resource === 'security-requests' && sub === 'infrastructure-plan') {
+    const visible = getRequest(runtime, id, actor!);
+    const empty = { revision: 0, connections: [], notes: '', updatedBy: null, updatedAt: null };
+    if (method === 'GET') return json(visible.infrastructurePlan ?? empty);
+    if (method === 'PUT') {
+      if (
+        actor!.role !== 'INFRA' ||
+        !visible.assignments.some(
+          (a) => a.active && a.field === 'INFRA' && a.assigneeId === actor!.id,
+        )
+      )
+        fail(403, 'FORBIDDEN', '배정된 ICT인프라 담당자만 수정할 수 있습니다.');
+      if (visible.stage !== 2)
+        fail(422, 'INVALID_STAGE', '담당자 협의 단계에서만 수정할 수 있습니다.');
+      const input = parse(
+        z.object({
+          expectedRevision: z.number(),
+          connections: z.array(connectionSchema).min(1).max(50),
+          notes: z.string().max(4000),
+          answerRevisions: z.record(z.string(), z.number()),
+        }),
+        await bodyJson(request),
+      );
+      if (input.expectedRevision !== (visible.infrastructurePlan?.revision ?? 0))
+        fail(409, 'REVISION_CONFLICT', '다른 담당자가 수정했습니다. 새로고침해 주세요.');
+      if (new Set(input.connections.map((c) => c.id)).size !== input.connections.length)
+        fail(422, 'INVALID_VALUE', '통신 구간 식별자가 중복되었습니다.');
+      for (const c of input.connections)
+        if (
+          !networkValueValid('IP_ADDRESS', c.sourceAddress) ||
+          !networkValueValid('IP_ADDRESS', c.destinationAddress) ||
+          !networkValueValid('PORT', c.port) ||
+          !networkValueValid('PROTOCOL', c.protocol) ||
+          c.endDate < c.startDate
+        )
+          fail(422, 'INVALID_VALUE', '통신 구간의 주소·프로토콜·포트·기간을 확인해 주세요.');
+      const raw = runtime.state.requests.find((r) => r.id === id)!;
+      raw.infrastructurePlan = infrastructurePlanSchema.parse({
+        revision: input.expectedRevision + 1,
+        connections: input.connections,
+        notes: input.notes,
+        updatedBy: actor!.username,
+        updatedAt: new Date(now).toISOString(),
+      });
+      for (const review of raw.reviews) if (review.status === 'COMPLETE') review.status = 'RECHECK';
+      raw.revision++;
+      return json(raw.infrastructurePlan);
+    }
+  }
   if (resource === 'reviewer-pools')
     return json(
       runtime.reviewerPools.handle(

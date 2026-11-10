@@ -69,7 +69,10 @@ function allocate(state = createMockState()): MockState {
       .filter((answer) => answer.ownerRole === 'INFRA')
       .map((answer) => inputFor(answer)),
   );
-  return run(next, 'INFRA', 'demo-request-1', { action: 'COMPLETE_ALLOCATION' });
+  return run(next, 'INFRA', 'demo-request-1', {
+    action: 'COMPLETE_REVIEW',
+    comment: '합성 인프라 협의 완료',
+  });
 }
 
 function expectProblem(operation: () => unknown, status: number, code?: string) {
@@ -149,7 +152,7 @@ describe('모의 도메인의 문서·데이터 불변식', () => {
     expectProblem(
       () =>
         executeCommand(state, other, 'demo-request-1', {
-          action: 'COMPLETE_ALLOCATION',
+          action: 'COMPLETE_REVIEW',
           expectedRevision: 1,
         }),
       403,
@@ -224,8 +227,7 @@ describe('모의 도메인의 문서·데이터 불변식', () => {
     const next = allocate(state);
     const allocated = request(next);
     expect(allocated.reviews.find((item) => item.field === 'INFRA')).toMatchObject({
-      allocationCompleted: true,
-      status: 'ALLOCATED',
+      status: 'COMPLETE',
     });
     expect(allocated.stage).toBe(2);
     expect(requestForActor(next, allocated, actor('SECURITY')).allowedActions).toContain(
@@ -648,7 +650,7 @@ describe('모의 도메인의 문서·데이터 불변식', () => {
       'DOWNLOAD',
     ]);
     expect(requestForActor(next, request(next), replacement).allowedActions).toContain(
-      'COMPLETE_ALLOCATION',
+      'COMPLETE_REVIEW',
     );
     expect(request(next).commonAnswers).toEqual(request(state).commonAnswers);
   });
@@ -673,7 +675,7 @@ describe('모의 도메인의 문서·데이터 불변식', () => {
     expectProblem(
       () =>
         executeCommand(state, actor('INFRA'), 'demo-request-1', {
-          action: 'COMPLETE_ALLOCATION',
+          action: 'COMPLETE_REVIEW',
           expectedRevision: 999,
         }),
       409,
@@ -727,7 +729,6 @@ describe('모의 도메인의 문서·데이터 불변식', () => {
       allocatedCase.revision,
       example.answers.filter((item) => item.ownerRole === 'INFRA').map((item) => inputFor(item)),
     );
-    state = run(state, 'INFRA', id, { action: 'COMPLETE_ALLOCATION' });
     state = run(state, 'SECURITY', id, {
       action: 'REQUEST_SUPPLEMENT',
       fieldKeys: ['purpose'],

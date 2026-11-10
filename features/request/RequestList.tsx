@@ -74,13 +74,9 @@ function isMyTurn(request: SecurityRequest, actor: Actor) {
   if (actor.role === 'ADMIN') {
     return handoffFields(request).length > 0;
   }
-  return [
-    'COMPLETE_ALLOCATION',
-    'COMPLETE_REVIEW',
-    'FINAL_CONFIRM',
-    'FINALIZE',
-    'RESOLVE_SUPPLEMENT',
-  ].some((action) => request.allowedActions.includes(action));
+  return ['COMPLETE_REVIEW', 'FINAL_CONFIRM', 'FINALIZE', 'RESOLVE_SUPPLEMENT'].some((action) =>
+    request.allowedActions.includes(action),
+  );
 }
 
 function isStaffTurn(request: SecurityRequest) {
@@ -125,7 +121,6 @@ function nextAction(request: SecurityRequest, actor: Actor) {
   }
   if (actions.includes('FINALIZE')) return '서류 확정';
   if (actions.includes('FINAL_CONFIRM')) return '제출본 최종 확인';
-  if (actions.includes('COMPLETE_ALLOCATION')) return '통신 정보 할당';
   if (actions.includes('RESOLVE_SUPPLEMENT')) return '보완 답변 재검토';
   return '담당 분야 협의';
 }

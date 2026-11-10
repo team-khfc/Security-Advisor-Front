@@ -23,7 +23,8 @@ import type { Actor } from '@/lib/types';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
 import { FinalDraftPanel } from './FinalDraftPanel';
 import { useFinalDraft } from './useFinalDraft';
-import { RequestTechnicalDetails } from './RequestTechnicalDetails';
+import { InfrastructureWorkspace } from './InfrastructureWorkspace';
+import { INFRA_PRIMARY_KEYS } from './infrastructurePlan';
 import { getRequestDetailData } from './requestDetailData';
 import { waitingLine, handoffFields } from './turns';
 import { finalReviewReadiness, pendingReviews, reviewFields } from './readiness';
@@ -135,6 +136,8 @@ function RequestWorkspace({
   const [dialogAction, setDialogAction] = useState<CommandAction | null>(null);
   const [message, setMessage] = useState('');
   const [failure, setFailure] = useState('');
+  const [infraNoticeOpen, setInfraNoticeOpen] = useState(false);
+  const [infraDirty, setInfraDirty] = useState(false);
   const [comment, setComment] = useState('');
   const [finalDraftDirty, setFinalDraftDirty] = useState(false);
   const finalDraft = useFinalDraft(request.id, request.stage === 3);
@@ -164,6 +167,9 @@ function RequestWorkspace({
     ),
   );
   const currentReview = request.reviews.find((review) => review.field === roleField);
+  const infraPending =
+    actor.role === 'SECURITY' &&
+    request.reviews.some((review) => review.field === 'INFRA' && review.status !== 'COMPLETE');
   const finalReview = finalReviewReadiness(request, actor);
   const needsReconsultation = request.stage === 3 && pendingReviews(request).length > 0;
   const checklistItems = roleField ? REVIEW_CHECKLIST_ITEMS[roleField] : [];
@@ -175,7 +181,7 @@ function RequestWorkspace({
       : (currentReview?.checklist ?? {});
   const checklistComplete = checklistItems.every((item) => checklist[item.key]);
   const panelTitle =
-    roleField && (has('COMPLETE_REVIEW') || has('COMPLETE_ALLOCATION'))
+    roleField && has('COMPLETE_REVIEW')
       ? `${FIELD_LABELS[roleField]} 검토`
       : has('SUBMIT')
         ? '최종 제출 확인'
@@ -187,6 +193,14 @@ function RequestWorkspace({
   const invoke = async (action: CommandAction, extra: Partial<CommandInput> = {}) => {
     setFailure('');
     setMessage('');
+    if (action === 'COMPLETE_REVIEW' && infraDirty) {
+      setFailure('ICT인프라 검토 정보를 먼저 저장해 주세요.');
+      return;
+    }
+    if (action === 'COMPLETE_REVIEW' && infraPending) {
+      setInfraNoticeOpen(true);
+      return;
+    }
     try {
       await command.mutateAsync({
         action,
@@ -207,6 +221,13 @@ function RequestWorkspace({
       setDialogAction(null);
       setComment('');
     } catch (cause) {
+      if (
+        cause instanceof Error &&
+        cause.message.includes('ICT인프라의 협의 단계가 끝나지 않았습니다.')
+      ) {
+        setInfraNoticeOpen(true);
+        return;
+      }
       setFailure(
         cause instanceof Error ? cause.message : '업무를 처리하지 못했습니다. 입력값은 유지됩니다.',
       );
@@ -215,6 +236,22 @@ function RequestWorkspace({
 
   return (
     <div className="request-detail-page">
+      <Modal
+        open={infraNoticeOpen}
+        onClose={() => setInfraNoticeOpen(false)}
+        title="ICT인프라 협의 필요"
+      >
+        {infraNoticeOpen && <InfraReviewNotice request={request} />}
+        <div className="btn-row">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setInfraNoticeOpen(false)}
+          >
+            확인
+          </button>
+        </div>
+      </Modal>
       <nav className="crumb" aria-label="현재 위치">
         <Link href="/requests">
           {actor.role === 'APPLICANT' || actor.role === 'ADMIN' ? '신청 현황' : '협의 요청함'}
@@ -413,7 +450,7 @@ function RequestWorkspace({
                 </div>
               </details>
             )}
-            {has('EDIT_CASE') && caseQuery.data && (
+            {has('EDIT_CASE') && caseQuery.data && actor.role !== 'INFRA' && (
               <details className="sub-block">
                 <summary>사업 공통 답변 수정·확인</summary>
                 <p className="help">
@@ -504,7 +541,30 @@ function RequestWorkspace({
               />
             ))}
           <RequestDocument request={request} />
-          <RequestTechnicalDetails request={request}>
+          <InfrastructureWorkspace
+            request={request}
+            actor={actor}
+            onDirtyChange={setInfraDirty}
+            commonEditor={
+              has('EDIT_CASE') &&
+              caseQuery.data && (
+                <>
+                  <h3 className="h-panel">기관 지정 검토 항목</h3>
+                  <AnswerEditor
+                    draftKey={'case:' + request.caseId + ':infra-extras'}
+                    answers={caseQuery.data.answers.filter(
+                      (a) => !INFRA_PRIMARY_KEYS.includes(a.key),
+                    )}
+                    actor={actor}
+                    revision={caseQuery.data.revision}
+                    onSave={(expectedRevision, answers) =>
+                      saveCase.mutateAsync({ expectedRevision, answers })
+                    }
+                  />
+                </>
+              )
+            }
+          >
             {detail.additionalAnswers.length > 0 && (
               <details className="sub-block">
                 <summary>
@@ -518,11 +578,15 @@ function RequestWorkspace({
               </details>
             )}
             {(has('EDIT_ANSWERS') || has('SAVE_ANSWERS')) && (
-              <details className="sub-block" open={request.stage === 1}>
+              <details className="sub-block" open={request.stage === 1 || actor.role === 'INFRA'}>
                 <summary>서류별 답변 수정·확인</summary>
                 <AnswerEditor
                   draftKey={`request:${request.id}:answers`}
-                  answers={request.answers}
+                  answers={
+                    actor.role === 'INFRA'
+                      ? request.answers.filter((a) => !INFRA_PRIMARY_KEYS.includes(a.key))
+                      : request.answers
+                  }
                   revision={request.revision}
                   actor={actor}
                   highlighted={request.highlightedFields}
@@ -537,7 +601,7 @@ function RequestWorkspace({
                 />
               </details>
             )}
-          </RequestTechnicalDetails>
+          </InfrastructureWorkspace>
           {canInquire && <StaffInquiryPanel requestId={request.id} actor={actor} />}
           <RequestHistory requestId={request.id} />
         </div>
@@ -663,8 +727,7 @@ function RequestWorkspace({
                     </ul>
                   </Notice>
                 )}
-                {(has('COMPLETE_ALLOCATION') ||
-                  has('COMPLETE_REVIEW') ||
+                {(has('COMPLETE_REVIEW') ||
                   (has('FINAL_CONFIRM') && !finalReview.ownConfirmed)) && (
                   <>
                     {has('COMPLETE_REVIEW') && currentReview && checklistItems.length > 0 && (
@@ -727,22 +790,14 @@ function RequestWorkspace({
                     <Icon name="arrowRight" />
                   </button>
                 )}
-                {has('COMPLETE_ALLOCATION') && (
-                  <button
-                    className="btn btn-primary full-width"
-                    disabled={command.isPending}
-                    onClick={() => {
-                      void invoke('COMPLETE_ALLOCATION');
-                    }}
-                  >
-                    자원 할당 완료
-                  </button>
-                )}
                 {has('COMPLETE_REVIEW') && (
                   <>
                     <button
-                      className={`btn full-width ${!has('COMPLETE_ALLOCATION') ? 'btn-primary' : ''}`}
-                      disabled={command.isPending || !checklistComplete || !comment.trim()}
+                      className="btn btn-primary full-width"
+                      disabled={
+                        command.isPending ||
+                        (!infraPending && (!checklistComplete || !comment.trim()))
+                      }
                       onClick={() => {
                         void invoke('COMPLETE_REVIEW', { checklist });
                       }}
@@ -1297,4 +1352,86 @@ function formatTime(value: string) {
     timeStyle: 'short',
     timeZone: 'Asia/Seoul',
   }).format(new Date(value));
+}
+
+/** 담당자 전체 목록 대신 이 신청에 허용된 배정·협의 이력만 보여 준다. */
+function InfraReviewNotice({ request }: { request: SecurityRequest }) {
+  const audit = useAudit(request.id, { action: 'REVIEW_REQUESTED', size: 1 });
+  const assignment = request.assignments.find((item) => item.active && item.field === 'INFRA');
+  const review = request.reviews.find((item) => item.field === 'INFRA');
+  const requested = audit.data?.find(
+    (event) =>
+      event.targetId === request.id &&
+      ['REVIEW_REQUESTED', 'REQUEST_REVIEW'].includes(event.action),
+  );
+  const deadline = request.deadlines.find(
+    (item) => item.field === 'INFRA' && item.kind === 'CONSULTATION' && item.active,
+  );
+  return (
+    <>
+      <p>
+        ICT인프라의 협의 단계가 끝나지 않았습니다. 아래 담당자의 협의 완료 후 다시 진행해 주세요.
+      </p>
+      <dl className="infra-review-info">
+        <div>
+          <dt>사업명</dt>
+          <dd>{request.caseTitle}</dd>
+        </div>
+        <div>
+          <dt>신청 서류</dt>
+          <dd>
+            {DOCUMENT_LABELS[request.docType]} · #{request.id}
+          </dd>
+        </div>
+        <div>
+          <dt>배정된 ICT인프라 담당자</dt>
+          <dd>
+            {assignment
+              ? assignment.assigneeName === assignment.assigneeId
+                ? assignment.assigneeName
+                : assignment.assigneeName + ' (' + assignment.assigneeId + ')'
+              : '미배정 — 기관 관리자에게 배정을 요청해 주세요.'}
+          </dd>
+        </div>
+        {assignment?.reassignmentReason && (
+          <div>
+            <dt>배정 상태</dt>
+            <dd>{reassignmentLabel(assignment.reassignmentReason)}</dd>
+          </div>
+        )}
+        <div>
+          <dt>담당자 배정 일시</dt>
+          <dd>{assignment ? formatTime(assignment.assignedAt) : '미배정'}</dd>
+        </div>
+        <div>
+          <dt>협의 단계 진입 · 요청 일시</dt>
+          <dd>
+            {requested
+              ? formatTime(requested.createdAt)
+              : audit.isPending
+                ? '조회 중…'
+                : audit.error
+                  ? '이력을 불러오지 못했습니다.'
+                  : '협의 요청 이력을 확인할 수 없습니다.'}
+          </dd>
+        </div>
+        <div>
+          <dt>ICT인프라 협의 상태</dt>
+          <dd>
+            {review
+              ? review.status === 'ALLOCATED'
+                ? '협의 중'
+                : REVIEW_STATUS_LABELS[review.status]
+              : '검토 대기'}
+          </dd>
+        </div>
+        {deadline && (
+          <div>
+            <dt>ICT인프라 협의 기한</dt>
+            <dd>{formatTime(deadline.dueAt)}</dd>
+          </div>
+        )}
+      </dl>
+    </>
+  );
 }

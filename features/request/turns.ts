@@ -33,10 +33,7 @@ export function waitingLine(request: SecurityRequest) {
     if (request.status === 'CONSULTING')
       return fields
         .filter((field) => field.reviewStatus !== 'COMPLETED')
-        .map(
-          (field) =>
-            `${FIELD_LABELS[field.field]} ${field.field === 'INFRA' && !field.allocated ? '통신 정보 할당 중' : '협의 중'}`,
-        )
+        .map((field) => `${FIELD_LABELS[field.field]} 협의 중`)
         .join(', ');
     if (request.status === 'FINAL_REVIEW')
       return fields.some((field) => field.reviewStatus !== 'COMPLETED')
@@ -58,13 +55,11 @@ export function waitingLine(request: SecurityRequest) {
       const security = request.reviews.find((review) => review.field === 'SECURITY');
       const parts: string[] = [];
       const required = reviewFields(request);
-      if (required.includes('INFRA') && !infra?.allocationCompleted)
-        parts.push(`${FIELD_LABELS.INFRA} 통신 정보 할당 중`);
-      else if (required.includes('INFRA') && infra?.status !== 'COMPLETE')
+      if (required.includes('INFRA') && infra?.status !== 'COMPLETE')
         parts.push(`${FIELD_LABELS.INFRA} 협의 중`);
       if (
         required.includes('SECURITY') &&
-        (!required.includes('INFRA') || infra?.allocationCompleted) &&
+        (!required.includes('INFRA') || infra?.status === 'COMPLETE') &&
         security?.status !== 'COMPLETE'
       )
         parts.push(`${FIELD_LABELS.SECURITY} 검토 중`);

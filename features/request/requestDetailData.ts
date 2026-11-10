@@ -1,4 +1,5 @@
 import type { Answer, SecurityRequest, Submission } from './types';
+import type { InfrastructurePlan } from './infrastructurePlan';
 
 /** 표시는 답변 원본을 참조한다. 주소·시스템명·망 구간을 다른 값에서 추론하지 않는다. */
 export interface DetailRule {
@@ -66,7 +67,10 @@ function requiresConfirmation(answer: Answer) {
 }
 
 /** Back의 게시본 키와 기존 합성 모드 키를 동일한 상세 레이아웃에 연결한다. */
-export function getRequestDetailData(request: SecurityRequest): RequestDetailData {
+export function getRequestDetailData(
+  request: SecurityRequest,
+  infrastructurePlan?: InfrastructurePlan,
+): RequestDetailData {
   const selectedSubmission =
     request.submissions.find((item) => item.id === request.currentSubmissionId) ?? null;
   const needsSnapshot = request.stage === 4 || request.status === 'FINALIZED';
@@ -111,7 +115,47 @@ export function getRequestDetailData(request: SecurityRequest): RequestDetailDat
       request.docType === 'FIREWALL'
         ? requestAnswers.filter((answer) => !representedKeys.has(answer.key))
         : requestAnswers,
-    rules: hasRule ? [rule] : [],
+    rules: infrastructurePlan?.connections.length
+      ? infrastructurePlan.connections.map((row, index) => {
+          const value = (key: string, text: string): Answer => ({
+            key: 'infrastructure.' + row.id + '.' + key,
+            label: key,
+            scope: 'REQUEST',
+            ownerRole: 'INFRA',
+            required: true,
+            value: text,
+            source: 'STAFF_INPUT',
+            evidence: null,
+            confirmed: true,
+            notApplicable: false,
+            confirmation: infrastructurePlan.updatedBy
+              ? {
+                  actorId: infrastructurePlan.updatedBy,
+                  actorName: infrastructurePlan.updatedBy,
+                  role: 'INFRA',
+                  at: infrastructurePlan.updatedAt || '',
+                }
+              : null,
+          });
+          return {
+            id: row.id,
+            number: index + 1,
+            purpose: value('purpose', row.purpose),
+            sourceSystem: value('sourceSystem', row.sourceSystem + ' · ' + row.sourceZone),
+            sourceAddress: value('sourceAddress', row.sourceAddress),
+            destinationSystem: value(
+              'destinationSystem',
+              row.destinationSystem + ' · ' + row.destinationZone,
+            ),
+            destinationAddress: value('destinationAddress', row.destinationAddress),
+            port: value('port', row.port),
+            protocol: value('protocol', row.protocol),
+            direction: value('direction', row.direction),
+          };
+        })
+      : hasRule
+        ? [rule]
+        : [],
     selectedSubmission,
     snapshotUnavailable,
     documentAnswers: selectedSubmission

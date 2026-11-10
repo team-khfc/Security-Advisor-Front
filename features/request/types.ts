@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { infrastructurePlanSchema } from './infrastructurePlan';
 import { reassignmentReasonSchema } from '@/lib/assignmentStatus';
 import type { Actor } from '@/lib/types';
 
@@ -154,6 +155,7 @@ export const submissionSchema = z.object({
 });
 
 export const securityRequestSchema = z.object({
+  infrastructurePlan: infrastructurePlanSchema.optional(),
   listOverview: z
     .object({
       myTurn: z.boolean(),

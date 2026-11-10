@@ -200,6 +200,8 @@ export class ContractMapper {
       submittedBy: this.username(r.ownerId),
       submittedAt: v.createdAt,
       snapshot: {
+        infrastructurePlan: (v.snapshot as { infrastructurePlan?: unknown } | undefined)
+          ?.infrastructurePlan,
         ...(v.snapshot && typeof v.snapshot === 'object' ? v.snapshot : {}),
         answers: [
           ...v.commonAnswers.map((a) => this.answer(a, r.caseId, v.caseRevision)),

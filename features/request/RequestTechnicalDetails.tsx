@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui';
 import { SourceBadge } from './AnswerEditor';
 import { getRequestDetailData, type DetailRule } from './requestDetailData';
 import type { Answer, SecurityRequest } from './types';
+import type { InfrastructurePlan } from './infrastructurePlan';
 
 const RULE_COLUMNS = [
   ['purpose', '신청 사유'],
@@ -182,12 +183,14 @@ function RequestFlow({ rule }: { rule: DetailRule }) {
 /** 시안의 기술 영역 순서를 유지하며 실제 답변과 미실시 점검 상태를 구분해 표시한다. */
 export function RequestTechnicalDetails({
   request,
+  infrastructurePlan,
   children,
 }: {
   request: SecurityRequest;
+  infrastructurePlan?: InfrastructurePlan;
   children?: ReactNode;
 }) {
-  const data = getRequestDetailData(request);
+  const data = getRequestDetailData(request, infrastructurePlan);
   return (
     <>
       <section className="card" aria-labelledby="d-flow">
@@ -200,7 +203,12 @@ export function RequestTechnicalDetails({
             주세요.
           </p>
         ) : data.rules[0] ? (
-          <RequestFlow rule={data.rules[0]} />
+          data.rules.map((rule) => (
+            <div key={rule.id}>
+              <h3 className="h-panel">통신 구간 {rule.number}</h3>
+              <RequestFlow rule={rule} />
+            </div>
+          ))
         ) : (
           <p className="help">
             등록된 통신 정보가 없습니다. 출발지와 목적지를 입력하면 흐름도를 확인할 수 있습니다.
