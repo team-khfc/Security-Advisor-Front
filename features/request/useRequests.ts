@@ -321,6 +321,8 @@ async function saveAnswers(
 ) {
   const changed = answers.filter((a) => {
     const old = existing.find((v) => v.key === a.key);
+    // 게시본에만 있고 아직 답변 행이 없는 다른 질문은 빈 값으로 생성하지 않는다.
+    if (!a.notApplicable && !a.value.trim() && !old?.value.trim()) return false;
     return (
       !old || old.revision === undefined || old.value !== (a.notApplicable ? '미해당' : a.value)
     );
@@ -348,7 +350,7 @@ async function saveAnswers(
             await requestJson(base + '/answers', { method: 'PATCH', body: { answers: payload } }),
           )
       : [];
-  for (const a of answers.filter((a) => a.confirmed)) {
+  for (const a of answers.filter((a) => a.confirmed && (a.notApplicable || a.value.trim()))) {
     const old = existing.find((v) => v.key === a.key);
     const value = saved.find((v) => v.fieldKey === a.key);
     const source = value?.valueSource ?? old?.source;

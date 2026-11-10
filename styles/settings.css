@@ -300,3 +300,86 @@
   font-size: 1.7rem;
   margin: 2rem 0 1.2rem;
 }
+
+/* 편집 사본·변경 내역은 긴 문구와 좁은 화면에서도 본문 폭을 넘지 않는다. */
+.configuration-editor,
+.configuration-inputs,
+.configuration-questions > *,
+.configuration-question-editor {
+  min-width: 0;
+}
+.configuration-inputs {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.configuration-question-editor .h-panel {
+  margin-bottom: 2rem;
+  overflow-wrap: anywhere;
+}
+.configuration-questions .qlist {
+  max-height: 60rem;
+  overflow-y: auto;
+  padding: 0.3rem;
+}
+.configuration-questions .qlist-wrap > .btn {
+  margin: 1.2rem 0;
+}
+.configuration-questions .qlist b {
+  font-size: 1.7rem;
+  overflow-wrap: anywhere;
+}
+.configuration-deadlines,
+.configuration-conflict {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+}
+.configuration-deadlines {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.configuration-changes {
+  list-style: none;
+  padding: 0;
+}
+.configuration-changes li {
+  border-bottom: 1px solid var(--sf-border);
+  padding: 1.6rem 0;
+  overflow-wrap: anywhere;
+}
+.configuration-changes .badge {
+  margin-left: 0.8rem;
+}
+.configuration-changes dl {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.8rem;
+}
+.configuration-changes dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.configuration-conflict section {
+  overflow-wrap: anywhere;
+}
+.configuration-editor > .field {
+  margin-top: 2.4rem;
+}
+@media (max-width: 767px) {
+  .configuration-deadlines,
+  .configuration-conflict,
+  .configuration-questions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .configuration-questions .qlist {
+    max-height: 26rem;
+  }
+  .configuration-editor .btn-row,
+  .configuration-editor .actions {
+    align-items: stretch;
+  }
+  .configuration-editor .actions > *,
+  .configuration-editor .actions .btn {
+    width: 100%;
+  }
+}

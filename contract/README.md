@@ -2,8 +2,9 @@
 
 기준일: 2026-11-10
 
-- Back 커밋: `e53b8ae743c3d3a51bae177330c49bd86d43619d` (알림·처리할 일 PR #16, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/e53b8ae743c3d3a51bae177330c49bd86d43619d/docs/api/openapi.yaml
+- Back 커밋: `e4e627bb9bdd798644bccbd180a32bdcfcf030dc` (질문·기한 정책 게시 PR #18, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/e4e627bb9bdd798644bccbd180a32bdcfcf030dc/docs/api/openapi.yaml
+- 질문·기한 정책 게시 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/18
 - 알림·처리할 일 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/16
 - 담당자 업무 인계 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/14
 - 목록·이력 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/10
@@ -13,6 +14,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+기관 설정은 관리자 전용 초안 조회·저장·비교·게시 API를 사용한다. `ConfigurationResponse.builtInFields`로 기본 질문 계약을 보호하고 실제 저장 응답의 revision을 다음 변경에 전달한다. `GET /api/configurations/{id}/comparison`의 revision으로 게시하며 409에서는 내 입력을 유지한다. `GET /api/publications?page&size`와 `GET /api/publications/{id}/comparison`으로 이력·게시 당시 변경 내용을 조회한다. 새 게시본은 새 사업에 적용하고 기존 사업과 추가 신청은 고정된 publicationId를 유지한다. [기관 설정 검증 기록](../docs/CONFIGURATION_PUBLISHING_20261110.md)에 실제 흐름을 기록했다.
 
 `GET /api/notifications`는 배열에서 `PageResponse`로 변경되었다. `page`/`size`/`unreadOnly`를 사용하며 현재 수신 권한을 먼저 적용한다. `/api/notifications/unread-count`, `PATCH /api/notifications/{id}`, `/api/todos`, `/api/todo-summary`를 연결한다. 알림 읽음과 업무 완료를 분리하며 안전한 `/requests/{id}` 링크만 사용한다. Back과 함께 배포해야 하며 실제 화면 검증은 [알림·처리할 일 기록](../docs/NOTIFICATIONS_20261110.md)에 있다.
 
