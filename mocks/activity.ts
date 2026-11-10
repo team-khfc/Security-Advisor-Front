@@ -1,3 +1,4 @@
+import { STATUS_LABELS } from '@/features/request/types';
 import type { Actor } from '@/lib/types';
 import type { MockState, SecurityRequest } from '@/features/request/types';
 import { finalReviewReadiness } from '@/features/request/readiness';
@@ -99,12 +100,28 @@ export class MockActivity {
       securityRequestId: number;
       title: string;
       link: string;
+      context: {
+        caseTitle: string;
+        department: string;
+        docType: string;
+        statusLabel: string;
+        stage: number;
+        updatedAt: string;
+      };
     }[] = [];
     const add = (r: SecurityRequest, kind: string, action: string, id = r.id) =>
       items.push({
         key: `${kind}:${id}`,
         kind,
         securityRequestId: wire.id(r.id),
+        context: {
+          caseTitle: r.caseTitle,
+          department: r.department,
+          docType: r.docType,
+          statusLabel: STATUS_LABELS[r.status],
+          stage: r.stage,
+          updatedAt: r.updatedAt,
+        },
         title: `신청 #${wire.id(r.id)} · ${action}`,
         link: `/requests/${wire.id(r.id)}`,
       });

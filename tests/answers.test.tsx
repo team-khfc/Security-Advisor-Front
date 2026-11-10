@@ -75,7 +75,8 @@ describe('답변의 출처와 입력 보존', () => {
       />,
     );
     expect(
-      screen.getByRole<HTMLTextAreaElement>('textbox', { name: '사업 목적 (필수)' }).readOnly,
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: /^사업 목적(?: \(필수\))?$/ })
+        .readOnly,
     ).toBe(true);
     expect(
       screen.getByRole<HTMLInputElement>('checkbox', { name: '이 항목의 내용을 확인했습니다' })
@@ -125,8 +126,8 @@ describe('답변의 출처와 입력 보존', () => {
     const { rerender } = render(
       <AnswerEditor answers={[answer()]} revision={1} actor={applicant} onSave={onSave} />,
     );
-    await user.clear(screen.getByLabelText('사업 목적 (필수)'));
-    await user.type(screen.getByLabelText('사업 목적 (필수)'), '작성 중인 내 답변');
+    await user.clear(screen.getByLabelText(/^사업 목적(?: \(필수\))?$/));
+    await user.type(screen.getByLabelText(/^사업 목적(?: \(필수\))?$/), '작성 중인 내 답변');
     rerender(
       <AnswerEditor
         answers={[answer({ value: '다른 창에서 저장한 답변' })]}
@@ -135,7 +136,7 @@ describe('답변의 출처와 입력 보존', () => {
         onSave={onSave}
       />,
     );
-    expect((screen.getByLabelText('사업 목적 (필수)') as HTMLTextAreaElement).value).toBe(
+    expect((screen.getByLabelText(/^사업 목적(?: \(필수\))?$/) as HTMLTextAreaElement).value).toBe(
       '작성 중인 내 답변',
     );
     expect((screen.getByRole('button', { name: '답변 저장' }) as HTMLButtonElement).disabled).toBe(
@@ -155,12 +156,12 @@ describe('답변의 출처와 입력 보존', () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockRejectedValue(new Error('수정본이 충돌했습니다.'));
     render(<AnswerEditor answers={[answer()]} revision={1} actor={applicant} onSave={onSave} />);
-    await user.type(screen.getByLabelText('사업 목적 (필수)'), ' 보완');
+    await user.type(screen.getByLabelText(/^사업 목적(?: \(필수\))?$/), ' 보완');
     await user.click(screen.getByRole('button', { name: '답변 저장' }));
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toContain('입력값은 지워지지 않았습니다.'),
     );
-    expect((screen.getByLabelText('사업 목적 (필수)') as HTMLTextAreaElement).value).toBe(
+    expect((screen.getByLabelText(/^사업 목적(?: \(필수\))?$/) as HTMLTextAreaElement).value).toBe(
       '합성 시험 사업 보완',
     );
   });
@@ -188,7 +189,7 @@ describe('답변의 출처와 입력 보존', () => {
         onSave={onSave}
       />,
     );
-    expect((screen.getByLabelText('사업 목적 (필수)') as HTMLTextAreaElement).value).toBe(
+    expect((screen.getByLabelText(/^사업 목적(?: \(필수\))?$/) as HTMLTextAreaElement).value).toBe(
       '변경된 사업 목적',
     );
     await user.click(screen.getAllByRole('checkbox', { name: '이 항목의 내용을 확인했습니다' })[1]);
@@ -224,7 +225,9 @@ describe('답변의 출처와 입력 보존', () => {
         onSave={vi.fn()}
       />,
     );
-    expect((screen.getByLabelText('사업 목적 (필수)') as HTMLTextAreaElement).readOnly).toBe(true);
+    expect(
+      (screen.getByLabelText(/^사업 목적(?: \(필수\))?$/) as HTMLTextAreaElement).readOnly,
+    ).toBe(true);
     expect((screen.getByLabelText('출발지 IP (필수)') as HTMLTextAreaElement).readOnly).toBe(false);
     expect(screen.queryByLabelText('일반 답변 (필수)')).toBeNull();
   });
@@ -241,8 +244,11 @@ describe('답변의 출처와 입력 보존', () => {
         onSave={onSave}
       />,
     );
-    await user.clear(screen.getByLabelText('사업 목적 (필수)'));
-    await user.type(screen.getByLabelText('사업 목적 (필수)'), '아직 저장하지 않은 합성 답변');
+    await user.clear(screen.getByLabelText(/^사업 목적(?: \(필수\))?$/));
+    await user.type(
+      screen.getByLabelText(/^사업 목적(?: \(필수\))?$/),
+      '아직 저장하지 않은 합성 답변',
+    );
     first.unmount();
     const second = render(
       <AnswerEditor
@@ -253,7 +259,7 @@ describe('답변의 출처와 입력 보존', () => {
         onSave={onSave}
       />,
     );
-    expect((screen.getByLabelText('사업 목적 (필수)') as HTMLTextAreaElement).value).toBe(
+    expect((screen.getByLabelText(/^사업 목적(?: \(필수\))?$/) as HTMLTextAreaElement).value).toBe(
       '다른 계정의 서버 값',
     );
     second.unmount();
@@ -266,7 +272,7 @@ describe('답변의 출처와 입력 보존', () => {
         onSave={onSave}
       />,
     );
-    expect((screen.getByLabelText('사업 목적 (필수)') as HTMLTextAreaElement).value).toBe(
+    expect((screen.getByLabelText(/^사업 목적(?: \(필수\))?$/) as HTMLTextAreaElement).value).toBe(
       '아직 저장하지 않은 합성 답변',
     );
     expect((screen.getByRole('button', { name: '답변 저장' }) as HTMLButtonElement).disabled).toBe(
@@ -319,7 +325,7 @@ describe('답변의 출처와 입력 보존', () => {
   );
 });
 
-test('방화벽 통신 항목의 필수 표시는 게시본 설정을 따른다', () => {
+test('신청자에게 필수 문구와 선택 문구를 임의로 표시하지 않는다', () => {
   render(
     <AnswerEditor
       actor={applicant}
@@ -330,7 +336,8 @@ test('방화벽 통신 항목의 필수 표시는 게시본 설정을 따른다'
       ]}
     />,
   );
-  expect(screen.getByRole('textbox', { name: '프로토콜 (필수)' })).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: '프로토콜' })).toBeTruthy();
+  expect(screen.queryByText('(필수)')).toBeNull();
   expect(screen.queryByText('(선택)')).toBeNull();
 });
 

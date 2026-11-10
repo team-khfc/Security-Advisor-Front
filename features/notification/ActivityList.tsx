@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Badge, ListPager, LoadingState, Notice, PageHeading } from '@/components/ui';
 import { useActivity, useReadNotification } from './useActivity';
+import { TodoCard } from './TodoCard';
 
 /** 현재 권한으로 조회한 알림 또는 처리할 일을 페이지 단위로 표시한다. */
 export function ActivityList({
@@ -18,7 +19,7 @@ export function ActivityList({
 }) {
   const [page, setPage] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const size = compact ? 5 : 20;
+  const size = compact ? 5 : kind === 'todos' ? 6 : 20;
   const data = useActivity(kind, page, size, unreadOnly);
   const read = useReadNotification();
   const router = useRouter();
@@ -62,54 +63,66 @@ export function ActivityList({
                   : '알림이 없습니다.'}
             </p>
           )}
-          <ul className="activity-list">
-            {data.data.content.map((item) => (
-              <li key={'notificationId' in item ? item.notificationId : item.key}>
-                <div>
-                  {'readAt' in item && (
-                    <Badge tone={item.readAt ? 'neutral' : 'info'}>
-                      {item.readAt ? '읽음' : '안 읽음'}
-                    </Badge>
+          <ul
+            className={
+              kind === 'todos'
+                ? `docs document-grid todo-grid${compact ? ' todo-compact' : ''}`
+                : 'activity-list'
+            }
+          >
+            {data.data.content.map((item) =>
+              !('notificationId' in item) ? (
+                <li key={item.key}>
+                  <TodoCard item={item} onOpen={onOpen} />
+                </li>
+              ) : (
+                <li key={item.notificationId}>
+                  <div>
+                    {'readAt' in item && (
+                      <Badge tone={item.readAt ? 'neutral' : 'info'}>
+                        {item.readAt ? '읽음' : '안 읽음'}
+                      </Badge>
+                    )}
+                    <Link
+                      href={item.link}
+                      onClick={async (e) => {
+                        if (!('notificationId' in item)) {
+                          onOpen?.();
+                          return;
+                        }
+                        e.preventDefault();
+                        if (read.isPending) return;
+                        try {
+                          await read.mutateAsync(item.notificationId);
+                          onOpen?.();
+                          router.push(item.link);
+                        } catch {
+                          /* 오류를 목록 안에서 안내한다. */
+                        }
+                      }}
+                    >
+                      {item.title}
+                    </Link>
+                    {'createdAt' in item && (
+                      <time dateTime={item.createdAt}>
+                        {new Date(item.createdAt).toLocaleString('ko-KR')}
+                      </time>
+                    )}
+                  </div>
+                  {'readAt' in item && !item.readAt && (
+                    <button
+                      type="button"
+                      className="btn btn-tertiary"
+                      disabled={read.isPending}
+                      onClick={() => read.mutate(item.notificationId)}
+                      aria-label={`${item.title} 읽음으로 표시`}
+                    >
+                      읽음 표시
+                    </button>
                   )}
-                  <Link
-                    href={item.link}
-                    onClick={async (e) => {
-                      if (!('notificationId' in item)) {
-                        onOpen?.();
-                        return;
-                      }
-                      e.preventDefault();
-                      if (read.isPending) return;
-                      try {
-                        await read.mutateAsync(item.notificationId);
-                        onOpen?.();
-                        router.push(item.link);
-                      } catch {
-                        /* 오류를 목록 안에서 안내한다. */
-                      }
-                    }}
-                  >
-                    {item.title}
-                  </Link>
-                  {'createdAt' in item && (
-                    <time dateTime={item.createdAt}>
-                      {new Date(item.createdAt).toLocaleString('ko-KR')}
-                    </time>
-                  )}
-                </div>
-                {'readAt' in item && !item.readAt && (
-                  <button
-                    type="button"
-                    className="btn btn-tertiary"
-                    disabled={read.isPending}
-                    onClick={() => read.mutate(item.notificationId)}
-                    aria-label={`${item.title} 읽음으로 표시`}
-                  >
-                    읽음 표시
-                  </button>
-                )}
-              </li>
-            ))}
+                </li>
+              ),
+            )}
           </ul>
           {!compact && page > 0 && !data.data.content.length ? (
             <button className="btn" onClick={() => setPage(0)}>
@@ -142,7 +155,7 @@ export function ActivityPage({ kind }: { kind: 'notifications' | 'todos' }) {
           ? '현재 내 역할과 배정에서 처리할 작업입니다. 같은 신청에 협의와 보완 검토가 있으면 각각 표시됩니다. 알림을 읽어도 업무는 완료되지 않습니다.'
           : '현재 접근할 수 있는 업무 알림입니다. 담당자나 역할이 바뀌면 표시되는 알림도 달라질 수 있습니다.'}
       </p>
-      <section className="card activity-page">
+      <section className={kind === 'todos' ? 'activity-page' : 'card activity-page'}>
         <ActivityList kind={kind} />
       </section>
     </>

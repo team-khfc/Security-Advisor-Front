@@ -18,6 +18,16 @@ const todoSchema = z.object({
   key: z.string(),
   kind: z.string(),
   securityRequestId: z.number(),
+  context: z
+    .object({
+      caseTitle: z.string(),
+      department: z.string(),
+      docType: z.string(),
+      statusLabel: z.string(),
+      stage: z.number(),
+      updatedAt: z.string().nullable(),
+    })
+    .nullish(),
   title: z.string(),
   link,
 });
@@ -28,6 +38,7 @@ const pageSchema = <T extends z.ZodType>(item: T) =>
     size: z.number(),
     totalElements: z.number(),
   });
+export type TodoEntry = z.infer<typeof todoSchema>;
 export type NotificationEntry = z.infer<typeof notificationSchema>;
 
 /** 계정·역할별 캐시를 사용하고 창으로 돌아올 때 현재 수신 권한을 다시 확인한다. */
