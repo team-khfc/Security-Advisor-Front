@@ -96,9 +96,9 @@ export function LoginPage() {
           <Image src="/images/logo.png" alt="보안길잡이 AI" width={208} height={48} priority />
           <p className="eyebrow">SecurityAdvisor</p>
           <h2 id="auth-intro">
-            보안 서류의 시작부터
+            사업 기획서 업로드와 AI 인터뷰
             <br />
-            담당자 협의까지, 함께.
+            보안, 인프라 담당자의 사업 검토
           </h2>
           <p>사업을 설명해 주세요. 필요한 정보를 차근차근 모으고, 전문가와 함께 확인합니다.</p>
           <ol className="auth-steps">
