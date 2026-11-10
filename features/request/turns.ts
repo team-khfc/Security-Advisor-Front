@@ -6,6 +6,25 @@ import { pendingReviews, reviewFields } from './readiness';
  * 현재 신청 상태와 검토·최종 확인 기록만 읽어 글자로 옮긴다.
  */
 export function waitingLine(request: SecurityRequest) {
+  const fields = request.listOverview?.fields;
+  if (fields) {
+    if (request.status === 'SUBMITTED') {
+      const pending = fields.filter((field) => !field.confirmed);
+      return pending.length ? `${FIELD_LABELS[pending[0].field]} 최종 확인 대기` : '서류 확정 대기';
+    }
+    if (request.status === 'CONSULTING')
+      return fields
+        .filter((field) => field.reviewStatus !== 'COMPLETED')
+        .map(
+          (field) =>
+            `${FIELD_LABELS[field.field]} ${field.field === 'INFRA' && !field.allocated ? '통신 정보 할당 중' : '협의 중'}`,
+        )
+        .join(', ');
+    if (request.status === 'FINAL_REVIEW')
+      return fields.some((field) => field.reviewStatus !== 'COMPLETED')
+        ? '담당자 재검토 대기'
+        : '신청자 최종 제출 대기';
+  }
   switch (request.status) {
     case 'DRAFT':
       return '신청자 작성 중';

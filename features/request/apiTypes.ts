@@ -61,9 +61,29 @@ export const requestDto = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
-export const requestListDto = requestDto
-  .omit({ answers: true, createdAt: true })
-  .extend({ caseTitle: z.string(), department: text, applicantUsername: z.string() });
+export const requestListDto = requestDto.omit({ answers: true, createdAt: true }).extend({
+  caseTitle: z.string(),
+  department: text,
+  applicantUsername: z.string(),
+  createdAt: z.string().optional(),
+  overview: z
+    .object({
+      myTurn: z.boolean(),
+      dueDate: text,
+      submissionId: id.nullable(),
+      needsReview: z.boolean(),
+      fields: z.array(
+        z.object({
+          field,
+          assigneeUsername: text,
+          reviewStatus: text,
+          allocated: z.boolean(),
+          confirmed: z.boolean(),
+        }),
+      ),
+    })
+    .nullish(),
+});
 export const caseDto = z.object({
   businessCaseId: id,
   applicantUsername: z.string(),
@@ -161,8 +181,11 @@ export const finalConfirmationDto = z.object({
 });
 export const auditDto = z.object({
   auditEventId: id,
-  actorUsername: z.string(),
-  actorRole: roleDto,
+  actorUsername: z
+    .string()
+    .nullable()
+    .transform((value) => value ?? '시스템'),
+  actorRole: roleDto.nullable(),
   targetType: z.string(),
   targetId: z.string(),
   targetRevision: id.nullable(),

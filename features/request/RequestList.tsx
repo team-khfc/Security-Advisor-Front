@@ -63,6 +63,7 @@ function shortDate(value: string) {
 }
 
 function isMyTurn(request: SecurityRequest, actor: Actor) {
+  if (request.listOverview) return request.listOverview.myTurn;
   if (terminalStates.includes(request.status)) return false;
   if (actor.role === 'APPLICANT') {
     return (
@@ -95,6 +96,10 @@ function isStaffTurn(request: SecurityRequest) {
 }
 
 function activeDeadline(request: SecurityRequest, role?: Actor['role']) {
+  if (request.listOverview)
+    return request.listOverview.dueDate
+      ? { dueAt: request.listOverview.dueDate, timing: undefined }
+      : undefined;
   const active = request.deadlines.filter((deadline) => deadline.active);
   const relevant =
     role === 'INFRA' || role === 'SECURITY'
@@ -114,6 +119,18 @@ function nextAction(request: SecurityRequest, actor: Actor) {
     if (request.status === 'SUPPLEMENT_REQUESTED') return '보완 답변 등록';
     return '최종 초안 확인·제출';
   }
+  if (request.listOverview) {
+    if (request.stage === 4)
+      return request.listOverview.fields.every((field) => field.confirmed)
+        ? '서류 확정'
+        : '제출본 최종 확인';
+    if (
+      actor.role === 'INFRA' &&
+      request.listOverview.fields.some((field) => field.field === 'INFRA' && !field.allocated)
+    )
+      return '통신 정보 할당';
+    return '담당 분야 협의';
+  }
   if (actions.includes('FINALIZE')) return '서류 확정';
   if (actions.includes('FINAL_CONFIRM')) return '제출본 최종 확인';
   if (actions.includes('COMPLETE_ALLOCATION')) return '통신 정보 할당';
@@ -124,7 +141,7 @@ function nextAction(request: SecurityRequest, actor: Actor) {
 function reviewState(request: SecurityRequest, field: ReviewField) {
   if (terminalStates.includes(request.status) && request.status !== 'FINALIZED')
     return { kind: 'wait', label: '종료' };
-  if (request.stage === 4) {
+  if (request.stage === 4 && !request.listOverview) {
     const confirmed = request.finalConfirmations.some(
       (confirmation) =>
         confirmation.field === field && confirmation.submissionId === request.currentSubmissionId,
@@ -132,6 +149,31 @@ function reviewState(request: SecurityRequest, field: ReviewField) {
     return confirmed
       ? { kind: 'done', label: '최종 확인 완료' }
       : { kind: 'wait', label: '최종 확인 대기' };
+  }
+  const summary = request.listOverview?.fields.find((item) => item.field === field);
+  if (summary) {
+    if (request.stage === 4)
+      return {
+        kind: summary.confirmed ? 'done' : 'wait',
+        label: summary.confirmed ? '최종 확인 완료' : '최종 확인 대기',
+      };
+    const labels: Record<string, string> = {
+      COMPLETED: '협의 완료',
+      SUPPLEMENT_REQUESTED: '보완 요청',
+      RECHECK: '재검토',
+      ALLOCATED: '할당 완료',
+      IN_PROGRESS: '검토 중',
+      WAITING: '검토 대기',
+    };
+    return {
+      kind:
+        summary.reviewStatus === 'COMPLETED'
+          ? 'done'
+          : summary.reviewStatus === 'RECHECK' || summary.reviewStatus === 'SUPPLEMENT_REQUESTED'
+            ? 'warn'
+            : 'now',
+      label: labels[summary.reviewStatus ?? 'WAITING'] ?? '검토 대기',
+    };
   }
   const review = request.reviews.find((item) => item.field === field);
   if (!review) return { kind: 'wait', label: '대기' };
@@ -154,8 +196,15 @@ function Assignees({ request }: { request: SecurityRequest }) {
   if (request.stage === 1) return <span className="asg-none">협의 요청 후 배정</span>;
   return (
     <ul className="asg">
-      {(['INFRA', 'SECURITY'] as const).map((field) => {
-        const assignment = request.assignments.find((item) => item.active && item.field === field);
+      {(
+        request.listOverview?.fields.map((item) => item.field) ?? (['INFRA', 'SECURITY'] as const)
+      ).map((field) => {
+        const overview = request.listOverview?.fields.find((item) => item.field === field);
+        const assignment = overview
+          ? overview.assigneeUsername
+            ? { assigneeName: overview.assigneeUsername }
+            : undefined
+          : request.assignments.find((item) => item.active && item.field === field);
         const state = reviewState(request, field);
         return (
           <li key={field}>
@@ -211,7 +260,7 @@ function Deadline({
 
 function RequestListView({ options }: { options: ListOptions }) {
   const session = useSession();
-  const requests = useRequests(true);
+
   const router = useRouter();
   const [search, setSearch] = useState(options.search);
   const [previousSearch, setPreviousSearch] = useState(options.search);
@@ -223,6 +272,27 @@ function RequestListView({ options }: { options: ListOptions }) {
   const [today] = useState(() => dateKey(new Date()));
   const actor = session.data?.member;
   const searchQuery = options.search.trim();
+
+  const fromDate =
+    options.period === 'custom'
+      ? options.from
+      : options.period === 'all'
+        ? ''
+        : dateKey(
+            new Date(
+              Date.parse(`${today}T12:00:00+09:00`) - (Number(options.period) - 1) * 86_400_000,
+            ),
+          );
+  const toDate = options.period === 'custom' ? options.to : options.period === 'all' ? '' : today;
+  const requests = useRequests(false, {
+    page: options.page - 1,
+    size: PAGE_SIZE,
+    query: searchQuery,
+    inbox: options.filter,
+    from: fromDate,
+    to: toDate,
+    sort: actor?.role === 'INFRA' || actor?.role === 'SECURITY' ? 'dueDate,asc' : 'createdAt,desc',
+  });
 
   if (previousSearch !== options.search) {
     setPreviousSearch(options.search);
@@ -280,55 +350,61 @@ function RequestListView({ options }: { options: ListOptions }) {
       key: 'mine',
       label: actor.role === 'ADMIN' ? '배정 확인 필요' : '내가 할 일',
       icon: 'pencil',
-      count: mine.length,
+      count: requests.summary?.mine ?? mine.length,
     },
-    { key: 'staff', label: '담당자 확인 중', icon: 'users', count: staff.length },
-    { key: 'done', label: '서류 확정', icon: 'check', count: done.length },
+    {
+      key: 'staff',
+      label: '담당자 확인 중',
+      icon: 'users',
+      count: requests.summary?.staff ?? staff.length,
+    },
+    {
+      key: 'done',
+      label: '서류 확정',
+      icon: 'check',
+      count: requests.summary?.done ?? done.length,
+    },
     {
       key: 'all',
       label: isApplicant ? '내 신청 전체' : '전체 신청',
       icon: 'file',
-      count: all.length,
+      count: requests.summary?.all ?? all.length,
     },
   ] as const;
   const query = searchQuery.toLocaleLowerCase('ko-KR');
-  const fromDate =
-    options.period === 'custom'
-      ? options.from
-      : options.period === 'all'
-        ? ''
-        : dateKey(
-            new Date(
-              Date.parse(`${today}T12:00:00+09:00`) - (Number(options.period) - 1) * 86_400_000,
-            ),
-          );
-  const toDate = options.period === 'custom' ? options.to : options.period === 'all' ? '' : today;
-  const filtered = all
-    .filter((request) => {
-      if (options.filter === 'mine' && !isMyTurn(request, actor)) return false;
-      if (options.filter === 'staff' && !isStaffTurn(request)) return false;
-      if (options.filter === 'done' && request.status !== 'FINALIZED') return false;
-      if (
-        query &&
-        !`${request.caseTitle} ${request.id} ${request.department} ${request.ownerName} ${DOCUMENT_LABELS[request.docType] ?? request.docType}`
-          .toLocaleLowerCase('ko-KR')
-          .includes(query)
-      )
-        return false;
-      const date = dateKey(new Date(request.createdAt));
-      return (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
-    })
-    .sort((left, right) => {
-      if (isStaff) {
-        const leftDue = activeDeadline(left, actor.role)?.dueAt ?? '9999';
-        const rightDue = activeDeadline(right, actor.role)?.dueAt ?? '9999';
-        if (leftDue !== rightDue) return leftDue.localeCompare(rightDue);
-      }
-      return right.createdAt.localeCompare(left.createdAt);
-    });
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const filtered = requests.pagination
+    ? all
+    : all
+        .filter((request) => {
+          if (options.filter === 'mine' && !isMyTurn(request, actor)) return false;
+          if (options.filter === 'staff' && !isStaffTurn(request)) return false;
+          if (options.filter === 'done' && request.status !== 'FINALIZED') return false;
+          if (
+            query &&
+            !`${request.caseTitle} ${request.id} ${request.department} ${request.ownerName} ${DOCUMENT_LABELS[request.docType] ?? request.docType}`
+              .toLocaleLowerCase('ko-KR')
+              .includes(query)
+          )
+            return false;
+          const date = dateKey(new Date(request.createdAt));
+          return (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
+        })
+        .sort((left, right) => {
+          if (isStaff) {
+            const leftDue = activeDeadline(left, actor.role)?.dueAt ?? '9999';
+            const rightDue = activeDeadline(right, actor.role)?.dueAt ?? '9999';
+            if (leftDue !== rightDue) return leftDue.localeCompare(rightDue);
+          }
+          return right.createdAt.localeCompare(left.createdAt);
+        });
+  const pages = Math.max(
+    1,
+    requests.pagination?.totalPages ?? Math.ceil(filtered.length / PAGE_SIZE),
+  );
   const currentPage = Math.max(1, Math.min(options.page, pages));
-  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visible = requests.pagination
+    ? filtered
+    : filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const pageStart = Math.max(1, Math.min(currentPage - 3, pages - 6));
   const pageNumbers = Array.from({ length: Math.min(7, pages) }, (_, index) => pageStart + index);
   const isFiltered = options.filter !== 'all' || searchQuery !== '' || options.period !== 'all';
@@ -374,7 +450,7 @@ function RequestListView({ options }: { options: ListOptions }) {
       <section aria-labelledby="request-list-heading">
         <div className="sec-head">
           <h2 className="h-sec" id="request-list-heading">
-            신청 내역<span className="count">{all.length}</span>
+            신청 내역<span className="count">{requests.summary?.all ?? all.length}</span>
           </h2>
           <ul className="st-legend" aria-label="진행 단계">
             {STAGE_LABELS.map((stage, index) => (
@@ -497,7 +573,8 @@ function RequestListView({ options }: { options: ListOptions }) {
           )}
         </form>
         <p className="filter-state" role="status">
-          {filters.find((filter) => filter.key === options.filter)?.label} 결과 {filtered.length}건
+          {filters.find((filter) => filter.key === options.filter)?.label} 결과{' '}
+          {requests.pagination?.totalElements ?? filtered.length}건
           {searchQuery && ` · 검색어 “${searchQuery}”`}
           {fromDate || toDate ? ` · ${fromDate || '처음'} ~ ${toDate || '오늘'}` : ''}
           {pages > 1 && ` · ${currentPage} / ${pages}페이지`}
@@ -592,9 +669,10 @@ function RequestListView({ options }: { options: ListOptions }) {
                             {STAGE_LABELS[request.stage - 1]}
                             {stopped ? ', 종료' : ''}
                           </span>
-                          {request.returns.length > 0 && request.highlightedFields.length > 0 && (
-                            <span className="table-subtitle">반환됨 · 보완 항목 확인</span>
-                          )}
+                          {request.listOverview?.needsReview ||
+                            (request.returns.length > 0 && request.highlightedFields.length > 0 && (
+                              <span className="table-subtitle">반환됨 · 보완 항목 확인</span>
+                            ))}
                         </td>
                         <td>
                           <Badge tone={statusTones[request.status]}>

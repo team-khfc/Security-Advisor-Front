@@ -23,7 +23,14 @@ import {
 import { useInterviewAssistance } from './useInterviewAssistance';
 import { useInterviewStaffCheck, useInterviewTurns } from './useInterview';
 import { DOCUMENT_LABELS, STATUS_LABELS, type BusinessCase, type Answer } from './types';
-import { useAnalysis, useApplyAnalysis, useCase, useRequests, useSaveCase } from './useRequests';
+import {
+  useAnalysis,
+  useApplyAnalysis,
+  useCase,
+  useRelatedRequests,
+  useRequests,
+  useSaveCase,
+} from './useRequests';
 
 /** 명시적 분석 요청과 제안 적용을 구분하고 실패 시 직접 입력을 유지한다. */
 export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) {
@@ -197,7 +204,7 @@ export function AnalysisPanel({ businessCase }: { businessCase: BusinessCase }) 
 /** 공통 질문을 한 번 답하고 서류별 독립 신청으로 이어 준다. */
 export function CaseInterview({ id }: { id: string }) {
   const query = useCase(id);
-  const requests = useRequests();
+  const requests = useRelatedRequests(id);
   const session = useSession();
   if (query.isPending || requests.isPending || session.isPending) return <LoadingState />;
   if (query.error || requests.error)

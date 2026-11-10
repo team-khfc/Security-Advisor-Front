@@ -220,10 +220,36 @@ export class ContractMapper {
       auditEventId: this.id(v.id),
       actorUsername: this.username(v.actorId),
       actorRole: v.actorRole,
-      targetType: v.targetType,
+      targetType:
+        (
+          { SecurityRequest: 'SECURITY_REQUEST', BusinessCase: 'BUSINESS_CASE' } as Record<
+            string,
+            string
+          >
+        )[v.targetType] ?? v.targetType,
       targetId: String(this.id(v.targetId)),
       targetRevision: v.targetRevision,
-      action: v.action,
+      action:
+        (
+          {
+            CREATE_CASE: 'BUSINESS_CASE_CREATED',
+            SAVE_CASE_ANSWERS: 'ANSWER_UPDATED',
+            SAVE_ANSWERS: 'ANSWER_UPDATED',
+            REQUEST_REVIEW: 'REVIEW_REQUESTED',
+            COMPLETE_ALLOCATION: 'ALLOCATION_COMPLETED',
+            COMPLETE_REVIEW: 'REVIEW_COMPLETED',
+            REQUEST_SUPPLEMENT: 'SUPPLEMENT_REQUESTED',
+            ANSWER_SUPPLEMENT: 'SUPPLEMENT_ANSWERED',
+            RESOLVE_SUPPLEMENT: 'SUPPLEMENT_RESOLVED',
+            RETURN: 'STAGE_RETURNED',
+            SUBMIT: 'SUBMITTED',
+            FINAL_CONFIRM: 'FINAL_CONFIRMED',
+            FINALIZE: 'REQUEST_CONFIRMED',
+            CLOSE: 'REQUEST_CLOSED',
+            WITHDRAW: 'REQUEST_WITHDRAWN',
+            REASSIGN: 'REASSIGNED',
+          } as Record<string, string>
+        )[v.action] ?? v.action,
       reason: v.reason,
       summary: v.fieldKeys.join(', '),
       requestId: v.requestId,

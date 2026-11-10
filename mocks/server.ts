@@ -1,3 +1,4 @@
+import { mockRequestListing, mockAuditListing } from './listing';
 import { ContractMapper } from './contractMapper';
 import { MockPolicies } from './policies';
 import { MockInquiries } from './inquiries';
@@ -1534,6 +1535,17 @@ async function dispatchContract(
     if (resource === 'security-requests' && sub === 'assignments')
       body.expectedRevision = getRequest(runtime, id, actor!).revision;
   }
+  if (method === 'GET' && resource === 'security-requests' && !numericId)
+    return json(
+      mockRequestListing(
+        visibleRequests(runtime, actor!),
+        actor!,
+        new URL(request.url).searchParams,
+        wire,
+      ),
+    );
+  if (method === 'GET' && resource === 'audit-events')
+    return json(mockAuditListing(runtime.state, actor!, new URL(request.url).searchParams, wire));
   const legacyUrl = new URL(request.url);
   legacyUrl.pathname =
     '/api/' +

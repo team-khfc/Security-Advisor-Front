@@ -55,18 +55,57 @@ async function readParts(id: string, signal?: AbortSignal) {
     finalConfirmations,
   };
 }
-/** 목록 계약은 상세 집계와 구분한다. 상세가 필요한 업무함만 추가 조회한다. */
-export function useRequests(detailed = false) {
+/** 목록의 검색 조건과 페이지를 서버에 전달한다. 상세 조립은 현재 페이지에만 한정한다. */
+export interface RequestListOptions {
+  page?: number;
+  size?: number;
+  query?: string;
+  inbox?: string;
+  from?: string;
+  to?: string;
+  businessCaseId?: string;
+  documentKind?: string;
+  supplementState?: string;
+  sort?: string;
+}
+export function useRequests(detailed = false, options: RequestListOptions = {}) {
   const session = useSession();
-  return useQuery({
-    queryKey: ['requests', { detailed, role: session.data?.member.role }],
+  const result = useQuery<{
+    items: SecurityRequest[];
+    page: { number: number; size: number; totalElements: number; totalPages: number };
+    summary: { all: number; mine: number; staff: number; done: number };
+  }>({
+    queryKey: ['requests', 'list', { detailed, ...options, actor: session.data?.member.id }],
+    enabled: !!session.data,
+    placeholderData: (previous, query) => {
+      const key = query?.queryKey[2];
+      return key &&
+        typeof key === 'object' &&
+        'actor' in key &&
+        key.actor === session.data?.member.id
+        ? previous
+        : undefined;
+    },
     queryFn: async ({ signal }) => {
-      const page = await read(
-        '/api/security-requests?size=100',
-        dto.pageDto(dto.requestListDto),
-        signal,
-      );
-      return Promise.all(
+      const params = new URLSearchParams({
+        page: String(options.page ?? 0),
+        size: String(options.size ?? 20),
+      });
+      for (const [key, value] of Object.entries(options))
+        if (value !== undefined && value !== '') params.set(key, String(value));
+      const raw = await requestJson<unknown>(`/api/security-requests?${params}`, { signal });
+      const page = dto.pageDto(dto.requestListDto).parse(raw);
+      const summary = z
+        .object({
+          summary: z.object({
+            all: z.number(),
+            mine: z.number(),
+            staff: z.number(),
+            done: z.number(),
+          }),
+        })
+        .parse(raw).summary;
+      const items = await Promise.all(
         page.content.map(async (value) => {
           if (!detailed) return adaptList(value, session.data?.member.role);
           const [request, businessCase, parts] = await Promise.all([
@@ -83,6 +122,35 @@ export function useRequests(detailed = false) {
           );
         }),
       );
+      return { items, page: page.page, summary };
+    },
+  });
+  return {
+    ...result,
+    data: result.data?.items,
+    pagination: result.data?.page,
+    summary: result.data?.summary,
+  };
+}
+
+/** 관련 신청은 해당 사업 범위만 조회한다. 유형이 늘어도 첫 페이지에서 끊지 않는다. */
+export function useRelatedRequests(businessCaseId?: string) {
+  const session = useSession();
+  return useQuery({
+    queryKey: ['requests', 'related', businessCaseId, session.data?.member.id],
+    enabled: !!businessCaseId && !!session.data,
+    queryFn: async ({ signal }) => {
+      const items: SecurityRequest[] = [];
+      for (let number = 0; ; number++) {
+        const page = await read(
+          `/api/security-requests?businessCaseId=${encoded(businessCaseId!)}&page=${number}&size=100&sort=id,asc`,
+          dto.pageDto(dto.requestListDto),
+          signal,
+        );
+        items.push(...page.content.map((item) => adaptList(item, session.data?.member.role)));
+        if (number + 1 >= page.page.totalPages) break;
+      }
+      return items;
     },
   });
 }

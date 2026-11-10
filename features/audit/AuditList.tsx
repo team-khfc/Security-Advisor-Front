@@ -3,19 +3,44 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { useSession } from '@/features/auth';
-import { EmptyState, ErrorState, Icon, LoadingState, Notice, PageHeading } from '@/components/ui';
+import {
+  ListPager,
+  EmptyState,
+  ErrorState,
+  Icon,
+  LoadingState,
+  Notice,
+  PageHeading,
+} from '@/components/ui';
 import { useAudit } from '@/lib/queries';
 import { ROLE_LABELS } from '@/lib/types';
 
-import { auditActionLabel } from './labels';
+import { auditActionLabel, auditActions } from './labels';
 
 /** 감사 기록은 조회만 제공하고 원문 답변·비밀값을 화면에 재구성하지 않는다. */
 export function AuditList() {
   const session = useSession();
-  const audit = useAudit();
+
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [action, setAction] = useState('all');
+  const [page, setPage] = useState(0);
+  const [throughId, setThroughId] = useState<number>();
+  const audit = useAudit(undefined, {
+    page,
+    size: 20,
+    query: search,
+    action: action === 'all' ? undefined : action,
+    throughId,
+  });
+  function changePage(next: number) {
+    setThroughId(audit.throughId);
+    setPage(next);
+  }
+  function resetPage() {
+    setPage(0);
+    setThroughId(undefined);
+  }
   const role = session.data?.member.role;
   const title =
     role === 'ADMIN'
@@ -29,6 +54,7 @@ export function AuditList() {
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSearch(searchDraft.trim());
+    resetPage();
   }
 
   if (audit.isPending || session.isPending) return <LoadingState />;
@@ -42,18 +68,20 @@ export function AuditList() {
       />
     );
   const events = audit.data ?? [];
-  const actionOptions = [...new Set(events.map((event) => event.action))];
-  const rows = events
-    .filter((event) => {
-      if (action !== 'all' && event.action !== action) return false;
-      return (
-        !search ||
-        `${event.actorName} ${event.targetId} ${auditActionLabel(event.action)} ${event.reason ?? ''}`
-          .toLocaleLowerCase('ko-KR')
-          .includes(search.toLocaleLowerCase('ko-KR'))
-      );
-    })
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const actionOptions = auditActions;
+  const rows = audit.pagination
+    ? events
+    : events
+        .filter((event) => {
+          if (action !== 'all' && event.action !== action) return false;
+          return (
+            !search ||
+            `${event.actorName} ${event.targetId} ${auditActionLabel(event.action)} ${event.reason ?? ''}`
+              .toLocaleLowerCase('ko-KR')
+              .includes(search.toLocaleLowerCase('ko-KR'))
+          );
+        })
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
   return (
     <>
@@ -70,7 +98,10 @@ export function AuditList() {
             id="audit-action"
             className="input"
             value={action}
-            onChange={(event) => setAction(event.target.value)}
+            onChange={(event) => {
+              setAction(event.target.value);
+              resetPage();
+            }}
           >
             <option value="all">전체 업무</option>
             {actionOptions.map((value) => (
@@ -98,7 +129,7 @@ export function AuditList() {
         </div>
       </form>
       <p className="filter-state" role="status">
-        조회된 기록 {rows.length}건 · 최근 기록순
+        조회된 기록 {audit.pagination?.totalElements ?? rows.length}건 · 최근 기록순
         {(search || action !== 'all') && (
           <button
             type="button"
@@ -107,12 +138,30 @@ export function AuditList() {
               setSearch('');
               setSearchDraft('');
               setAction('all');
+              resetPage();
             }}
           >
             검색 초기화
           </button>
         )}
       </p>
+      <ListPager
+        page={page}
+        size={20}
+        total={audit.pagination?.totalElements ?? rows.length}
+        onChange={changePage}
+        label="이력 페이지"
+      />
+      <button
+        type="button"
+        className="btn btn-tertiary btn-sm"
+        onClick={() => {
+          resetPage();
+          void audit.refetch();
+        }}
+      >
+        최신 이력 조회
+      </button>
       {rows.length ? (
         <div
           className="tbl-wrap"
@@ -166,7 +215,8 @@ export function AuditList() {
                       )}
                     </td>
                     <td className="audit-actor">
-                      {event.actorName} ({ROLE_LABELS[event.actorRole]})
+                      {event.actorName} (
+                      {event.actorRole ? ROLE_LABELS[event.actorRole] : '미인증·시스템'})
                     </td>
                   </tr>
                 );
@@ -195,6 +245,7 @@ export function AuditList() {
                   setSearch('');
                   setSearchDraft('');
                   setAction('all');
+                  resetPage();
                 }}
               >
                 검색 초기화

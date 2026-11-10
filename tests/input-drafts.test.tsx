@@ -27,7 +27,7 @@ vi.mock('@/features/auth', () => ({
 vi.mock('@/features/request/useRequests', () => ({
   useCreateCase: () => ({ mutateAsync: controls.create, isPending: false }),
   useCase: () => ({ data: controls.businessCase, isPending: false }),
-  useRequests: () => ({ data: controls.requests, isPending: false }),
+  useRelatedRequests: () => ({ data: controls.requests, isPending: false }),
   useSaveCase: () => ({ mutateAsync: controls.save, isPending: false }),
   useAnalysis: () => ({
     data: controls.analysis,
