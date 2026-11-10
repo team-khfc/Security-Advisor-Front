@@ -104,7 +104,7 @@ export function CollectedAnswerEditor({
                     해당 없음
                   </label>
                 )}
-                {conflict && (
+                {conflict && !pending && (
                   <Notice tone="warning">
                     서버 내용이 변경되었습니다. 최신 값:{' '}
                     {answer.notApplicable ? '미해당' : answer.value || '미입력'}
