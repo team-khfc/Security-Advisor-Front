@@ -12,6 +12,14 @@ import {
   type InfraConnection,
 } from './infrastructurePlan';
 import { networkValueValid } from './networkAnswerFormat';
+import { InfrastructureServers, InfrastructureSummary } from './InfrastructureServers';
+import { InfrastructureServerAi } from './InfrastructureServerAi';
+import {
+  resolveConnections,
+  operationLabels,
+  infraCheckLabels,
+  type InfraServer,
+} from './infrastructurePlan';
 import { InfrastructureAiProposal } from './InfrastructureAiProposal';
 const formatTime = (value: string) =>
   new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
@@ -99,6 +107,7 @@ export function InfrastructureWorkspace({
       <RequestTechnicalDetails request={request} infrastructurePlan={plan}>
         {children}
       </RequestTechnicalDetails>
+      {!canEdit && plan && plan.schemaVersion >= 2 && <InfrastructureSummary plan={plan} />}
       {!canEdit && plan?.notes && (
         <section className="card">
           <h2 className="h-panel">ICT인프라 검토 사항</h2>
@@ -128,14 +137,23 @@ function InfrastructureEditor({
     connections: InfraConnection[];
     notes: string;
     answerRevisions: Record<string, number>;
+    servers: InfraServer[];
+    operations: Record<string, string>;
+    checklist: Record<string, boolean>;
   } | null>(null);
   const [seed] = useState(() => startingRow(request));
-  const rows = draft?.connections ?? (plan.connections.length ? plan.connections : [seed]);
+  const servers = draft?.servers ?? plan.servers;
+  const operations = draft?.operations ?? plan.operations;
+  const checklist = draft?.checklist ?? plan.checklist;
+  const rows = resolveConnections(
+    draft?.connections ?? (plan.connections.length ? plan.connections : [seed]),
+    servers,
+  );
   const notes = draft?.notes ?? plan.notes;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
-  const [aiApplied, setAiApplied] = useState(false);
+  const [saved, setSaved] = useState('');
+  const [aiApplied, setAiApplied] = useState(plan.aiPending);
   const [aiConfirmed, setAiConfirmed] = useState(false);
   const dirty = !!draft;
   const conflict = dirty && draft.revision !== plan.revision;
@@ -151,12 +169,23 @@ function InfrastructureEditor({
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
-  function edit(connections: InfraConnection[], nextNotes = notes) {
+  function edit(
+    connections: InfraConnection[],
+    nextNotes = notes,
+    extras: Partial<{
+      servers: InfraServer[];
+      operations: Record<string, string>;
+      checklist: Record<string, boolean>;
+    }> = {},
+  ) {
     setAiConfirmed(false);
     setDraft((d) => ({
       revision: d?.revision ?? plan.revision,
       connections,
       notes: nextNotes,
+      servers: extras.servers ?? servers,
+      operations: extras.operations ?? operations,
+      checklist: extras.checklist ?? {},
       answerRevisions:
         d?.answerRevisions ??
         Object.fromEntries(
@@ -165,7 +194,7 @@ function InfrastructureEditor({
             .map((a) => [a.key, a.revision!]),
         ),
     }));
-    setSaved(false);
+    setSaved('');
   }
   function change(id: string, key: keyof InfraConnection, value: string) {
     edit(rows.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
@@ -177,13 +206,20 @@ function InfrastructureEditor({
     type = 'text',
   ) => (
     <label>
-      {label}
+      <span className="infra-field-label">{label}</span>
       <input
         className="input"
         type={type}
         required
+        readOnly={
+          !!(key.startsWith('source')
+            ? row.sourceServerId
+            : key.startsWith('destination')
+              ? row.destinationServerId
+              : false)
+        }
         placeholder="확인 필요"
-        value={row[key]}
+        value={row[key] ?? ''}
         maxLength={
           key === 'purpose'
             ? 1000
@@ -203,11 +239,18 @@ function InfrastructureEditor({
     options: string[],
   ) => (
     <label>
-      {label}
+      <span className="infra-field-label">{label}</span>
       <select
         className="input"
         required
-        value={row[key]}
+        disabled={
+          !!(key.startsWith('source')
+            ? row.sourceServerId
+            : key.startsWith('destination')
+              ? row.destinationServerId
+              : false)
+        }
+        value={row[key] ?? ''}
         onChange={(e) => change(row.id, key, e.target.value)}
       >
         <option value="">확인 필요 · 선택해 주세요</option>
@@ -226,12 +269,28 @@ function InfrastructureEditor({
         서버와 통신 구간을 추가하고, 네트워크 정보·검토 사항을 함께 저장하세요. 첫 구간은 기존
         공통·서류 항목에도 반영됩니다. 저장 후 아래 흐름도와 방화벽 규칙에서 확인할 수 있습니다.
       </p>
+      {plan.draft && (
+        <Notice tone="warning">
+          임시 저장 상태입니다. 확인 저장 전에는 협의를 완료할 수 없습니다.
+        </Notice>
+      )}
+      <InfrastructureServerAi
+        requestId={request.id}
+        revision={plan.revision}
+        servers={servers}
+        contextVersion={JSON.stringify([rows, operations, request.revision])}
+        disabled={busy || conflict}
+        onApply={(next) => edit(rows, notes, { servers: next })}
+      />
       <InfrastructureAiProposal
         requestId={request.id}
         revision={plan.revision}
         rows={rows}
         contextVersion={JSON.stringify([
           notes,
+          servers,
+          operations,
+          checklist,
           request.revision,
           request.commonAnswers,
           request.answers,
@@ -244,11 +303,15 @@ function InfrastructureEditor({
         }}
       />
       <form
+        noValidate
         onSubmit={async (e) => {
           e.preventDefault();
+          const temporary =
+            (e.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'draft';
+          if (!temporary && !e.currentTarget.reportValidity()) return;
           setError('');
-          setSaved(false);
-          if (aiApplied && !aiConfirmed) {
+          setSaved('');
+          if (!temporary && aiApplied && !aiConfirmed) {
             setError('AI 제안의 근거와 통신 관계를 확인한 뒤 확인란을 선택해 주세요.');
             return;
           }
@@ -260,18 +323,19 @@ function InfrastructureEditor({
           }
           setBusy(true);
           try {
-            for (const row of rows) {
-              for (const [type, value] of [
-                ['IP_ADDRESS', row.sourceAddress],
-                ['IP_ADDRESS', row.destinationAddress],
-                ['PORT', row.port],
-                ['PROTOCOL', row.protocol],
-              ] as const)
-                if (!networkValueValid(type, value))
-                  throw new Error('통신 구간의 IP/CIDR·프로토콜·포트 형식을 확인해 주세요.');
-              if (row.endDate < row.startDate)
-                throw new Error('종료일은 시작일보다 빠를 수 없습니다.');
-            }
+            if (!temporary)
+              for (const row of rows) {
+                for (const [type, value] of [
+                  ['IP_ADDRESS', row.sourceAddress],
+                  ['IP_ADDRESS', row.destinationAddress],
+                  ['PORT', row.port],
+                  ['PROTOCOL', row.protocol],
+                ] as const)
+                  if (!networkValueValid(type, value))
+                    throw new Error('통신 구간의 IP/CIDR·프로토콜·포트 형식을 확인해 주세요.');
+                if (row.endDate < row.startDate)
+                  throw new Error('종료일은 시작일보다 빠를 수 없습니다.');
+              }
             const next = infrastructurePlanSchema.parse(
               await requestJson(
                 '/api/security-requests/' + encodeURIComponent(request.id) + '/infrastructure-plan',
@@ -280,6 +344,12 @@ function InfrastructureEditor({
                   body: {
                     expectedRevision: draft?.revision ?? plan.revision,
                     connections: rows,
+                    schemaVersion: 2,
+                    draft: temporary,
+                    aiPending: aiApplied && !aiConfirmed,
+                    servers,
+                    operations,
+                    checklist,
                     notes,
                     answerRevisions:
                       draft?.answerRevisions ??
@@ -294,8 +364,12 @@ function InfrastructureEditor({
             );
             client.setQueryData(['infrastructure-plan', request.id], next);
             setDraft(null);
-            setSaved(true);
-            setAiApplied(false);
+            setSaved(
+              temporary
+                ? '임시 저장했습니다. 입력은 보존되며 확인 저장 전에는 협의를 완료할 수 없습니다.'
+                : 'ICT인프라 검토 정보를 저장했습니다.',
+            );
+            setAiApplied(next.aiPending);
             setAiConfirmed(false);
             await client.invalidateQueries();
           } catch (cause) {
@@ -309,9 +383,44 @@ function InfrastructureEditor({
       >
         <fieldset disabled={busy} className="infra-connection-list">
           <legend className="sr-only">서버·통신 구간</legend>
+          <InfrastructureServers
+            servers={servers}
+            linkedIds={rows
+              .flatMap((r) => [r.sourceServerId, r.destinationServerId])
+              .filter((id): id is string => !!id)}
+            onChange={(next) => edit(rows, notes, { servers: next })}
+          />
+          <h3>2. 네트워크 구성</h3>
           {rows.map((row, index) => (
             <fieldset key={row.id} className="infra-connection">
               <legend>통신 구간 {index + 1}</legend>
+              <div className="infra-link-selects">
+                {(['source', 'destination'] as const).map((side) => (
+                  <label key={side}>
+                    {side === 'source' ? '출발지' : '목적지'} 서버 연결
+                    <select
+                      className="input"
+                      value={
+                        row[side === 'source' ? 'sourceServerId' : 'destinationServerId'] || ''
+                      }
+                      onChange={(e) =>
+                        change(
+                          row.id,
+                          side === 'source' ? 'sourceServerId' : 'destinationServerId',
+                          e.target.value,
+                        )
+                      }
+                    >
+                      <option value="">직접 입력 · 외부 대상</option>
+                      {servers.map((server, n) => (
+                        <option value={server.id} key={server.id}>
+                          서버 {n + 1}: {server.name || '이름 확인 필요'}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
               <div className="infra-grid">
                 {input(row, 'sourceSystem', '출발지 서버·시스템명')}
                 {input(row, 'sourceAddress', '출발지 IP·CIDR')}
@@ -381,6 +490,42 @@ function InfrastructureEditor({
           >
             서버·통신 구간 추가
           </button>
+          <h3>3. 운영 및 검토 사항</h3>
+          {Object.entries(operationLabels).map(([key, label]) => (
+            <div className="field" key={key}>
+              <label htmlFor={'infra-op-' + key}>
+                {label}
+                {['network', 'management', 'owner'].includes(key)
+                  ? ' (확인 저장 시 필수)'
+                  : ' (선택)'}
+              </label>
+              <textarea
+                className="input"
+                id={'infra-op-' + key}
+                rows={2}
+                maxLength={4000}
+                value={operations[key] || ''}
+                onChange={(e) =>
+                  edit(rows, notes, { operations: { ...operations, [key]: e.target.value } })
+                }
+              />
+            </div>
+          ))}
+          <fieldset className="review-checklist">
+            <legend>ICT인프라 구성 검토 체크리스트</legend>
+            {Object.entries(infraCheckLabels).map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={checklist[key] === true}
+                  onChange={(e) =>
+                    edit(rows, notes, { checklist: { ...checklist, [key]: e.target.checked } })
+                  }
+                />{' '}
+                {label}
+              </label>
+            ))}
+          </fieldset>
           <div className="field">
             <label htmlFor="infra-review-notes">ICT인프라 검토 사항</label>
             <textarea
@@ -399,7 +544,7 @@ function InfrastructureEditor({
             </Notice>
           )}
           {error && <Notice tone="danger">{error}</Notice>}
-          {saved && <p role="status">ICT인프라 검토 정보를 저장했습니다.</p>}
+          {saved && <p role="status">{saved}</p>}
           {aiApplied && (
             <label>
               <input
@@ -410,6 +555,16 @@ function InfrastructureEditor({
               AI 제안의 근거·통신 관계와 보완한 값을 확인했습니다. 담당자 검토 정보로 저장합니다.
             </label>
           )}
+          <button
+            type="submit"
+            name="saveMode"
+            value="draft"
+            formNoValidate
+            className="btn"
+            disabled={busy || conflict}
+          >
+            임시 저장
+          </button>
           <button
             className="btn btn-primary"
             disabled={busy || conflict || (aiApplied && !aiConfirmed)}

@@ -752,6 +752,11 @@ export function executeCommand(
       break;
     }
     case 'COMPLETE_REVIEW':
+      requireRule(
+        !request.infrastructurePlan?.draft && !request.infrastructurePlan?.aiPending,
+        'INVALID_STAGE',
+        'ICT인프라 검토 정보를 확인 저장한 후 협의를 완료해 주세요.',
+      );
       finishReview(request, actor, input, at);
       break;
     case 'REQUEST_SUPPLEMENT':

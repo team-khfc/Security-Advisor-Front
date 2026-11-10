@@ -1,4 +1,10 @@
-import { infrastructurePlanSchema, connectionSchema } from '@/features/request/infrastructurePlan';
+import {
+  infrastructurePlanSchema,
+  connectionSchema,
+  serverSchema,
+  resolveConnections,
+  infraCheckLabels,
+} from '@/features/request/infrastructurePlan';
 import { networkValueValid } from '@/features/request/networkAnswerFormat';
 import { mockRequestListing, mockAuditListing } from './listing';
 import { ContractMapper } from './contractMapper';
@@ -1248,6 +1254,7 @@ async function dispatchContract(
         '모의 API에서는 실제 AI 분석을 하지 않습니다. 직접 입력하거나 업무 서버에 연결해 주세요.',
       ],
       modelReference: 'mock/offline',
+      servers: [],
     });
   }
   if (resource === 'security-requests' && sub === 'infrastructure-plan') {
@@ -1267,7 +1274,13 @@ async function dispatchContract(
       const input = parse(
         z.object({
           expectedRevision: z.number(),
-          connections: z.array(connectionSchema).min(1).max(50),
+          connections: z.array(connectionSchema).max(50),
+          schemaVersion: z.number().default(1),
+          draft: z.boolean().default(false),
+          aiPending: z.boolean().default(false),
+          servers: z.array(serverSchema).max(50).default([]),
+          operations: z.record(z.string(), z.string().max(4000)).default({}),
+          checklist: z.record(z.string(), z.boolean()).default({}),
           notes: z.string().max(4000),
           answerRevisions: z.record(z.string(), z.number()),
         }),
@@ -1277,17 +1290,52 @@ async function dispatchContract(
         fail(409, 'REVISION_CONFLICT', '다른 담당자가 수정했습니다. 새로고침해 주세요.');
       if (new Set(input.connections.map((c) => c.id)).size !== input.connections.length)
         fail(422, 'INVALID_VALUE', '통신 구간 식별자가 중복되었습니다.');
+      if (new Set(input.servers.map((s) => s.id)).size !== input.servers.length)
+        fail(422, 'INVALID_VALUE', '서버 식별자가 중복되었습니다.');
       for (const c of input.connections)
+        for (const key of [c.sourceServerId, c.destinationServerId])
+          if (key && !input.servers.some((s) => s.id === key))
+            fail(422, 'INVALID_VALUE', '연결된 서버를 찾을 수 없습니다.');
+      input.connections = resolveConnections(input.connections, input.servers);
+      for (const c of input.connections) {
+        for (const [type, value] of [
+          ['IP_ADDRESS', c.sourceAddress],
+          ['IP_ADDRESS', c.destinationAddress],
+          ['PORT', c.port],
+          ['PROTOCOL', c.protocol],
+        ] as const)
+          if ((!input.draft || value) && !networkValueValid(type, value))
+            fail(422, 'INVALID_VALUE', '통신 구간 형식을 확인해 주세요.');
+        if (c.startDate && c.endDate && c.endDate < c.startDate)
+          fail(422, 'INVALID_VALUE', '허용 기간을 확인해 주세요.');
+      }
+      for (const server of input.servers) {
+        if (server.address && !networkValueValid('IP_ADDRESS', server.address))
+          fail(422, 'INVALID_VALUE', '서버 주소를 확인해 주세요.');
         if (
-          !networkValueValid('IP_ADDRESS', c.sourceAddress) ||
-          !networkValueValid('IP_ADDRESS', c.destinationAddress) ||
-          !networkValueValid('PORT', c.port) ||
-          !networkValueValid('PROTOCOL', c.protocol) ||
-          c.endDate < c.startDate
+          !input.draft &&
+          (!server.name ||
+            !server.purpose ||
+            !server.environment ||
+            !server.address ||
+            !server.zone ||
+            (server.aiInferred && !server.aiConfirmed))
         )
-          fail(422, 'INVALID_VALUE', '통신 구간의 주소·프로토콜·포트·기간을 확인해 주세요.');
+          fail(422, 'INVALID_VALUE', '서버 필수 정보와 AI 제안을 확인해 주세요.');
+      }
+      if (!input.draft && (!input.connections.length || input.aiPending))
+        fail(422, 'INVALID_VALUE', '통신 구간과 AI 제안을 확인해 주세요.');
+      if (
+        !input.draft &&
+        input.schemaVersion >= 2 &&
+        (!input.servers.length ||
+          ['network', 'management', 'owner'].some((k) => !input.operations[k]?.trim()) ||
+          Object.keys(infraCheckLabels).some((k) => !input.checklist[k]))
+      )
+        fail(422, 'INVALID_VALUE', '서버·운영 정보와 체크리스트를 확인해 주세요.');
       const raw = runtime.state.requests.find((r) => r.id === id)!;
       raw.infrastructurePlan = infrastructurePlanSchema.parse({
+        ...input,
         revision: input.expectedRevision + 1,
         connections: input.connections,
         notes: input.notes,

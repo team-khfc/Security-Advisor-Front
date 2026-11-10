@@ -124,9 +124,9 @@ export function getRequestDetailData(
             ownerRole: 'INFRA',
             required: true,
             value: text,
-            source: 'STAFF_INPUT',
+            source: infrastructurePlan.aiPending ? 'AI_INFERRED' : 'STAFF_INPUT',
             evidence: null,
-            confirmed: true,
+            confirmed: !infrastructurePlan.draft && !infrastructurePlan.aiPending,
             notApplicable: false,
             confirmation: infrastructurePlan.updatedBy
               ? {

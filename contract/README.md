@@ -2,8 +2,9 @@
 
 기준일: 2026-11-11
 
-- Back 커밋: `266a45ac1e71051e23b1bedf2d12a3cb96d3141c` (ICT인프라 검토·AI 망 구성 초안 PR #27, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/266a45ac1e71051e23b1bedf2d12a3cb96d3141c/docs/api/openapi.yaml
+- Back 커밋: `d3b45de3fabafec4d3a8ffbeb7ed6ab1d7d7e546` (ICT인프라 서버·운영 검토 확장 PR #28, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/d3b45de3fabafec4d3a8ffbeb7ed6ab1d7d7e546/docs/api/openapi.yaml
+- 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
 - 모델 구성·연결 시험 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/22
@@ -18,6 +19,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+서버·운영 검토 확장 계약: 서버 목록·통신 구간의 서버 ID 연결·운영 사항·구성 체크리스트·임시 저장 상태를 추가했습니다. `infrastructure-proposals`의 `target: SERVERS`는 필드별 근거를 포함한 서버 사양 제안을 반환합니다. 기존 제출본은 이전 계약 그대로 표시하며 이번 백엔드와 함께 배포해야 합니다.
 
 망 구성은 GET/PUT `/api/security-requests/{id}/infrastructure-plan`, AI 초안은 POST `/api/security-requests/{id}/infrastructure-proposals`를 사용합니다. AI 초안은 기존 값을 저장하지 않습니다. 필드별 원문 근거를 비교해 입력칸에 선택 적용하고 담당자가 보완·확인한 뒤 별도 저장합니다. 최근 첨부 3개 텍스트 발췌를 참고하며 이미지 분석은 포함하지 않습니다. 실제 모델 호출은 미검증이며 모의 모드는 실제 AI 추출 성공을 가장하지 않고 안내와 빈 제안을 반환합니다.
 
