@@ -1226,6 +1226,40 @@ async function dispatchContract(
     (resource === 'members' && method === 'POST' && !numericId)
       ? undefined
       : sessionMember(runtime, request, now);
+  if (resource === 'security-requests' && sub === 'consultation-comparison' && method === 'GET') {
+    const visible = getRequest(runtime, id, actor!);
+    const current = Object.fromEntries(
+      [...visible.commonAnswers, ...visible.answers].map((a) => [
+        'answer:' + a.key,
+        {
+          label: a.label,
+          group: a.scope === 'CASE' ? '사업 정보' : '신청 정보',
+          value: a.value,
+          confirmed: a.confirmed && !a.needsReview,
+          evidence: a.evidence ?? '',
+        },
+      ]),
+    );
+    return json({
+      fingerprint: 'mock:' + visible.revision,
+      baselineAvailable: false,
+      baselineAt: null,
+      caseTitle: visible.caseTitle,
+      department: visible.department,
+      baseline: {},
+      current,
+      changes: [],
+      summary: null,
+    });
+  }
+  if (resource === 'security-requests' && sub === 'consultation-summaries' && method === 'POST') {
+    getRequest(runtime, id, actor!);
+    fail(
+      503,
+      'MOCK_AI_UNAVAILABLE',
+      '모의 화면에서는 실제 AI 협의 요약을 만들지 않습니다. 업무 서버에서 이용해 주세요.',
+    );
+  }
   if (resource === 'security-requests' && sub === 'infrastructure-proposals' && method === 'POST') {
     const visible = getRequest(runtime, id, actor!);
     if (
