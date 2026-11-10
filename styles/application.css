@@ -839,3 +839,33 @@
   flex-shrink: 0;
   line-height: 1;
 }
+
+.todo-grid {
+  list-style: none;
+  padding: 0;
+  margin: 1.6rem 0;
+}
+.todo-grid > li {
+  min-width: 0;
+}
+.todo-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+.todo-card .doc-actions {
+  margin-top: auto;
+  padding-top: 1.6rem;
+}
+.todo-action-description {
+  margin: 0 0 1.2rem;
+}
+.todo-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 600px) {
+  .todo-card .doc-dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

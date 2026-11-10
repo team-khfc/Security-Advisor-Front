@@ -276,7 +276,8 @@ export function AnswerEditor({
                 {compactNetwork && !answer.required ? (
                   <span className="help">(선택)</span>
                 ) : (
-                  answer.required && <span className="required">(필수)</span>
+                  answer.required &&
+                  actor.role !== 'APPLICANT' && <span className="required">(필수)</span>
                 )}
               </label>
               {highlighted.includes(answer.key) && (
