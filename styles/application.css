@@ -792,3 +792,30 @@
     flex-wrap: wrap;
   }
 }
+
+/* 현업의 방화벽 입력은 통신 두 항목을 나란히, 나머지는 전체 폭으로 표시한다. */
+.firewall-answer-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1.6rem;
+}
+.firewall-answer-fields > .field {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.firewall-answer-fields > .firewall-network-field {
+  grid-column: auto;
+}
+.firewall-answer-fields .firewall-network-field .input {
+  width: 100%;
+  max-width: 22rem;
+  min-width: 0;
+}
+.firewall-purpose-field textarea.input {
+  min-height: 6rem;
+  height: 6rem;
+}
+.firewall-answer-fields .input {
+  box-sizing: border-box;
+  max-width: 100%;
+}

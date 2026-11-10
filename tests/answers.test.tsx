@@ -318,3 +318,80 @@ describe('답변의 출처와 입력 보존', () => {
     },
   );
 });
+
+test('방화벽 통신 항목의 필수 표시는 게시본 설정을 따른다', () => {
+  render(
+    <AnswerEditor
+      actor={applicant}
+      revision={1}
+      onSave={vi.fn()}
+      answers={[
+        answer({ key: 'firewall.protocol', label: '프로토콜', scope: 'REQUEST', required: true }),
+      ]}
+    />,
+  );
+  expect(screen.getByRole('textbox', { name: '프로토콜 (필수)' })).toBeTruthy();
+  expect(screen.queryByText('(선택)')).toBeNull();
+});
+
+test('현업 방화벽 답변은 선택형 통신 입력과 달력을 제공하고 저장 위에서 한 번 확인한다', async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  render(
+    <AnswerEditor
+      actor={applicant}
+      revision={1}
+      onSave={onSave}
+      answers={[
+        answer({
+          key: 'firewall.protocol',
+          required: false,
+          label: '프로토콜',
+          scope: 'REQUEST',
+          value: '',
+          confirmed: false,
+        }),
+        answer({
+          key: 'firewall.port',
+          required: false,
+          label: '포트',
+          scope: 'REQUEST',
+          value: '',
+          confirmed: false,
+        }),
+        answer({
+          key: 'firewall.period',
+          label: '허용 기간',
+          scope: 'REQUEST',
+          value: '2026-11-10 ~ 2026-12-10',
+          confirmed: false,
+        }),
+        answer({
+          key: 'firewall.purpose',
+          label: '허용 목적',
+          scope: 'REQUEST',
+          value: '합성 서비스 연결',
+          confirmed: false,
+        }),
+      ]}
+    />,
+  );
+  expect(screen.getByRole('textbox', { name: '프로토콜 (선택)' }).tagName).toBe('INPUT');
+  expect(screen.getByRole('textbox', { name: '포트 (선택)' }).tagName).toBe('INPUT');
+  expect(screen.getByLabelText('시작일').getAttribute('type')).toBe('date');
+  expect(screen.getByLabelText('종료일').getAttribute('type')).toBe('date');
+  expect(screen.queryByLabelText('이 항목의 내용을 확인했습니다')).toBeNull();
+  await user.click(screen.getByLabelText('작성한 답변의 내용을 확인했습니다'));
+  await user.click(screen.getByRole('button', { name: '답변 저장' }));
+  await waitFor(() =>
+    expect(onSave).toHaveBeenCalledWith(
+      1,
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'firewall.protocol', value: '', confirmed: false }),
+        expect.objectContaining({ key: 'firewall.port', value: '', confirmed: false }),
+        expect.objectContaining({ key: 'firewall.period', confirmed: true }),
+        expect.objectContaining({ key: 'firewall.purpose', confirmed: true }),
+      ]),
+    ),
+  );
+});

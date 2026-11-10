@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Badge, Icon, Notice } from '@/components/ui';
 import type { Answer } from './types';
 import type { InterviewTurn } from './useInterview';
@@ -62,38 +62,56 @@ export function InterviewAssistance({
   );
 }
 
-/** 입력창 한 곳에서 전환하되 두 종류의 초안은 독립적으로 보관한다. */
+/** 질문 카드의 답변 입력과 분리된 AI 질문·파일 첨부 영역이다. */
 export function InterviewComposer({
   state,
-  children,
+  attachment,
+  answers,
+  onModeChange,
+  questionKey,
 }: {
   state: InterviewAssistanceState;
-  children: ReactNode;
+  attachment?: ReactNode;
+  answers?: ReactNode;
+  onModeChange?: (answer: boolean) => void;
+  questionKey?: string;
 }) {
+  const [modeChoice, setModeChoice] = useState({ key: questionKey, answer: Boolean(answers) });
+  const answerMode = modeChoice.key === questionKey ? modeChoice.answer : Boolean(answers);
+  const setAnswerMode = (answer: boolean) => setModeChoice({ key: questionKey, answer });
   return (
     <>
       <div className="interview-input-modes" role="group" aria-label="입력 방식">
         <button
           type="button"
           className="btn btn-sm"
-          aria-pressed={state.mode === 'ANSWER'}
+          aria-pressed={!answerMode}
           disabled={state.apply.isPending}
-          onClick={() => state.setMode('ANSWER')}
-        >
-          답변 작성
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm"
-          aria-pressed={state.mode === 'ASK'}
-          disabled={state.apply.isPending}
-          onClick={() => state.setMode('ASK')}
+          onClick={() => {
+            setAnswerMode(false);
+            onModeChange?.(false);
+          }}
         >
           AI에게 질문
         </button>
+        {answers && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-pressed={answerMode}
+            disabled={state.apply.isPending}
+            onClick={() => {
+              setAnswerMode(true);
+              onModeChange?.(true);
+            }}
+          >
+            답변하기
+          </button>
+        )}
+        {attachment}
       </div>
-      {state.mode === 'ANSWER' ? (
-        children
+      {answerMode && answers ? (
+        answers
       ) : (
         <div className="qrow">
           <label className="sr-only" htmlFor="interview-ai-prompt">
@@ -212,11 +230,11 @@ export function InterviewTurnMessage({
                   {active ? (
                     <button
                       type="button"
-                      className="btn"
+                      className="btn interview-apply-now"
                       disabled={state.busy || question?.confirmed || state.isStale(turn)}
                       onClick={() => void state.applyTurn(turn)}
                     >
-                      {state.apply.isPending ? '적용 중…' : '추천을 미확정 답변으로 적용'}
+                      {state.apply.isPending ? '적용 중…' : '즉시 반영'}
                     </button>
                   ) : (
                     question &&
@@ -234,7 +252,11 @@ export function InterviewTurnMessage({
                 </>
               )
             )}
-            <p className="help">AI 설명은 신청서 답변에 자동 반영되지 않습니다.</p>
+            <p className="help">
+              {turn.proposedValue
+                ? '즉시 반영을 누르면 답변 후보가 해당 항목에 저장됩니다. AI 출처와 확인 필요 표시는 유지됩니다.'
+                : '이 응답에는 반영할 답변 후보가 없습니다. 필요한 정보를 추가해 질문해 주세요.'}
+            </p>
           </div>
         </div>
       </div>

@@ -605,6 +605,20 @@ test('프록시는 이동 응답·잘못된 서버 설정·과대 본문을 거�
   ).rejects.toMatchObject({ status: 413 });
 });
 
+test('문서 업로드만 20MB 파일의 전송 여유를 허용하며 스트림 상한도 강제한다', async () => {
+  const url = `${ORIGIN}/api/business-cases/1/uploaded-files`;
+  const body = new Uint8Array(20 * 1024 * 1024);
+  expect((await readLimitedBody(new Request(url, { method: 'POST', body }))).byteLength).toBe(
+    body.byteLength,
+  );
+  await expect(
+    readLimitedBody(new Request(url, { method: 'POST', body: new Uint8Array(23 * 1024 * 1024) })),
+  ).rejects.toMatchObject({ status: 413 });
+  await expect(readLimitedBody(new Request(url, { method: 'PUT', body }))).rejects.toMatchObject({
+    status: 413,
+  });
+});
+
 test('실제 API 모드에는 모의 로그인 경로가 없고 연결 실패를 모의 데이터로 숨기지 않는다', async () => {
   vi.stubEnv('API_MODE', 'api');
   vi.stubEnv('API_BASE_URL', undefined);

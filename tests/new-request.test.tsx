@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { NewRequest } from '@/features/request/NewRequest';
 import { clearInputDraft, getInputDraft } from '@/lib/inputDrafts';
-import { forgetUpload, getUpload } from '@/lib/uploadDraft';
+import { forgetUpload, getUpload, getUploads, getInitialAnalysis } from '@/lib/uploadDraft';
 import type { Session } from '@/lib/types';
 import { MOCK_MEMBERS } from '@/mocks/seed';
 
@@ -12,6 +12,7 @@ const controls = vi.hoisted(() => ({
   sessionPending: false,
   createPending: false,
   create: vi.fn(),
+  analyze: vi.fn(),
   push: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ vi.mock('@/features/auth', () => ({
   useSession: () => ({ data: controls.session, isPending: controls.sessionPending }),
 }));
 vi.mock('@/features/request/useRequests', () => ({
+  useAnalysis: () => ({ mutateAsync: controls.analyze }),
   useCreateCase: () => ({ mutateAsync: controls.create, isPending: controls.createPending }),
 }));
 
@@ -58,7 +60,8 @@ beforeEach(() => {
   controls.session = { member: applicant, mock: true, expiresAt: null };
   controls.sessionPending = false;
   controls.createPending = false;
-  controls.create.mockReset().mockResolvedValue({ id: 'synthetic-case-stage3' });
+  controls.create.mockReset().mockResolvedValue({ id: 'synthetic-case-stage3', revision: 0 });
+  controls.analyze.mockReset().mockResolvedValue({ id: 'synthetic-analysis' });
   controls.push.mockReset();
 });
 
@@ -87,16 +90,14 @@ test('처음에는 시안의 파일 영역과 대화 시작을 보여 주며 시
   expect(controls.push).not.toHaveBeenCalled();
 });
 
-test('지원하지 않는 형식과 10MB 초과 파일은 파일 영역 안의 오류로 거부하고 선택하지 않는다', async () => {
+test('지원하지 않는 형식과 20MB 초과 파일은 파일 영역 안의 오류로 거부하고 선택하지 않는다', async () => {
   const user = userEvent.setup({ applyAccept: false });
   render(<NewRequest />);
   await user.upload(fileInput(), new File(['x'], 'synthetic.exe'));
-  expect(screen.getByRole('alert').textContent).toBe(
-    'PDF, HWPX, DOCX, TXT 파일을 10MB 이하로 선택해 주세요.',
-  );
+  expect(screen.getByRole('alert').textContent).toBe('PDF, HWPX, DOCX, TXT 파일을 선택해 주세요.');
   expect(screen.queryByRole('list', { name: '분석 전 파일' })).toBeNull();
   const big = new File(['x'], 'synthetic.pdf');
-  Object.defineProperty(big, 'size', { value: 10 * 1024 * 1024 + 1 });
+  Object.defineProperty(big, 'size', { value: 20 * 1024 * 1024 + 1 });
   await user.upload(fileInput(), big);
   expect(screen.getByRole('alert')).toBeTruthy();
   expect(screen.queryByRole('list', { name: '분석 전 파일' })).toBeNull();
@@ -136,15 +137,21 @@ test('끌어다 놓은 파일을 분석 전 목록에 표시하고 선택 취소
   expect(document.activeElement).toBe(screen.getByRole('button', { name: '파일 선택' }));
 });
 
-test('다중 파일과 빈 파일은 거부하고 이미 선택한 파일을 보존한다', async () => {
+test('4개 이상 파일과 빈 파일은 거부하고 이미 선택한 파일을 보존한다', async () => {
   const user = userEvent.setup();
   render(<NewRequest />);
   await user.upload(fileInput(), new File(['synthetic'], '보존할합성파일.txt'));
   const zone = screen.getByRole('heading', { name: '기획서를 끌어다 놓으세요' }).parentElement!;
   fireEvent.drop(zone, {
-    dataTransfer: { files: [new File(['a'], '합성자료1.pdf'), new File(['b'], '합성자료2.pdf')] },
+    dataTransfer: {
+      files: [
+        new File(['a'], '합성자료1.pdf'),
+        new File(['b'], '합성자료2.pdf'),
+        new File(['c'], '합성자료3.pdf'),
+      ],
+    },
   });
-  expect(screen.getByRole('alert').textContent).toBe('파일은 한 번에 1개만 선택해 주세요.');
+  expect(screen.getByRole('alert').textContent).toBe('파일은 최대 3개까지 선택해 주세요.');
   expect(
     within(screen.getByRole('list', { name: '분석 전 파일' })).getByText('보존할합성파일.txt'),
   ).toBeTruthy();
@@ -185,6 +192,7 @@ test('선택 파일이 있어도 파일 없이 대화로 시작하면 첨부 파
   await waitFor(() => expect(controls.push).toHaveBeenCalledWith('/cases/synthetic-case-stage3'));
   expect(getUpload(applicant.id, 'synthetic-case-stage3')).toBeUndefined();
   expect(controls.create).toHaveBeenCalledTimes(1);
+  expect(controls.analyze).not.toHaveBeenCalled();
 });
 
 test('취소와 Escape는 사업 입력과 파일을 유지하고 시작 버튼으로 초점을 돌린다', async () => {
@@ -291,4 +299,64 @@ test('세션 조회 중에는 권한 경고 대신 로딩 상태를 표시한다
   render(<NewRequest />);
   expect(screen.getByRole('status').textContent).toContain('내용을 불러오고 있습니다.');
   expect(screen.queryByText('일반 사용자로 로그인하면 새 사업을 신청할 수 있습니다.')).toBeNull();
+});
+
+test('20MB 문서 3개를 선택하고 개별 취소·추가한 뒤 모두 다음 화면으로 전달한다', async () => {
+  const user = userEvent.setup();
+  render(<NewRequest />);
+  const files = ['기획서.pdf', '구성도.hwpx', '요구사항.docx'].map((name) => {
+    const file = new File(['synthetic'], name);
+    Object.defineProperty(file, 'size', { value: 20 * 1024 * 1024 });
+    return file;
+  });
+  await user.upload(fileInput(), files);
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByRole('button', { name: '기획서와 함께 작성 시작 (3)' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '구성도.hwpx 선택 취소' }));
+  expect(screen.getByRole('button', { name: '기획서와 함께 작성 시작 (2)' })).toBeTruthy();
+  await user.upload(fileInput(), files[1]);
+  await user.click(screen.getByRole('button', { name: '기획서와 함께 작성 시작 (3)' }));
+  await user.type(screen.getByLabelText('사업명 (필수)'), '다중 문서 합성 사업');
+  await user.click(screen.getByRole('button', { name: '인터뷰 시작' }));
+  await waitFor(() => expect(controls.push).toHaveBeenCalled());
+  expect(getUploads(applicant.id, 'synthetic-case-stage3')).toEqual([files[0], files[2], files[1]]);
+});
+
+test('작성 시작은 세 문서를 분석한 뒤 이동하고 일부 실패도 숨기지 않으며 사업을 중복 생성하지 않는다', async () => {
+  const user = userEvent.setup();
+  let finish: (() => void) | undefined;
+  controls.analyze
+    .mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockRejectedValueOnce(new Error('합성 분석 오류'))
+    .mockResolvedValueOnce({ id: 'third' });
+  render(<NewRequest />);
+  const files = ['첫째.txt', '둘째.txt', '셋째.txt'].map((name) => new File(['synthetic'], name));
+  await user.upload(fileInput(), files);
+  expect(controls.analyze).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: /기획서와 함께 작성 시작/ }));
+  expect(controls.analyze).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText('사업명 (필수)'), '자동 분석 합성 사업');
+  await user.click(screen.getByRole('button', { name: '인터뷰 시작' }));
+  await waitFor(() => expect(controls.analyze).toHaveBeenCalledTimes(1));
+  expect(controls.push).not.toHaveBeenCalled();
+  expect(
+    (screen.getByRole('button', { name: '문서 분석 중…' }) as HTMLButtonElement).disabled,
+  ).toBe(true);
+  fireEvent.submit(screen.getByRole('button', { name: '문서 분석 중…' }).closest('form')!);
+  await act(async () => {
+    finish?.();
+  });
+  await waitFor(() => expect(controls.push).toHaveBeenCalledTimes(1));
+  expect(controls.create).toHaveBeenCalledTimes(1);
+  expect(controls.analyze.mock.calls.map(([input]) => input.file)).toEqual(files);
+  expect(getInitialAnalysis(applicant.id, 'synthetic-case-stage3')).toEqual({
+    total: 3,
+    failures: [{ name: '둘째.txt', message: '합성 분석 오류' }],
+  });
+  expect(getUploads(applicant.id, 'synthetic-case-stage3')).toEqual(files);
 });
