@@ -119,8 +119,10 @@ function validAnswer(answer: Answer): boolean {
   );
 }
 
-function infraAllocated(request: SecurityRequest): boolean {
-  return request.reviews.some((review) => review.field === 'INFRA' && review.allocationCompleted);
+function infraCompleted(request: SecurityRequest): boolean {
+  return !request.reviews.some(
+    (review) => review.field === 'INFRA' && review.status !== 'COMPLETE',
+  );
 }
 
 function assertStageStatus(request: SecurityRequest) {
@@ -383,12 +385,11 @@ function allowedActions(request: SecurityRequest, actor: Actor): string[] {
     actions.push('REASSIGN');
   }
   if (!isAssigned(request, actor)) return actions;
-  const canConsult = actor.role === 'INFRA' || infraAllocated(request);
+  const canConsult = actor.role === 'INFRA' || infraCompleted(request);
   if (request.stage !== 2 || canConsult) actions.push('CLOSE');
-  if (request.stage === 2 && canConsult) {
+  if (request.stage === 2) {
     actions.push('SAVE_ANSWERS', 'EDIT_CASE', 'EDIT_ANSWERS', 'RETURN', 'REQUEST_SUPPLEMENT');
-    if (actor.role === 'INFRA') actions.push('COMPLETE_ALLOCATION');
-    if (infraAllocated(request)) actions.push('COMPLETE_REVIEW');
+    actions.push('COMPLETE_REVIEW');
     if (
       request.supplements.some((item) => item.field === actor.role && item.status === 'ANSWERED')
     ) {
@@ -525,9 +526,9 @@ function autoAssign(
 
 function finishReview(request: SecurityRequest, actor: Actor, input: CommandInput, at: string) {
   requireRule(
-    infraAllocated(request),
-    'ALLOCATION_REQUIRED',
-    'ICT인프라 할당을 먼저 완료해 주세요.',
+    actor.role !== 'SECURITY' || infraCompleted(request),
+    'INFRA_REVIEW_REQUIRED',
+    'ICT인프라의 협의 단계가 끝나지 않았습니다.',
   );
   const comment = input.comment?.trim();
   requireRule(
@@ -805,6 +806,7 @@ export function executeCommand(
         publicationVersion: request.publicationVersion,
         commonAnswers: structuredClone(request.commonAnswers),
         answers: structuredClone(request.answers),
+        snapshot: { infrastructurePlan: structuredClone(request.infrastructurePlan ?? null) },
         idempotencyKey: input.idempotencyKey,
         createdAt: at,
       });
@@ -925,7 +927,7 @@ function assertCaseWrite(state: MockState, businessCase: BusinessCase, actor: Ac
           mutable(request) &&
           request.stage === 2 &&
           isAssigned(request, actor) &&
-          (actor.role === 'INFRA' || infraAllocated(request)),
+          (actor.role === 'INFRA' || infraCompleted(request)),
       ),
     '작성자 또는 협의 중인 신청에 배정된 담당자만 공통 답변을 수정할 수 있습니다.',
   );

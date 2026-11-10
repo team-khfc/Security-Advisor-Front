@@ -1,9 +1,10 @@
 # Back API 계약 동기화
 
-기준일: 2026-11-10
+기준일: 2026-11-11
 
-- Back 커밋: `95cb8dde6b6e0c897a056eec9133a151954a6a3e` (답변 형식·미해당 저장 PR #26, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/95cb8dde6b6e0c897a056eec9133a151954a6a3e/docs/api/openapi.yaml
+- Back 커밋: `266a45ac1e71051e23b1bedf2d12a3cb96d3141c` (ICT인프라 검토·AI 망 구성 초안 PR #27, 선행 병합 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/266a45ac1e71051e23b1bedf2d12a3cb96d3141c/docs/api/openapi.yaml
+- ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
 - 모델 구성·연결 시험 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/22
 - 지식 게시본·지표 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/20
@@ -17,6 +18,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+망 구성은 GET/PUT `/api/security-requests/{id}/infrastructure-plan`, AI 초안은 POST `/api/security-requests/{id}/infrastructure-proposals`를 사용합니다. AI 초안은 기존 값을 저장하지 않습니다. 필드별 원문 근거를 비교해 입력칸에 선택 적용하고 담당자가 보완·확인한 뒤 별도 저장합니다. 최근 첨부 3개 텍스트 발췌를 참고하며 이미지 분석은 포함하지 않습니다. 실제 모델 호출은 미검증이며 모의 모드는 실제 AI 추출 성공을 가장하지 않고 안내와 빈 제안을 반환합니다.
 
 담당자 답변 일괄 저장은 `PATCH /api/reviews/{id}/answers`를 사용한다. 기존 병렬 PUT의 부분 저장·동시 충돌을 피하고 항목별 권한·형식·revision을 한 트랜잭션으로 검사한다. [검증 기록](../docs/ANSWER_FIELD_POLICY_20261110.md).
 

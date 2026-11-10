@@ -116,7 +116,6 @@ export function actionCandidates(stage: number, status: string, role?: Role): st
             'REQUEST_SUPPLEMENT',
             'RESOLVE_SUPPLEMENT',
             'COMPLETE_REVIEW',
-            ...(role === 'INFRA' ? ['COMPLETE_ALLOCATION'] : []),
           ]
         : []),
       ...(stage === 3 ? ['RETURN'] : []),

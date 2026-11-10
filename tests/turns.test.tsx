@@ -66,7 +66,7 @@ describe('waitingLine: 상태별 진행 안내 문구', () => {
       { status: 'PENDING' },
     );
     expect(request.status).toBe('CONSULTING');
-    expect(waitingLine(request)).toBe('ICT인프라 통신 정보 할당 중');
+    expect(waitingLine(request)).toBe('ICT인프라 협의 중');
   });
 
   test('INFRA 할당 뒤에는 남은 협의와 정보보안 검토를 함께 안내한다', () => {
@@ -75,7 +75,7 @@ describe('waitingLine: 상태별 진행 안내 문구', () => {
       { allocationCompleted: true, status: 'ALLOCATED' },
       { status: 'PENDING' },
     );
-    expect(waitingLine(request)).toBe('ICT인프라 협의 중, 정보보안 검토 중');
+    expect(waitingLine(request)).toBe('ICT인프라 협의 중');
   });
 
   test('INFRA 협의가 끝나면 정보보안 검토만 안내한다', () => {
@@ -144,14 +144,14 @@ describe('신청 현황 목록의 진행 안내 표시 역할', () => {
       { allocationCompleted: false, status: 'PENDING' },
       { status: 'PENDING' },
     );
-    consulting.allowedActions = ['COMPLETE_ALLOCATION'];
+    consulting.allowedActions = ['COMPLETE_REVIEW'];
     controls.requests = [draft, consulting];
     render(<RequestList />);
     const waiting = statusCell(draft.caseTitle).querySelector('.turn');
     expect(waiting?.textContent).toBe('신청자 작성 중');
     expect(waiting?.classList.contains('me')).toBe(false);
     const mine = statusCell(consulting.caseTitle).querySelector('.turn');
-    expect(mine?.textContent).toBe('통신 정보 할당');
+    expect(mine?.textContent).toBe('담당 분야 협의');
     expect(mine?.classList.contains('me')).toBe(true);
   });
 

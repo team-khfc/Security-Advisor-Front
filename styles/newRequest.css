@@ -1126,3 +1126,86 @@ progress.prog::-moz-progress-bar {
   justify-self: end;
   order: 1;
 }
+
+.infra-review-info {
+  display: grid;
+  gap: 1.2rem;
+  margin: 1.6rem 0;
+}
+.infra-review-info > div {
+  display: grid;
+  gap: 0.4rem;
+}
+.infra-review-info dt {
+  font-weight: 600;
+}
+.infra-review-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.infra-workspace {
+  min-width: 0;
+}
+.infra-ai {
+  display: grid;
+  gap: 1.2rem;
+  min-width: 0;
+  margin: 1.6rem 0 2.4rem;
+  padding: 1.6rem;
+  border: 1px solid var(--sf-border-strong);
+  border-radius: var(--r-ctl);
+}
+.infra-ai .tbl-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.infra-ai table {
+  min-width: 640px;
+  width: 100%;
+}
+.infra-ai td {
+  overflow-wrap: anywhere;
+  max-width: 24rem;
+  vertical-align: top;
+}
+.infra-ai .btn {
+  justify-self: start;
+}
+.infra-connection-list {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 1.6rem;
+}
+.infra-connection {
+  border: 1px solid var(--sf-border-strong);
+  border-radius: var(--r-ctl);
+  padding: 1.6rem;
+  min-width: 0;
+}
+.infra-connection legend {
+  font-weight: 700;
+  padding: 0 0.8rem;
+}
+.infra-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.2rem;
+}
+.infra-grid label {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.infra-grid .input {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 800px) {
+  .infra-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

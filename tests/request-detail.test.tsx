@@ -58,7 +58,7 @@ function reviewRequest(field: ReviewField) {
       ...review,
       revision: 3,
       checklist: {},
-      status: review.field === field ? 'IN_REVIEW' : 'PENDING',
+      status: review.field === field ? 'IN_REVIEW' : field === 'SECURITY' ? 'COMPLETE' : 'PENDING',
     })),
   };
 }
@@ -445,3 +445,31 @@ test.each([
     expect(container.querySelector('.page-head .badge')?.textContent).toBe('협의 중');
   },
 );
+
+test('인프라 협의 미완료이면 정보보안 완료 대신 확인 모달을 표시한다', async () => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+    },
+  });
+  reviewRequest('SECURITY');
+  request().reviews.find((r) => r.field === 'INFRA')!.status = 'RECHECK';
+  render(<RequestDetail id={request().id} />);
+  await userEvent.setup().click(screen.getByRole('button', { name: '담당 분야 협의 완료' }));
+  const modal = screen.getByRole('dialog', { name: 'ICT인프라 협의 필요' });
+  expect(within(modal).getByText(/ICT인프라의 협의 단계가 끝나지 않았습니다/)).toBeTruthy();
+  expect(within(modal).getByText(request().caseTitle)).toBeTruthy();
+  expect(within(modal).getByText('배정된 ICT인프라 담당자')).toBeTruthy();
+  expect(within(modal).getByText('협의 단계 진입 · 요청 일시')).toBeTruthy();
+  await userEvent.setup().click(within(modal).getByRole('button', { name: '확인' }));
+  expect(screen.queryByRole('dialog', { name: 'ICT인프라 협의 필요' })).toBeNull();
+  expect(controls.mutate).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: '자원 할당 완료' })).toBeNull();
+});
