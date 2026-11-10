@@ -158,6 +158,17 @@ export function InterviewComposer({
               value={state.prompt}
               disabled={state.ask.isPending || state.apply.isPending}
               onChange={(e) => state.setPrompt(e.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key !== 'Enter' ||
+                  event.shiftKey ||
+                  event.nativeEvent.isComposing ||
+                  event.keyCode === 229
+                )
+                  return;
+                event.preventDefault();
+                if (state.prompt.trim() && !state.busy) event.currentTarget.form?.requestSubmit();
+              }}
             />
             <button
               type="submit"
