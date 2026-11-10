@@ -116,7 +116,8 @@ export function createEmptyRequestAnswers(docType: DocumentType): Answer[] {
       ];
 }
 
-function makeRequest(
+/** 합성 신규 신청과 연장 신청은 같은 빈 업무 상태에서 시작한다. */
+export function makeRequest(
   businessCase: BusinessCase,
   docType: DocumentType,
   id: string,

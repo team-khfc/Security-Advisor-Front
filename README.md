@@ -89,7 +89,7 @@ Back의 확정 OpenAPI와 `FRONTEND_HANDOFF.md`가 제공되었으며, 인증 �
 | `/supplements`, `/documents` | 보완 요청 목록, 문서 데이터 미리보기·JSON 내려받기            |
 | `/network`, `/history`       | ICT인프라 통신 정보, 권한 범위의 처리·검토·감사 이력          |
 | `/members`, `/settings`      | 관리자 계정·담당자 관리, 읽기 전용 설정 기준 안내             |
-| `/policies`                  | 정책 수명주기 구현 예정 안내                                  |
+| `/policies`                  | 확정 방화벽 규칙 조회·적용 기록·회수·연장 신청                   |
 
 한 **사업 건(BusinessCase)** 에서 방화벽신청서와 보안성검토 신청서를 함께 만들 수 있습니다. 공통 정보는 사업 건에 한 번 수집하고, 각 **신청(SecurityRequest)** 의 단계·상태·반환·제출은 독립적으로 진행합니다.
 
@@ -160,7 +160,7 @@ docker run --rm --name security-advisor-front -p 3000:3000 -e API_MODE=mock secu
 - [현재 구현의 한계](docs/KNOWN_LIMITATIONS.md)
 - [규칙 문서 원본과 공개본 출처](docs/SOURCE_PROVENANCE.md)
 
-정식 문서 파싱·LLM 인터뷰·RAG, HWP·PDF 출력, 확정 OpenAPI에 따른 전체 Back 연동은 후속 작업입니다. 현재 내려받는 파일은 **미리보기 데이터 JSON**입니다. 정책 수명주기·업무 지표·화면 안 알림·설정 편집·게시 관리 등 P2 범위는 구현 예정으로 표시합니다.
+확정 방화벽 규칙의 조회·적용 완료·적용 불가·회수 기록과 별도 연장 신청은 기존 Back 계약에 연결했습니다. 실제 장비에 명령을 보내지 않으며, 트래픽 수집·자동 회수·연장 알림은 구현하지 않았습니다. [도커 검증 결과](docs/POLICY_LIFECYCLE_20261110.md)를 참고하세요. 다른 영역의 구현 범위는 위의 기능별 문서를 따릅니다.
 
 ## 작업 기준과 출처
 

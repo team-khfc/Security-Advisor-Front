@@ -21,6 +21,7 @@ const menus: Record<Role, MenuItem[]> = {
     { href: '/requests', label: '신청 현황', icon: 'inbox' },
     { href: '/requests/new', label: '새 신청', icon: 'plus' },
     { href: '/supplements', label: '보완 요청', icon: 'message' },
+    { href: '/policies', label: '정책 수명주기', icon: 'timer' },
     { href: '/documents', label: '문서함', icon: 'document' },
   ],
   INFRA: [
@@ -41,6 +42,7 @@ const menus: Record<Role, MenuItem[]> = {
     { href: '/documents', label: '문서함', icon: 'document' },
     { href: '/settings', label: '기관 설정', icon: 'settings' },
     { href: '/members', label: '계정·담당자 관리', icon: 'users' },
+    { href: '/policies', label: '정책 수명주기', icon: 'timer' },
     { href: '/history', label: '감사 이력', icon: 'history' },
   ],
 };

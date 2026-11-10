@@ -266,7 +266,15 @@ function RequestWorkspace({
           <strong>{STATUS_LABELS[request.status]}된 신청입니다.</strong> 내용은 읽기 전용이며 기록과
           제출본을 보존합니다.
           {request.status === 'FINALIZED' ? (
-            <p>서류 확정은 방화벽 장비 적용을 의미하지 않습니다.</p>
+            <p>
+              서류 확정은 방화벽 장비 적용을 의미하지 않습니다.
+              {request.docType === 'FIREWALL' && (
+                <>
+                  {' '}
+                  <Link href="/policies">방화벽 규칙과 처리 기록 보기</Link>
+                </>
+              )}
+            </p>
           ) : (
             <TerminalReason requestId={request.id} status={request.status} />
           )}
@@ -1157,7 +1165,7 @@ function RequestHistory({ requestId }: { requestId: string }) {
   const audit = useAudit(requestId);
   const events = (audit.data ?? []).filter((event) => event.targetId === requestId);
   return (
-    <section className="card" aria-labelledby="d-hist">
+    <section className="card" id="request-history" aria-labelledby="d-hist">
       <h2 className="h-panel" id="d-hist">
         처리 이력
       </h2>
