@@ -6,6 +6,7 @@ import { MockReviewerPools } from './reviewerPools';
 import { MockActivity } from './activity';
 import { MockConfigurations } from './configurations';
 import { MockKnowledge } from './knowledge';
+import { MockLlmConfigurations } from './llmConfigurations';
 import { mockInsights } from './insights';
 import { settingsSchema } from '@/features/configuration/types';
 import { mockGeneratedDocument } from './generatedDocument';
@@ -74,6 +75,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  llmConfigurations: MockLlmConfigurations;
   knowledge: MockKnowledge;
   configurations: MockConfigurations;
   activity: MockActivity;
@@ -215,6 +217,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   return {
     state,
     configurations,
+    llmConfigurations: new MockLlmConfigurations(state),
     knowledge: new MockKnowledge(state, () =>
       configurations.publication('current').fieldSchema.fields.map((f) => f.key),
     ),
@@ -1008,6 +1011,40 @@ async function dispatchContract(
     fieldKey = parts[4];
   const id = wire.original(numericId ?? '');
   const method = request.method;
+  if (['llm-configurations', 'llm-connection-tests'].includes(resource)) {
+    const actor = sessionMember(runtime, request, now),
+      models = runtime.llmConfigurations;
+    models.bindState(runtime.state);
+    const timestamp = new Date(now).toISOString();
+    if (resource === 'llm-connection-tests') {
+      if (method === 'POST' && !numericId)
+        return json(models.test(actor, await bodyJson(request), timestamp), 201);
+      if (method === 'GET' && numericId) return json(models.result(actor, Number(numericId)));
+    } else {
+      if (method === 'GET' && numericId === 'management') return json(models.management(actor));
+      if (method === 'POST' && (numericId === 'comparisons' || sub === 'comparisons'))
+        return json(models.compare(actor, sub ? Number(numericId) : null, await bodyJson(request)));
+      if (method === 'GET' && sub === 'history')
+        return json(
+          models.history(
+            actor,
+            Number(numericId),
+            Number(url.searchParams.get('page') ?? 0),
+            Number(url.searchParams.get('size') ?? 20),
+          ),
+        );
+      if (method === 'POST' && sub === 'restorations')
+        return json(models.restore(actor, Number(numericId), await bodyJson(request), timestamp));
+      if (method === 'GET' && !sub)
+        return json(numericId ? models.item(actor, Number(numericId)) : models.list(actor));
+      if (method === 'POST' && !numericId)
+        return json(models.save(actor, null, await bodyJson(request), timestamp), 201);
+      if (method === 'PUT' && numericId && !sub)
+        return json(models.save(actor, Number(numericId), await bodyJson(request), timestamp));
+    }
+    fail(404, 'NOT_FOUND', '모델 구성 경로를 찾을 수 없습니다.');
+  }
+
   if (
     [
       'knowledge-drafts',

@@ -10,6 +10,7 @@
 @import './settings.css';
 @import './policy.css';
 @import './knowledge.css';
+@import './llm.css';
 
 .hd-in,
 .shell,
