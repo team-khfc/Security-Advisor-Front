@@ -869,3 +869,25 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.consultation-review .tbl td {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 12rem;
+}
+.consultation-review .tbl th {
+  min-width: 12rem;
+}
+.consultation-review tr:focus {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: -2px;
+}
+.consultation-ai {
+  margin: 1.6rem 0;
+  padding: 1.6rem;
+  background: var(--sf-background);
+  border-radius: var(--r-ctl);
+}
+.consultation-review .tbl-wrap {
+  max-width: 100%;
+}

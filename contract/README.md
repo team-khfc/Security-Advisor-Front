@@ -2,8 +2,8 @@
 
 기준일: 2026-11-11
 
-- Back 커밋: `df0c394966302b9055ff048c713003f16522c6b6` (처리할 일 카드 요약 PR #30, 선행 병합 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/df0c394966302b9055ff048c713003f16522c6b6/docs/api/openapi.yaml
+- Back 커밋: `c8678469a728a535f037b638b275b8ae1715f63a` (협의 비교·AI 요약 확장, 백엔드 동반 배포 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/c8678469a728a535f037b638b275b8ae1715f63a/docs/api/openapi.yaml
 - 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
@@ -64,3 +64,5 @@ PDF 다운로드에 그대로 사용하며, 구현과 실제 화면 검증은 [�
 최종 보고서는 GET `final-draft`, POST `final-draft-generations`/`final-drafts`, PUT `final-drafts/{id}/confirmation`을 사용한다. 생성 시 신청 revision, 확인 시 초안 revision을 보낸다. 최초 조회 204는 미작성으로 처리하고, 제출 후에는 snapshot.finalDraft를 표시한다. PDF는 기존 generated-documents에 submissionId를 지정한 뒤 download?format=PDF로 받는다. 실제 Docker 검증은 [최종 보고서 기록](../docs/FINAL_DRAFT_20261110.md)에 있다.
 
 처리할 일 카드 계약 확장(PR #30): 처리할 일 카드 표시를 위해 TodoItem.context(사업명·담당부서·서류 종류·상태·단계·최근 변경)를 추가했습니다. 백엔드 PR #30과 함께 배포하며 기존 권한·페이지 조회 기준은 유지합니다.
+
+협의 비교 확장: GET consultation-comparison과 POST consultation-summaries를 추가했습니다. 협의 요청 기준본·실제 변경 기록을 사용하고, 기존 신청의 과거 변경은 추정하지 않습니다. AI 요약은 원본 fingerprint와 근거 항목 키를 연결하며 원본 변경 후 이전 요약을 숨깁니다. 검증 기록은 백엔드 docs/CONSULTATION_COMPARISON_20261111.md에 있습니다.

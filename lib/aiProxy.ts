@@ -9,7 +9,7 @@ export function upstreamTimeoutMs(method: string, pathname: string): number {
   if (pathname === '/api/llm-connection-tests') return 45_000;
   if (
     /^\/api\/business-cases\/\d+\/interview-turns\/?$/.test(pathname) ||
-    /^\/api\/security-requests\/\d+\/(ai-proposals|infrastructure-proposals|final-draft-generations|draft-generations|inquiries)\/?$/.test(
+    /^\/api\/security-requests\/\d+\/(ai-proposals|consultation-summaries|infrastructure-proposals|final-draft-generations|draft-generations|inquiries)\/?$/.test(
       pathname,
     ) ||
     /^\/api\/inquiries\/\d+\/messages\/?$/.test(pathname) ||

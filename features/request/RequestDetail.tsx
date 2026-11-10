@@ -22,6 +22,7 @@ import { useAudit } from '@/lib/queries';
 import type { Actor } from '@/lib/types';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
 import { FinalDraftPanel } from './FinalDraftPanel';
+import { ConsultationReview } from './ConsultationReview';
 import { useFinalDraft } from './useFinalDraft';
 import { InfrastructureWorkspace } from './InfrastructureWorkspace';
 import { INFRA_PRIMARY_KEYS } from './infrastructurePlan';
@@ -527,6 +528,13 @@ function RequestWorkspace({
               ))}
             </section>
           )}
+          {request.stage === 3 && (
+            <ConsultationReview
+              requestId={request.id}
+              actorId={actor.id}
+              canSummarize={actor.role === 'APPLICANT'}
+            />
+          )}
           {has('GENERATE_DRAFT') &&
             (finalDraft.isPending ? (
               <LoadingState />
@@ -811,6 +819,13 @@ function RequestWorkspace({
                       </p>
                     )}
                   </>
+                )}
+                {request.stage === 3 && (
+                  <ConsultationReview
+                    requestId={request.id}
+                    actorId={actor.id}
+                    canSummarize={actor.role === 'APPLICANT'}
+                  />
                 )}
                 {has('GENERATE_DRAFT') && (
                   <a className="btn full-width" href="#final-draft-heading">
