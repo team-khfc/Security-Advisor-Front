@@ -106,7 +106,7 @@ export function LoginPage() {
               <span>1</span>사업기획서 업로드 및 AI인터뷰
             </li>
             <li>
-              <span>2</span>인프라 · 보안 담당자의 검토
+              <span>2</span>인프라 · 보안 담당자의 협의
             </li>
             <li>
               <span>3</span>사용자 최종 검토
