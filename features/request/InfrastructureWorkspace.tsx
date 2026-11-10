@@ -84,14 +84,20 @@ export function InfrastructureWorkspace({
   const plan = frozen ? snapshot?.infrastructurePlan : query.data;
   const canEdit =
     request.stage === 2 &&
-    actor.role === 'INFRA' &&
+    (actor.role === 'INFRA' || actor.role === 'SECURITY') &&
     request.assignments.some(
-      (a) => a.active && a.field === 'INFRA' && a.assigneeId === actor.id && !a.reassignmentReason,
+      (a) =>
+        a.active && a.field === actor.role && a.assigneeId === actor.id && !a.reassignmentReason,
     );
   return (
     <>
       {canEdit && query.data && (
-        <InfrastructureEditor request={request} plan={query.data} onDirtyChange={onDirtyChange}>
+        <InfrastructureEditor
+          reviewerLabel={actor.role === 'SECURITY' ? '정보보안' : 'ICT인프라'}
+          request={request}
+          plan={query.data}
+          onDirtyChange={onDirtyChange}
+        >
           {commonEditor}
         </InfrastructureEditor>
       )}
@@ -121,11 +127,13 @@ export function InfrastructureWorkspace({
   );
 }
 function InfrastructureEditor({
+  reviewerLabel,
   request,
   plan,
   onDirtyChange,
   children,
 }: {
+  reviewerLabel: string;
   request: SecurityRequest;
   plan: InfrastructurePlan;
   onDirtyChange: (dirty: boolean) => void;
@@ -263,7 +271,7 @@ function InfrastructureEditor({
   return (
     <section className="card infra-workspace" aria-labelledby="infra-edit-heading">
       <h2 className="h-panel" id="infra-edit-heading">
-        ICT인프라 검토 정보 입력
+        {reviewerLabel} 검토 정보 입력
       </h2>
       <p className="help">
         서버와 통신 구간을 추가하고, 네트워크 정보·검토 사항을 함께 저장하세요. 첫 구간은 기존
@@ -367,7 +375,7 @@ function InfrastructureEditor({
             setSaved(
               temporary
                 ? '임시 저장했습니다. 입력은 보존되며 확인 저장 전에는 협의를 완료할 수 없습니다.'
-                : 'ICT인프라 검토 정보를 저장했습니다.',
+                : `${reviewerLabel} 검토 정보를 저장했습니다.`,
             );
             setAiApplied(next.aiPending);
             setAiConfirmed(false);
@@ -512,7 +520,7 @@ function InfrastructureEditor({
             </div>
           ))}
           <fieldset className="review-checklist">
-            <legend>ICT인프라 구성 검토 체크리스트</legend>
+            <legend>{reviewerLabel} 구성 검토 체크리스트</legend>
             {Object.entries(infraCheckLabels).map(([key, label]) => (
               <label key={key}>
                 <input
@@ -527,7 +535,7 @@ function InfrastructureEditor({
             ))}
           </fieldset>
           <div className="field">
-            <label htmlFor="infra-review-notes">ICT인프라 검토 사항</label>
+            <label htmlFor="infra-review-notes">{reviewerLabel} 검토 사항</label>
             <textarea
               id="infra-review-notes"
               className="input"
@@ -569,7 +577,7 @@ function InfrastructureEditor({
             className="btn btn-primary"
             disabled={busy || conflict || (aiApplied && !aiConfirmed)}
           >
-            {busy ? '저장 중…' : 'ICT인프라 검토 정보 저장'}
+            {busy ? '저장 중…' : `${reviewerLabel} 검토 정보 저장`}
           </button>
           {dirty && <span className="help"> 저장하지 않은 변경 있음</span>}
         </fieldset>

@@ -217,44 +217,43 @@ export function RequestTechnicalDetails({
       </section>
       <section className="card" aria-labelledby="d-rules">
         <h2 className="h-panel" id="d-rules">
-          {request.docType === 'FIREWALL' ? '방화벽 규칙' : '보안성검토 사항'}
+          방화벽 규칙
         </h2>
-        {request.docType === 'FIREWALL' &&
-          (data.rules.length ? (
-            <div className="tbl-wrap">
-              <table className="tbl inner-tbl">
-                <caption className="sr-only">방화벽 규칙: 신청 답변의 통신 정보</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">번호</th>
-                    {RULE_COLUMNS.map(([key, label]) => (
-                      <th key={key} scope="col">
-                        {label}
-                      </th>
+        {data.rules.length ? (
+          <div className="tbl-wrap">
+            <table className="tbl inner-tbl">
+              <caption className="sr-only">방화벽 규칙: 신청 답변의 통신 정보</caption>
+              <thead>
+                <tr>
+                  <th scope="col">번호</th>
+                  {RULE_COLUMNS.map(([key, label]) => (
+                    <th key={key} scope="col">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.rules.map((rule) => (
+                  <tr key={rule.id}>
+                    <td>{rule.number}</td>
+                    {RULE_COLUMNS.map(([key]) => (
+                      <td key={key} className={key === 'direction' ? 'nowrap' : undefined}>
+                        <RuleValue answer={rule[key]} highlighted={request.highlightedFields} />
+                      </td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {data.rules.map((rule) => (
-                    <tr key={rule.id}>
-                      <td>{rule.number}</td>
-                      {RULE_COLUMNS.map(([key]) => (
-                        <td key={key} className={key === 'direction' ? 'nowrap' : undefined}>
-                          <RuleValue answer={rule[key]} highlighted={request.highlightedFields} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="help">
-              {data.snapshotUnavailable
-                ? '제출본 정보를 확인할 수 없어 방화벽 규칙을 표시하지 않습니다.'
-                : '아직 입력된 방화벽 규칙이 없습니다. 통신 정보는 담당자 확인이 필요합니다.'}
-            </p>
-          ))}
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="help">
+            {data.snapshotUnavailable
+              ? '제출본 정보를 확인할 수 없어 방화벽 규칙을 표시하지 않습니다.'
+              : '아직 입력된 방화벽 규칙이 없습니다. 통신 정보는 담당자 확인이 필요합니다.'}
+          </p>
+        )}
         {children}
       </section>
       <section className="card" aria-labelledby="d-lint">

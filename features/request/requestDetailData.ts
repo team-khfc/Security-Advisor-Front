@@ -99,7 +99,7 @@ export function getRequestDetailData(
   // 표를 그릴 값이 없어도 미입력 질문과 반환 대상의 이동 위치는 정보란에 남긴다.
   const representedKeys = new Set(hasRule ? ruleAnswers.map((answer) => answer.key) : []);
   const businessAnswers = commonAnswers
-    .filter((answer) => request.docType !== 'FIREWALL' || !representedKeys.has(answer.key))
+    .filter((answer) => !representedKeys.has(answer.key))
     .sort((left, right) => {
       const leftOrder = BUSINESS_ORDER.indexOf(left.key);
       const rightOrder = BUSINESS_ORDER.indexOf(right.key);
@@ -111,10 +111,7 @@ export function getRequestDetailData(
 
   return {
     businessAnswers,
-    additionalAnswers:
-      request.docType === 'FIREWALL'
-        ? requestAnswers.filter((answer) => !representedKeys.has(answer.key))
-        : requestAnswers,
+    additionalAnswers: requestAnswers.filter((answer) => !representedKeys.has(answer.key)),
     rules: infrastructurePlan?.connections.length
       ? infrastructurePlan.connections.map((row, index) => {
           const value = (key: string, text: string): Answer => ({

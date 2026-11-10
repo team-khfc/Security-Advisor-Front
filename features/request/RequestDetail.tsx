@@ -567,9 +567,7 @@ function RequestWorkspace({
           >
             {detail.additionalAnswers.length > 0 && (
               <details className="sub-block">
-                <summary>
-                  {request.docType === 'FIREWALL' ? '신청 추가 정보' : '검토 항목 보기'}
-                </summary>
+                <summary>신청 추가 정보</summary>
                 <AnswerView
                   answers={detail.additionalAnswers}
                   highlighted={request.highlightedFields}
@@ -578,12 +576,15 @@ function RequestWorkspace({
               </details>
             )}
             {(has('EDIT_ANSWERS') || has('SAVE_ANSWERS')) && (
-              <details className="sub-block" open={request.stage === 1 || actor.role === 'INFRA'}>
+              <details
+                className="sub-block"
+                open={request.stage === 1 || actor.role === 'INFRA' || actor.role === 'SECURITY'}
+              >
                 <summary>서류별 답변 수정·확인</summary>
                 <AnswerEditor
                   draftKey={`request:${request.id}:answers`}
                   answers={
-                    actor.role === 'INFRA'
+                    actor.role === 'INFRA' || actor.role === 'SECURITY'
                       ? request.answers.filter((a) => !INFRA_PRIMARY_KEYS.includes(a.key))
                       : request.answers
                   }
