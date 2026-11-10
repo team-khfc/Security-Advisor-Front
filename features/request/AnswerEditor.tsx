@@ -5,6 +5,7 @@ import { Badge, Icon, Notice } from '@/components/ui';
 import { useInputDraft } from '@/lib/inputDrafts';
 import type { Actor } from '@/lib/types';
 import type { Answer, AnswerInput } from './types';
+import { canConfirmAnswer, answerValueError } from './answerFieldPolicy';
 
 const sourceLabels = {
   USER_ANSWER: '사용자 답변',
@@ -112,7 +113,7 @@ export function AnswerEditor({
   const eligible = answers.filter(
     (answer) =>
       answer.ownerRole === actor.role ||
-      (['INFRA', 'SECURITY'].includes(actor.role) &&
+      (canConfirmAnswer(answer, actor.role) &&
         (answer.source === 'AI_INFERRED' || answer.needsReview)),
   );
   const {
@@ -182,6 +183,12 @@ export function AnswerEditor({
         setPending(true);
         setError(null);
         try {
+          for (const answer of eligible) {
+            const input = values?.[answer.key] ?? inputValue(answer);
+            if (!input.value.trim() && !input.confirmed && !input.notApplicable) continue;
+            const issue = answerValueError(answer, input.notApplicable ? '미해당' : input.value);
+            if (issue) throw new Error(issue);
+          }
           await onSave(
             dirty ? baseRevision : revision,
             eligible
@@ -209,8 +216,8 @@ export function AnswerEditor({
       <h3 className="h-panel">{title}</h3>
       <p className="help">
         현재 역할의 담당 항목을 수정합니다. 인계받은 항목도 기존 내용을 이어서 수정할 수 있습니다.
-        AI 추론과 재검토 대상은 내용을 읽고 확인해 주세요. 다른 역할의 항목은 값을 바꾸지 않고
-        확인만 기록합니다.
+        AI 추론과 재검토 대상은 내용을 읽고 확인해 주세요. 신청자 항목은 값을 바꾸지 않고 확인만
+        기록하며, 다른 담당 분야의 항목은 해당 담당자가 확인합니다.
       </p>
       {draftKey && dirty && (
         <p className="help" role="status">
@@ -260,6 +267,13 @@ export function AnswerEditor({
                 <Icon name="alert" size={16} /> 보완 필요 · 이전 값을 보존했습니다.
               </p>
             )}
+            {answer.inputType === 'DATE_RANGE' && (
+              <p className="help">
+                YYYY-MM-DD~YYYY-MM-DD 형식으로 입력하세요. 상시는 종료일을 비웁니다.
+              </p>
+            )}
+            {answer.inputType === 'BOOLEAN' && <p className="help">예 또는 아니요로 입력하세요.</p>}
+            {answer.inputType === 'NUMBER' && <p className="help">숫자를 입력하세요.</p>}
             <textarea
               className="input"
               id={inputId}

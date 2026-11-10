@@ -1,5 +1,7 @@
 'use client';
 
+import { answerValueError } from './answerFieldPolicy';
+
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { requestJson } from '@/lib/httpClient';
@@ -319,6 +321,14 @@ async function saveAnswers(
   existing: SecurityRequest['answers'],
   reviewId?: string,
 ) {
+  // 일괄 요청을 보내기 전에 전체 입력을 검사해 잘못된 항목 앞의 값만 저장되지 않게 한다.
+  for (const input of answers) {
+    const field = existing.find((a) => a.key === input.key);
+    if (!field) throw new Error('게시본에 없는 답변 항목입니다.');
+    if (!input.value.trim() && !input.confirmed && !input.notApplicable) continue;
+    const issue = answerValueError(field, input.notApplicable ? '미해당' : input.value);
+    if (issue) throw new Error(issue);
+  }
   const changed = answers.filter((a) => {
     const old = existing.find((v) => v.key === a.key);
     // 게시본에만 있고 아직 답변 행이 없는 다른 질문은 빈 값으로 생성하지 않는다.
@@ -332,24 +342,16 @@ async function saveAnswers(
     value: a.notApplicable ? '미해당' : a.value,
     expectedRevision: a.expectedRevision ?? existing.find((v) => v.key === a.key)?.revision,
   }));
-  const saved = reviewId
-    ? await Promise.all(
-        payload.map(async ({ fieldKey, ...body }) =>
-          dto.answerDto.parse(
-            await requestJson(`/api/reviews/${encoded(reviewId)}/answers/${encoded(fieldKey)}`, {
-              method: 'PUT',
-              body,
-            }),
+  const saved = payload.length
+    ? z
+        .array(dto.answerDto)
+        .parse(
+          await requestJson(
+            reviewId ? `/api/reviews/${encoded(reviewId)}/answers` : base + '/answers',
+            { method: 'PATCH', body: { answers: payload } },
           ),
-        ),
-      )
-    : payload.length
-      ? z
-          .array(dto.answerDto)
-          .parse(
-            await requestJson(base + '/answers', { method: 'PATCH', body: { answers: payload } }),
-          )
-      : [];
+        )
+    : [];
   for (const a of answers.filter((a) => a.confirmed && (a.notApplicable || a.value.trim()))) {
     const old = existing.find((v) => v.key === a.key);
     const value = saved.find((v) => v.fieldKey === a.key);

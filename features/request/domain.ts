@@ -1,3 +1,4 @@
+import { canConfirmAnswer, answerValueError } from './answerFieldPolicy';
 import { DomainError } from '@/lib/problem';
 import type { Actor } from '@/lib/types';
 import { createEmptyCommonAnswers, createEmptyRequestAnswers, MOCK_MEMBERS } from '@/mocks/seed';
@@ -297,7 +298,7 @@ function updateAnswers(
     if (!answer) throw new DomainError(400, 'UNKNOWN_FIELD', '존재하지 않는 답변 항목입니다.');
     const unchanged = answer.value === input.value && answer.notApplicable === input.notApplicable;
     const confirmsAi =
-      isReviewer(actor) && answer.source === 'AI_INFERRED' && unchanged && input.confirmed;
+      isReviewer(actor) && canConfirmAnswer(answer, actor.role) && unchanged && input.confirmed;
     requirePermission(
       answer.ownerRole === actor.role || confirmsAi,
       '자신의 담당 항목만 수정할 수 있습니다. 다른 분야는 담당자에게 확인해 주세요.',
@@ -308,6 +309,10 @@ function updateAnswers(
       '값이 없는 항목은 확인 완료로 표시할 수 없습니다.',
     );
 
+    if (input.value.trim() || input.confirmed || input.notApplicable) {
+      const issue = answerValueError(answer, input.notApplicable ? '미해당' : input.value);
+      requireRule(!issue, 'INVALID_ANSWER_VALUE', issue ?? '답변 형식을 확인해 주세요.');
+    }
     if (!unchanged) changed.push(answer.key);
     if (input.confirmed) confirmed.push(answer.key);
     if (confirmsAi) {
@@ -1014,6 +1019,8 @@ export function applyAnalysis(
       'ANALYSIS_EVIDENCE_REQUIRED',
       '분석 후보에는 값과 원문 근거가 필요합니다.',
     );
+    const issue = answerValueError(answer, suggestion.value);
+    requireRule(!issue, 'INVALID_ANSWER_VALUE', issue ?? '답변 형식을 확인해 주세요.');
     if ((answer.key === 'project.summary' || answer.key === 'purpose') && answer.confirmed)
       continue;
     if (answer.value !== suggestion.value || answer.notApplicable) changed.push(answer.key);
