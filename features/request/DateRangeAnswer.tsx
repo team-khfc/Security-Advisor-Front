@@ -18,11 +18,11 @@ export function DateRangeAnswer({
   const start = /^\d{4}-\d{2}-\d{2}$/.test(parts[0] ?? '') ? parts[0] : '';
   const end = /^\d{4}-\d{2}-\d{2}$/.test(parts[1] ?? '') ? parts[1] : '';
   const ongoing =
-    ['종료일 없음', '상시'].includes(parts[1] ?? '') ||
+    ['종료일 없음', '상시', '9999-12-31'].includes(parts[1] ?? '') ||
     (parts.length === 2 && Boolean(start) && parts[1] === '');
   // 편집 중 빈 종료일과 저장된 상시 값을 구분하기 위해 입력 중에는 명시적인 표시를 쓴다.
   const update = (nextStart: string, nextEnd: string, permanent: boolean) =>
-    onChange(`${nextStart} ~ ${permanent ? '종료일 없음' : nextEnd || '종료일 선택'}`);
+    onChange(`${nextStart} ~ ${permanent ? '9999-12-31' : nextEnd || '종료일 선택'}`);
   return (
     <fieldset className="date-range-answer" disabled={disabled}>
       <legend className="sr-only">{label}</legend>
@@ -45,7 +45,7 @@ export function DateRangeAnswer({
             type="date"
             required={!ongoing && (required || Boolean(start))}
             disabled={disabled || ongoing}
-            value={end}
+            value={ongoing ? '9999-12-31' : end}
             min={start || undefined}
             onChange={(event) => update(start, event.target.value, false)}
           />
@@ -55,7 +55,7 @@ export function DateRangeAnswer({
         <input
           type="checkbox"
           checked={ongoing}
-          onChange={(event) => update(start, end, event.target.checked)}
+          onChange={(event) => update(start, ongoing ? '' : end, event.target.checked)}
         />
         상시 운영 (종료일 없음)
       </label>

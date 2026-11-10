@@ -346,10 +346,10 @@ test('채팅 첨부 영역이 있어도 대화 영역에서 새로 저장한 답
   renderForEditing(controls.businessCase!.id);
   const body = conversation();
   mockConversationLayout(body);
-  const modes = screen.getByRole('group', { name: '입력 방식' });
+  const modes = screen.getByRole('tablist', { name: '입력 방식' });
   expect(
     within(modes)
-      .getAllByRole('button')
+      .getAllByRole('tab')
       .map((button) => button.textContent),
   ).toEqual(['AI에게 질문', '답변하기', '파일 첨부']);
   expect(screen.queryByRole('region', { name: '채팅 첨부파일' })).toBeNull();
@@ -370,7 +370,7 @@ test('채팅 첨부 영역이 있어도 대화 영역에서 새로 저장한 답
   expectLatestAnswerVisible(body);
   expectCurrentQuestionVisible(body);
   expect(body.scrollTop).toBeGreaterThan(0);
-  expect(within(modes).getByRole('button', { name: '파일 첨부' })).toBeTruthy();
+  expect(within(modes).getByRole('tab', { name: '파일 첨부' })).toBeTruthy();
 });
 
 test('입력·저장 실패 중에는 읽던 위치를 유지하고 나중에 입력을 선택하면 다음 질문을 보여 준다', async () => {

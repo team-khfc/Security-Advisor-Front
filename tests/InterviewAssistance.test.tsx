@@ -151,7 +151,7 @@ test('자유 질문은 공식 답변이나 다음 질문으로 넘어가는 행�
   vi.mocked(requestJson).mockResolvedValueOnce({ ...response, mode: 'ASK', proposedValue: null });
   const { onApplied } = setup();
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+  await user.click(screen.getByRole('tab', { name: 'AI에게 질문' }));
   await user.type(
     screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }),
     '개인정보란 무엇인가요?',
@@ -172,7 +172,7 @@ test('실패한 자유 질문은 다시 보낼 수 있도록 원문을 유지한
   vi.mocked(requestJson).mockRejectedValueOnce(new Error('합성 AI 연결 오류'));
   setup();
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+  await user.click(screen.getByRole('tab', { name: 'AI에게 질문' }));
   const prompt = screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' });
   await user.type(prompt, '다시 보낼 질문');
   await user.click(screen.getByRole('button', { name: '질문 보내기' }));
@@ -204,13 +204,13 @@ test('AI 질문 영역에는 직접 답변 전환 없이 질문 초안을 유지
   const user = userEvent.setup();
   const card = screen.getByRole('form', { name: '인터뷰 입력' });
   expect(within(card).getAllByRole('textbox')).toHaveLength(1);
-  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+  await user.click(screen.getByRole('tab', { name: 'AI에게 질문' }));
   await user.type(
     screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }),
     '보존할 질문',
   );
   expect(screen.queryByRole('button', { name: '답변 작성' })).toBeNull();
-  await user.click(screen.getByRole('button', { name: 'AI에게 질문' }));
+  await user.click(screen.getByRole('tab', { name: 'AI에게 질문' }));
   expect(
     (screen.getByRole('textbox', { name: '이 항목을 AI에게 물어보기' }) as HTMLTextAreaElement)
       .value,

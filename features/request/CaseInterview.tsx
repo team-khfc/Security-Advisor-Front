@@ -361,6 +361,14 @@ function InterviewWorkspace({
   const [panelWidth, setPanelWidth] = useState(380);
   const [composerMode, setComposerMode] = useState({ key: '', answer: true });
   const [error, setError] = useState('');
+  const [today] = useState(() =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date()),
+  );
   const savingRef = useRef(false);
 
   const question = questions[questionIndex];
@@ -368,7 +376,9 @@ function InterviewWorkspace({
     if (questionCardRef.current) questionCardRef.current.scrollTop = 0;
   }, [question?.key]);
   const draftAnswer = question ? draft?.answers[question.key] : undefined;
-  const answerText = draftAnswer?.value ?? question?.value ?? '';
+  const answerText =
+    draftAnswer?.value ??
+    (question?.value || (question?.inputType === 'DATE_RANGE' ? `${today} ~ ${today}` : ''));
   const answerRevision = draftAnswer?.revision ?? businessCase.revision;
   const conflict = Boolean(
     draftAnswer &&
@@ -614,6 +624,18 @@ function InterviewWorkspace({
                 value={answerText}
                 disabled={answerBusy}
                 onChange={(e) => updateAnswer(e.target.value)}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== 'Enter' ||
+                    event.shiftKey ||
+                    event.nativeEvent.isComposing ||
+                    event.keyCode === 229
+                  )
+                    return;
+                  event.preventDefault();
+                  if (answerText.trim() && !answerBusy && !conflict)
+                    event.currentTarget.form?.requestSubmit();
+                }}
                 placeholder={presentation.placeholder}
               />
             ) : (
@@ -1043,7 +1065,7 @@ function InterviewWorkspace({
                     title="한 번에 최대 3개 · 파일당 20MB · 합계 60MB · 선택 후 분석 요청"
                     onClick={() => chatUploadInput.current?.click()}
                   >
-                    파일 첨부
+                    파일 선택
                   </button>
                 }
               />
