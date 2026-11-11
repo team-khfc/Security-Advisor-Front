@@ -1,10 +1,26 @@
 # 보안길잡이 · 프론트엔드
 
+개발자 안내: [개발·유지보수 가이드](docs/README.md) · [적용 규칙](docs/RULES_GUIDE.md) · [DB·설치 설정](docs/DEVELOPMENT_MAINTENANCE.md) · [LLM 구성 변경](docs/LLM_CONFIGURATION.md)
+
+**2026년 공공 AI 대전환 챌린지 제출작**
+
 **반복되는 보안 업무는 자동으로, 담당자 협의까지 편리하게.**
 
 보안길잡이(SecurityAdvisor)는 사업 담당자의 기획서와 설명을 바탕으로 보안 서류 작성을 돕고, ICT인프라·정보보안 담당자의 협의와 최종 확정까지 연결하는 서비스입니다. 이 저장소는 **화면과 모의 API를 개발하는 프론트엔드 원본**입니다.
 
-> **심사·전체 서비스 실행:** 프론트·백엔드·DB와 테스트 계정을 함께 제공하는 [통합 배포 저장소](https://github.com/team-khfc/Security-Advisor)를 이용하세요. 이 저장소의 단독 실행은 개발용입니다.
+> **심사·전체 서비스 실행:** 프론트·백엔드·DB와 시연용 계정을 함께 제공하는 [통합 배포 저장소](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor)를 이용하세요. 이 저장소의 단독 실행은 개발용입니다.
+
+## 저장소별 역할과 유지보수
+
+**기능은 Front·Back에서 각각 개발하고, 검증된 버전을 SecurityAdvisor에 모아 Docker로 실행 가능한 형태로 배포합니다.**
+
+| 저장소 | 수정 대상 | 이용 대상 |
+|---|---|---|
+| [SecurityAdvisor-Front](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor-front) | 화면·입력·프론트 API 연결·모의 API·화면 검사 | 프론트 개발자 |
+| [SecurityAdvisor-Back](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor-back) | 업무 규칙·권한·DB 변경·AI 연동·문서 생성·OpenAPI 계약 | 백엔드 개발자 |
+| [SecurityAdvisor](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor) | 검증된 소스 스냅샷·통합 실행 설정·모의 데이터·배포 안내 | 배포 담당자·심사위원·서비스 실행자 |
+
+GitLab의 표시 이름과 복제되는 폴더 이름은 다를 수 있습니다. 명령은 각 저장소의 README가 있는 루트에서 실행합니다. 전체 서비스를 실행할 사람은 **SecurityAdvisor 하나만** 내려받으면 됩니다.
 
 ## 주요 기능
 
@@ -26,7 +42,7 @@ npm ci
 npm run dev
 ```
 
-[로그인 화면](http://localhost:3000/login)에서 합성 계정 카드를 선택합니다. 백엔드·DB·AI 키 없이 실행되며, `npm run dev`는 모의 모드를 명시적으로 선택합니다.
+[로그인 화면](http://localhost:3000/login)에서 시연용 계정 카드를 선택합니다. 백엔드·DB·AI 키 없이 실행되며, `npm run dev`는 모의 모드를 명시적으로 선택합니다.
 
 | 계정 | 역할 |
 |---|---|
@@ -101,15 +117,26 @@ app/          페이지와 서버 API 중계
 features/     업무별 화면·상태·API 연결
 components/   공통 UI
 lib/          인증·권한·서버 중계 등 공통 기능
-mocks/        개발용 합성 데이터와 모의 API
+mocks/        개발용 모의 데이터와 모의 API
 contract/     백엔드 OpenAPI 계약 사본
 tests/        화면·권한·업무 흐름 검사
 ```
+
+## 변경 후 통합 배포에 반영하기
+
+1. 이 저장소의 최신 main에서 작업 브랜치를 만듭니다. 화면·입력 동작과 모의 API를 수정하고 `npm ci`, `npm run check`, `npm run build`로 확인합니다. 실제 API가 바뀌면 Back의 `docs/api/openapi.yaml`을 기준으로 `contract/openapi.yaml`, 출처 기록, 타입·변환기·모의 응답을 함께 맞춥니다.
+2. API 변경은 Back을 먼저 검토하고 Front의 대응 변경을 연결합니다. GitLab에서는 Merge Request(MR), GitHub에서는 Pull Request(PR)로 변경 이유와 검사 결과를 남깁니다.
+3. 검토·검사 후 main에 병합하고 배포할 커밋에 새 릴리스 태그를 지정합니다. 이미 배포한 태그를 다른 커밋으로 옮기지 않습니다.
+4. SecurityAdvisor에서 해당 버전의 스냅샷을 갱신하고 `RELEASE.md`와 `snapshots.json`에 출처를 기록합니다. 통합 실행·업무 흐름 검증 후 배포합니다.
+
+**이 저장소에 커밋하거나 main에 병합하는 것만으로 SecurityAdvisor나 실행 중인 Docker가 자동 갱신되지는 않습니다.** 통합 저장소의 `front/`·`back/`를 직접 고치면 개발 원본과 배포본이 달라지므로, 기능 수정은 반드시 원본에서 시작합니다.
+
+자세한 교체 범위·검증·업데이트 방법은 [통합 배포 유지보수 안내](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor/-/blob/main/README.md#개발부터-통합-배포까지)를 따릅니다. 공통 협업 기준은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다. GitLab 업로드 보안 검사와 애플리케이션의 빌드·업무 검사는 서로 다른 검사입니다.
 
 ## 참고 문서
 
 - [업무 명세](FUNCTIONAL_SPEC.md) · [개발 규칙](AGENTS.md) · [기여 안내](CONTRIBUTING.md)
 - [API 계약](contract/README.md) · [프론트 구조 결정](docs/adr/0001-frontend-foundation.md)
-- [통합 배포](https://github.com/team-khfc/Security-Advisor) · [백엔드 원본](https://github.com/team-khfc/Security-Advisor-Back)
+- [통합 배포](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor) · [백엔드 원본](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor-back)
 
 개별 `docs/` 검증 기록은 해당 작성 시점의 결과입니다. 제출 버전의 소스 출처와 통합 검증은 통합 배포 저장소의 `RELEASE.md`와 `docs/JUDGE_VALIDATION.md`를 기준으로 확인하세요.
