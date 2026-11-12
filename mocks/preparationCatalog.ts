@@ -1,0 +1,73 @@
+/** 백엔드 PreparationPolicy와 같은 모의 준비자료 목록. */
+export const preparationCatalog = [
+  {
+    key: 'plan',
+    label: '사업계획서',
+    reviewer: 'SECURITY',
+    condition: '',
+    description: '목적·이용자·처리 정보·사업 범위·일정',
+  },
+  {
+    key: 'rfp',
+    label: '제안요청서·과업 범위 자료',
+    reviewer: 'SECURITY',
+    condition: '',
+    description: '기능·보안 요구사항과 수행 범위. 발주가 없는 경우 업무 범위 설명 자료',
+  },
+  {
+    key: 'architecture',
+    label: '시스템·망 구성도',
+    reviewer: 'INFRA',
+    condition: '',
+    description: '서버·DB·망 구간·외부 연결과 변경 전후 구성',
+  },
+  {
+    key: 'safeguards',
+    label: '자체 보안대책·점검표',
+    reviewer: 'SECURITY',
+    condition: '',
+    description: '관리적·기술적·물리적 보호조치와 확인사항',
+  },
+  {
+    key: 'privacy',
+    label: '개인정보 처리·흐름 자료',
+    reviewer: 'SECURITY',
+    condition: 'data.personal_info',
+    description: '처리 항목·목적·근거·보유기간·파기와 정보 흐름',
+  },
+  {
+    key: 'integration',
+    label: '외부 연계·통신 구간 자료',
+    reviewer: 'INFRA',
+    condition: 'system.external_transfer',
+    description: '연계 대상·전송 데이터·인증·암호화·통신 규칙',
+  },
+  {
+    key: 'public',
+    label: '대외 서비스 보호대책',
+    reviewer: 'SECURITY',
+    condition: 'security.public_service',
+    description: '공개 범위·사용자/관리자 인증·취약점 점검 계획',
+  },
+  {
+    key: 'vendor',
+    label: '외부 업체 보안관리 계획',
+    reviewer: 'SECURITY',
+    condition: 'security.outsourcing',
+    description: '접근 권한·원격접속·자료 반출입·종료 시 회수',
+  },
+  {
+    key: 'cloud',
+    label: '클라우드·SaaS 이용 검토자료',
+    reviewer: 'SECURITY',
+    condition: 'cloud',
+    description: '서비스·저장 위치·책임 분담·인증 적용 범위·종료 계획',
+  },
+  {
+    key: 'ai',
+    label: 'AI·외부 LLM 이용 검토자료',
+    reviewer: 'SECURITY',
+    condition: 'ai',
+    description: '공급자·전송 데이터·보관/학습 조건·접근통제·출력 검증',
+  },
+];

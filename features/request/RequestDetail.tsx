@@ -22,6 +22,7 @@ import { useAudit } from '@/lib/queries';
 import type { Actor } from '@/lib/types';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
 import { SourceDocuments, EvidenceSourceLink } from './SourceDocuments';
+import { PreparationMaterials } from './PreparationMaterials';
 import { FinalDraftPanel } from './FinalDraftPanel';
 import { ConsultationReview } from './ConsultationReview';
 import { useFinalDraft } from './useFinalDraft';
@@ -376,6 +377,7 @@ function RequestWorkspace({
       {failure && !dialogAction && <Notice tone="danger">{failure}</Notice>}
       <div className="detail detail-layout">
         <div className="detail-content">
+          <PreparationMaterials requestId={request.id} caseId={request.caseId} />
           <SourceDocuments caseId={request.caseId} />
           <section className="card" aria-labelledby="d-info">
             <h2 className="h-panel" id="d-info">

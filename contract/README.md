@@ -2,8 +2,8 @@
 
 기준일: 2026-11-12
 
-- Back 커밋: `9a439335131a494d1614d45849d1173b0815e1c2` (문서·답변 모순 후보 검사, 백엔드 동반 배포 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/9a439335131a494d1614d45849d1173b0815e1c2/docs/api/openapi.yaml
+- Back 커밋: `dfbd82e4270bbfb5d4bcaed8e915cfb3d9c389f3` (사업 조건별 준비자료 상태 관리, 백엔드 동반 배포 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/dfbd82e4270bbfb5d4bcaed8e915cfb3d9c389f3/docs/api/openapi.yaml
 - 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
@@ -19,6 +19,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+준비자료 조회·연결·검토 API는 [준비자료 관리 안내](../docs/PREPARATION_MATERIALS_20261112.md)를 따른다. 기존 일괄 답변의 Item과 신규 PreparationItem을 별도 계약으로 유지한다.
 
 `POST /api/security-requests/{id}/consistency-checks`는 현재 답변과 첨부 원문을 비교하는 읽기 전용 AI 검사다. 실제 인용과 답변 값을 함께 반환하며 자동 수정·확정하지 않는다. 실패·모의 모드는 후보 0건과 구분한다. [사용 방법·범위·검증](../docs/DOCUMENT_ANSWER_CONSISTENCY.md).
 

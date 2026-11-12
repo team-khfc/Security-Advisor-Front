@@ -40,6 +40,7 @@ const actionLabels: Record<string, string> = {
   INQUIRY_OPENED: 'AI 질의 대화 시작',
   INQUIRY_ASKED: 'AI 질의',
   DOCUMENT_GENERATED: '문서 생성',
+  PREPARATION_MATERIAL_UPDATED: '준비자료 변경',
   FILE_UPLOADED: '파일 업로드',
   ANALYSIS_REQUESTED: '문서 분석 요청',
   ANALYSIS_FINISHED: '문서 분석 완료',

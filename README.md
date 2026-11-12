@@ -140,3 +140,5 @@ tests/        화면·권한·업무 흐름 검사
 - [통합 배포](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor) · [백엔드 원본](https://gitlab.aigov.go.kr/pocketmun1216/securityadvisor-back)
 
 개별 `docs/` 검증 기록은 해당 작성 시점의 결과입니다. 제출 버전의 소스 출처와 통합 검증은 통합 배포 저장소의 `RELEASE.md`와 `docs/JUDGE_VALIDATION.md`를 기준으로 확인하세요.
+
+- [사업 조건별 준비자료 관리 및 검증](docs/PREPARATION_MATERIALS_20261112.md)
