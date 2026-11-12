@@ -379,6 +379,12 @@ function RequestWorkspace({
       <div className="detail detail-layout">
         <div className="detail-content">
           <PreparationMaterials requestId={request.id} caseId={request.caseId} />
+          {request.stage === 3 && (
+            <Notice tone="warning">
+              필수 항목·사업 기간·보안 조건·담당자 정보를 변경하면 담당자 재협의 단계로 돌아갑니다.
+              기존 입력과 이력은 보존되며 재협의 완료 후 최종 제출할 수 있습니다.
+            </Notice>
+          )}
           {request.stage >= 3 && (
             <PreparationReview
               requestId={request.id}
@@ -513,7 +519,15 @@ function RequestWorkspace({
                   <p className="help">
                     대상:{' '}
                     {supplement.fieldKeys
-                      .map((key) => fields.find((item) => item.key === key)?.label ?? key)
+                      .map(
+                        (key) =>
+                          fields.find((item) => item.key === key)?.label ??
+                          (key === 'context.infrastructure'
+                            ? '서버·네트워크·운영 검토 정보'
+                            : key === 'context.finalDraft'
+                              ? '최종 초안 본문'
+                              : key),
+                      )
                       .join(', ')}
                   </p>
                   {supplement.answer && (

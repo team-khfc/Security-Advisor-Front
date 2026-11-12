@@ -2,8 +2,8 @@
 
 기준일: 2026-11-12
 
-- Back 커밋: `ba9ae4d763abf28cbdc70cca45a1a44e6d771e24` (준비자료 최종 검토·제출 기록·처리할 일 확장, 백엔드 선행 배포 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/ba9ae4d763abf28cbdc70cca45a1a44e6d771e24/docs/api/openapi.yaml
+- Back 커밋: `fa594aecbe59055b777ac49b3f12618c499a950a` (모순 처리·재협의·DOCX·스캔 및 기관 출력 정책 확장, 백엔드 선행 배포 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/fa594aecbe59055b777ac49b3f12618c499a950a/docs/api/openapi.yaml
 - 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
@@ -22,7 +22,7 @@
 
 준비자료 조회·연결·검토 API는 [준비자료 관리 안내](../docs/PREPARATION_MATERIALS_20261112.md)를 따른다. 기존 일괄 답변의 Item과 신규 PreparationItem을 별도 계약으로 유지한다.
 
-`POST /api/security-requests/{id}/consistency-checks`는 현재 답변과 첨부 원문을 비교하는 읽기 전용 AI 검사다. 실제 인용과 답변 값을 함께 반환하며 자동 수정·확정하지 않는다. 실패·모의 모드는 후보 0건과 구분한다. [사용 방법·범위·검증](../docs/DOCUMENT_ANSWER_CONSISTENCY.md).
+`POST /api/security-requests/{id}/consistency-checks`는 현재 답변·서버 구성·최종 초안과 선택 첨부 원문을 비교하고 검사 이력을 저장하는 AI 검사다. 실제 인용과 답변 값을 함께 반환하며 자동 수정·확정하지 않는다. 실패·모의 모드는 후보 0건과 구분한다. [사용 방법·범위·검증](../docs/DOCUMENT_ANSWER_CONSISTENCY.md).
 
 보안성검토 질문의 선택 속성 `condition`을 보존하고 사업의 공통 답변으로 적용 여부를 표시합니다. 원문은 `GET /api/business-cases/{id}/source-documents/{fileId}`, 다운로드는 `GET /api/business-cases/{id}/uploaded-files/{fileId}`를 사용합니다. 근거에 명시된 파일 ID만 연결하며 과거 순번 근거의 파일을 추정하지 않습니다. [적용 방법·검증 기록](../docs/SECURITY_REVIEW_EVIDENCE.md).
 

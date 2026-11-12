@@ -4,6 +4,8 @@ import { Readable } from 'node:stream';
 
 /** 모델 설정 상한 600초와 처리 여유를 보장한다. 분석 반영은 서류 2종을 순차 호출한다. */
 export function upstreamTimeoutMs(method: string, pathname: string): number {
+  if (method === 'GET' && /^\/api\/business-cases\/\d+\/source-documents\/\d+\/?$/.test(pathname))
+    return 120_000;
   if (method !== 'POST') return 30_000;
   if (/^\/api\/analysis-jobs\/\d+\/applications\/?$/.test(pathname)) return 1_320_000;
   if (pathname === '/api/llm-connection-tests') return 45_000;

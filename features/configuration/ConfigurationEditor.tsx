@@ -3,6 +3,7 @@ import { Badge, ErrorState, Field, LoadingState, Modal, Notice } from '@/compone
 import { ApiError } from '@/lib/httpClient';
 import { QuestionEditor } from './QuestionEditor';
 import { DeadlineEditor } from './DeadlineEditor';
+import { DocumentPolicyEditor } from './DocumentPolicyEditor';
 import { PublicationHistory } from './PublicationHistory';
 import { ChangeList } from './ChangeList';
 import { useConfigurationActions, usePublication } from './useConfiguration';
@@ -234,40 +235,9 @@ export function ConfigurationEditor({
               onChange={setDraft}
             />
           )}
-          {active === 1 && (
-            <div className="card">
-              <h2 className="h-panel">기관 검토 절차</h2>
-              <p>ICT인프라 선행 고정</p>
-              <ol className="flow">
-                {['작성', 'ICT인프라 협의', '정보보안 협의', '사용자 최종 검토', '확정·관리'].map(
-                  (step) => (
-                    <li key={step}>{step}</li>
-                  ),
-                )}
-              </ol>
-              <p className="help">
-                검토 절차는 업무 규칙에 따라 운영하며 이번 편집 대상에 포함되지 않습니다.
-              </p>
-            </div>
-          )}
+          {active === 1 && <DocumentPolicyEditor draft={draft} onChange={setDraft} mode="review" />}
           {active === 2 && (
-            <div className="card">
-              <h2 className="h-panel">서버 문서 양식</h2>
-              <ul>
-                {draft.docTypes.map((doc) => (
-                  <li key={doc.code}>
-                    {doc.name} ·{' '}
-                    {doc.exportFormats
-                      .map((format) => (format === 'PDF' ? 'PDF' : '마크다운'))
-                      .join(', ')}
-                  </li>
-                ))}
-              </ul>
-              <p>
-                문서 미리보기와 다운로드는 신청에 고정된 게시본의 정식 문서를 사용합니다. 양식 파일
-                편집은 제공하지 않습니다.
-              </p>
-            </div>
+            <DocumentPolicyEditor draft={draft} onChange={setDraft} mode="document" />
           )}
           {active === 3 && <DeadlineEditor draft={draft} onChange={setDraft} />}
         </fieldset>

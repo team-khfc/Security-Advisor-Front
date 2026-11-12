@@ -1,10 +1,12 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { z } from 'zod';
 import { Notice } from '@/components/ui';
 import { requestJson } from '@/lib/httpClient';
 import { SourceDocumentButton } from './SourceDocuments';
+import { ConsistencyHistory } from './ConsistencyHistory';
 
 const resultSchema = z.object({
   fingerprint: z.string(),
@@ -31,22 +33,64 @@ const display = (value: string) => (value === 'true' ? '예' : value === 'false'
 
 /** 검사 결과는 당시 자료의 확인 후보이며 자동 수정·확정으로 사용하지 않는다. */
 export function ConsistencyCheck({ requestId, caseId }: { requestId: string; caseId: string }) {
+  const [selected, setSelected] = useState<number[]>([]);
+  const [progress, setProgress] = useState('');
+  const client = useQueryClient();
+  const files = useQuery({
+    queryKey: ['source-files', caseId],
+    queryFn: async () =>
+      z
+        .array(z.object({ uploadedFileId: z.number(), originalName: z.string() }))
+        .parse(await requestJson(`/api/business-cases/${caseId}/uploaded-files`)),
+  });
   const check = useMutation({
-    mutationFn: async () =>
-      resultSchema.parse(
-        await requestJson(
-          `/api/security-requests/${encodeURIComponent(requestId)}/consistency-checks`,
-          { method: 'POST' },
-        ),
-      ),
+    mutationFn: async () => {
+      const ids = selected.length ? selected : (files.data?.map((f) => f.uploadedFileId) ?? []);
+      if (!ids.length) throw new Error('검사할 문서를 첨부해 주세요.');
+      let result: z.infer<typeof resultSchema> | undefined;
+      for (const [index, fileId] of ids.entries()) {
+        setProgress(`${index + 1}/${ids.length} 문서 검사 중`);
+        result = resultSchema.parse(
+          await requestJson(
+            `/api/security-requests/${encodeURIComponent(requestId)}/consistency-checks`,
+            { method: 'POST', body: { fileIds: [fileId] } },
+          ),
+        );
+        await client.invalidateQueries({ queryKey: ['consistency-history', requestId] });
+      }
+      setProgress('선택 문서 검사 완료');
+      return result!;
+    },
   });
   return (
     <section className="sub-block" aria-label="문서와 답변 간 모순 확인">
       <h3>문서와 답변 간 모순 확인</h3>
       <p className="help">
-        현재 저장된 답변과 최근 첨부 문서 3개의 추출문(각 최대 20,000자)을 AI로 비교합니다. 저장하지
-        않은 입력과 서버 구성표·최종 보고서 본문은 검사 대상에 포함되지 않습니다.
+        저장 답변·서버 구성표·최종 초안과 선택 문서를 하나씩 비교해 검사 기록을 남깁니다. 선택하지
+        않으면 전체 첨부를 검사합니다. 각 문서의 추출문 최대 20,000자를 비교하며 잘린 범위는 별도
+        표시합니다. 저장하지 않은 입력은 제외됩니다.
       </p>
+      <fieldset disabled={check.isPending}>
+        <legend>검사할 문서 선택</legend>
+        {files.data?.map((file) => (
+          <label key={file.uploadedFileId}>
+            <input
+              type="checkbox"
+              checked={selected.includes(file.uploadedFileId)}
+              onChange={(e) =>
+                setSelected(
+                  e.target.checked
+                    ? [...selected, file.uploadedFileId]
+                    : selected.filter((id) => id !== file.uploadedFileId),
+                )
+              }
+            />
+            {file.originalName}
+          </label>
+        ))}
+      </fieldset>
+      {files.error && <Notice tone="danger">{files.error.message}</Notice>}
+      {progress && <p role="status">{progress}</p>}
       <p className="help">
         원문도 최신 사실과 다를 수 있습니다. 결과는 확인이 필요한 후보이며 답변이나 제출 상태를 자동
         변경하지 않습니다.
@@ -113,6 +157,7 @@ export function ConsistencyCheck({ requestId, caseId }: { requestId: string; cas
           )}
         </div>
       )}
+      <ConsistencyHistory requestId={requestId} caseId={caseId} />
     </section>
   );
 }

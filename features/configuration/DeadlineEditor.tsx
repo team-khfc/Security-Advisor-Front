@@ -19,11 +19,12 @@ export function DeadlineEditor({
     reviewBusinessDays: '분야별 협의 기한',
     supplementBusinessDays: '보완 응답 기한',
     finalConfirmationBusinessDays: '최종 확정 기한',
+    imminentBusinessDays: '기한 임박 알림 시점',
   };
   return (
     <div className="card">
       <h2 className="h-panel">처리 기한과 기관 공휴일</h2>
-      <p>주말과 아래 휴일을 제외한 영업일로 계산합니다. 기한 임박 알림은 1영업일 전입니다.</p>
+      <p>주말과 아래 휴일을 제외한 영업일로 계산합니다. 알림 시점은 기한의 1~30영업일 전입니다.</p>
       <div className="configuration-deadlines">
         {Object.entries(labels).map(([key, label]) => (
           <Field key={key} label={`${label} (영업일)`} htmlFor={key}>
@@ -32,7 +33,7 @@ export function DeadlineEditor({
               id={key}
               type="number"
               min={1}
-              max={365}
+              max={key === 'imminentBusinessDays' ? 30 : 365}
               step={1}
               value={policy[key as keyof typeof labels] || ''}
               onChange={(event) => update({ [key]: Number(event.target.value) })}
