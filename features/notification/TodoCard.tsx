@@ -6,6 +6,11 @@ import { DOCUMENT_LABELS, type DocumentType } from '@/features/request/types';
 import type { TodoEntry } from './useActivity';
 
 const actions: Record<string, [string, string]> = {
+  PREPARATION_REVIEW: ['준비자료 검토', '첨부·보완되었거나 사업 조건이 바뀐 자료를 확인해 주세요.'],
+  PREPARATION_SUPPLEMENT: [
+    '준비자료 보완',
+    '담당자의 보완 사유를 확인하고 수정한 자료를 다시 첨부해 주세요.',
+  ],
   REVIEW: [
     '담당자 협의',
     '신청 내용과 서버·네트워크 구성을 검토하고 담당 분야 협의를 진행해 주세요.',
@@ -80,6 +85,7 @@ export function TodoCard({ item, onOpen }: { item: TodoEntry; onOpen?: () => voi
         </dl>
       )}
       <p className="todo-action-description">{description}</p>
+      {item.kind.startsWith('PREPARATION_') && <p>{item.title}</p>}
       <div className="doc-actions">
         <Link className="btn btn-primary" href={item.link} onClick={onOpen}>
           {action}하러 가기

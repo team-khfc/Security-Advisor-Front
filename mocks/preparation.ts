@@ -87,6 +87,21 @@ export class MockPreparation {
       }),
     };
   }
+  finalReview(request: SecurityRequest, actor: Actor, name: (id: number) => string, at: string) {
+    const current = this.get(request, actor);
+    return {
+      format: 1,
+      revision: current.revision,
+      fingerprint: current.fingerprint,
+      capturedAt: at,
+      extraConditions: current.extraConditions,
+      items: current.items.map((i) => ({
+        ...i,
+        reviewedAt: i.at,
+        files: i.fileIds.map((fileId) => ({ fileId, name: name(fileId), uploadedAt: at })),
+      })),
+    };
+  }
   update(
     request: SecurityRequest,
     actor: Actor,

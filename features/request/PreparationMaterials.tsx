@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Notice } from '@/components/ui';
@@ -51,6 +51,14 @@ const labels = {
 /** 사업 조건의 확인 여부와 자료의 검토 상태를 구분하고 서버가 허용한 동작만 제공한다. */
 export function PreparationMaterials({ requestId, caseId }: { requestId: string; caseId: string }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const reveal = () => {
+      if (window.location.hash === '#preparation-materials') setOpen(true);
+    };
+    reveal();
+    window.addEventListener('hashchange', reveal);
+    return () => window.removeEventListener('hashchange', reveal);
+  }, []);
   const [file, setFile] = useState<File>();
   const fileInput = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
@@ -87,6 +95,8 @@ export function PreparationMaterials({ requestId, caseId }: { requestId: string;
       queryClient.setQueryData(['preparation-materials', requestId], result);
       setMessage('준비자료 변경을 저장했습니다.');
       void queryClient.invalidateQueries({ queryKey: ['audit'] });
+      void queryClient.invalidateQueries({ queryKey: ['preparation-final-review', requestId] });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
     },
   });
   const upload = useMutation({
@@ -109,7 +119,12 @@ export function PreparationMaterials({ requestId, caseId }: { requestId: string;
     change.mutate(command);
   };
   return (
-    <details className="card" onToggle={(e) => setOpen(e.currentTarget.open)}>
+    <details
+      id="preparation-materials"
+      className="card"
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
       <summary>사업 조건별 준비자료 · 첨부 및 검토 상태</summary>
       <p className="help">
         저장·확인된 사업 답변에 따라 준비자료를 추천합니다. 조건 미확인은 미해당과 다릅니다. 법적

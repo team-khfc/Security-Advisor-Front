@@ -2,8 +2,8 @@
 
 기준일: 2026-11-12
 
-- Back 커밋: `dfbd82e4270bbfb5d4bcaed8e915cfb3d9c389f3` (사업 조건별 준비자료 상태 관리, 백엔드 동반 배포 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/dfbd82e4270bbfb5d4bcaed8e915cfb3d9c389f3/docs/api/openapi.yaml
+- Back 커밋: `ba9ae4d763abf28cbdc70cca45a1a44e6d771e24` (준비자료 최종 검토·제출 기록·처리할 일 확장, 백엔드 선행 배포 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/ba9ae4d763abf28cbdc70cca45a1a44e6d771e24/docs/api/openapi.yaml
 - 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useSession } from '@/features/auth';
 import { requestJson } from '@/lib/httpClient';
 
-const link = z.string().regex(/^\/requests\/\d+$/);
+const link = z.string().regex(/^\/requests\/\d+(?:#preparation-materials)?$/);
 export const notificationSchema = z.object({
   notificationId: z.number().int(),
   kind: z.string(),
