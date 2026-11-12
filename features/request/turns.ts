@@ -3,8 +3,9 @@ import { pendingReviews, reviewFields } from './readiness';
 
 /** 종료 기록은 바꾸지 않고 진행 중 신청의 분야별 인계 필요 사유를 모은다. */
 export function handoffFields(request: SecurityRequest) {
-  if (request.stage < 2 || ['FINALIZED', 'CLOSED', 'WITHDRAWN'].includes(request.status)) return [];
+  if (request.stage < 2 || ['CLOSED', 'WITHDRAWN'].includes(request.status)) return [];
   if (request.listOverview) return request.listOverview.fields.filter((f) => f.reassignmentReason);
+  if (request.status === 'FINALIZED') return [];
   return reviewFields(request)
     .map((field) => {
       const assignment = request.assignments.find((a) => a.active && a.field === field);

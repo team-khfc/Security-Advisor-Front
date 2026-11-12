@@ -12,11 +12,22 @@ import {
   Notice,
   PageHeading,
 } from '@/components/ui';
-import { ruleStatusLabels, policyActionLabels, type FirewallRule } from './types';
+import {
+  reviewStatusLabels,
+  ruleStatusLabels,
+  policyActionLabels,
+  type FirewallRule,
+} from './types';
 import { usePolicies } from './usePolicies';
 import { RuleDialog } from './RuleDialog';
 
-const filters = ['전체', '적용 대기', '만료 예정·만료', '회수·적용 불가'] as const;
+const filters = [
+  '전체',
+  '정기 재검토·후속 조치',
+  '적용 대기',
+  '만료 예정·만료',
+  '회수·적용 불가',
+] as const;
 
 /** 확정 규칙을 조회하고 사람의 처리 기록·별도 연장 신청을 연결한다. */
 export function PolicyLifecycle() {
@@ -37,6 +48,8 @@ export function PolicyLifecycle() {
   const visible = data.filter(
     (r) =>
       filter === '전체' ||
+      (filter === '정기 재검토·후속 조치' &&
+        ['DUE', 'OVERDUE', 'CHANGE_REQUIRED', 'REVOKE_REQUIRED'].includes(r.reviewStatus ?? '')) ||
       (filter === '적용 대기' && r.status === 'PENDING_APPLY') ||
       (filter === '만료 예정·만료' && ['EXPIRING', 'EXPIRED'].includes(r.effectiveStatus)) ||
       (filter === '회수·적용 불가' && ['REVOKED', 'NOT_APPLICABLE'].includes(r.status)),
@@ -190,7 +203,12 @@ export function PolicyLifecycle() {
                         <td>
                           {rule.startDate}
                           <br />~ {rule.endDate ?? '종료일 없음'}
-                          {rule.reviewDate && <div className="meta">재검토 {rule.reviewDate}</div>}
+                          {rule.reviewDate && (
+                            <div className="meta">
+                              재검토 {rule.reviewDate} ·{' '}
+                              {reviewStatusLabels[rule.reviewStatus ?? 'SCHEDULED']}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <Badge

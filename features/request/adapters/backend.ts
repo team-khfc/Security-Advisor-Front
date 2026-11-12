@@ -105,6 +105,7 @@ export function adaptCase(value: z.infer<typeof caseDto>, publication: Publicati
 
 /** 버튼 노출 후보만 정한다. 전이 허용 여부와 오류 사유는 행위 API가 판단한다. */
 export function actionCandidates(stage: number, status: string, role?: Role): string[] {
+  if (status === 'CONFIRMED' && role === 'ADMIN') return ['DOWNLOAD', 'REASSIGN'];
   if (['CONFIRMED', 'CLOSED', 'WITHDRAWN'].includes(status)) return ['DOWNLOAD'];
   if (role === 'APPLICANT')
     return [

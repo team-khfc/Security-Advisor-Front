@@ -45,6 +45,13 @@ export function usePolicyMutation() {
       end: string;
     }) => {
       const path = `/api/firewall-rules/${rule.firewallRuleId}`;
+      if (['KEEP', 'CHANGE_REQUIRED', 'REVOKE_REQUIRED'].includes(action)) {
+        await requestJson(`${path}/periodic-reviews`, {
+          method: 'POST',
+          body: { decision: action, reason: text.trim(), expectedRevision: rule.revision },
+        });
+        return null;
+      }
       if (action === 'RENEW') {
         const result = await requestJson(`${path}/renewal-requests`, {
           method: 'POST',

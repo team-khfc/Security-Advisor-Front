@@ -22,6 +22,7 @@ export const questionSchema = z.object({
   hint: z.string().nullable(),
 });
 export const settingsSchema = z.object({
+  firewallPolicy: z.object({ reviewMonths: z.number(), reviewNoticeDays: z.number() }).optional(),
   deadlinePolicy: z.object({
     reviewBusinessDays: z.number(),
     supplementBusinessDays: z.number(),
@@ -115,6 +116,16 @@ export function validateSettings(
   existingKeys: string[] = [],
 ): string[] {
   const errors: string[] = [];
+  const firewall = draft.firewallPolicy ?? { reviewMonths: 12, reviewNoticeDays: 30 };
+  if (
+    !Number.isInteger(firewall.reviewMonths) ||
+    firewall.reviewMonths < 1 ||
+    firewall.reviewMonths > 60 ||
+    !Number.isInteger(firewall.reviewNoticeDays) ||
+    firewall.reviewNoticeDays < 1 ||
+    firewall.reviewNoticeDays > 90
+  )
+    errors.push('방화벽 재검토 주기는 1~60개월, 알림은 1~90일 전으로 설정해 주세요.');
   if (!draft.docTypes.some((d) => d.active)) errors.push('활성 서류 유형이 하나 이상 필요합니다.');
   for (const doc of draft.docTypes) {
     if (!doc.name.trim() || doc.name.length > 200 || (doc.description?.length ?? 0) > 2000)

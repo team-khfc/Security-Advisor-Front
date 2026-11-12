@@ -5,6 +5,7 @@ import type { Actor } from '@/lib/types';
 import { DomainError } from '@/lib/problem';
 import { ContractMapper } from './contractMapper';
 import { makeRequest } from './seed';
+import type { Settings } from '@/features/configuration/types';
 
 function fail(status: number, detail: string): never {
   throw new DomainError(status, `POLICY_${status}`, detail);
@@ -17,13 +18,13 @@ function period(value: string) {
     new Date(date).toISOString().slice(0, 10) === date;
   if (!valid(start) || (end && !valid(end)) || (end && end < start))
     fail(422, '사용 기간을 확인해 주세요.');
-  return { start, end: end || null };
+  return { start, end: end === '9999-12-31' ? null : end || null };
 }
 
 /** 합성 모드에서도 확정 제출본 값·역할·사유·revision·별도 연장 신청을 보존한다. */
 export class MockPolicies {
   private rules = new Map<number, FirewallRule>();
-  private sync(state: MockState, wire: ContractMapper) {
+  private sync(state: MockState, wire: ContractMapper, policyFor?: (version: number) => Settings) {
     for (const request of state.requests.filter(
       (r) => r.status === 'FINALIZED' && r.docType === 'FIREWALL',
     )) {
@@ -39,6 +40,18 @@ export class MockPolicies {
       const value = (modern: string, legacy: string) =>
         values.get(modern) || values.get(legacy) || '';
       const range = period(value('firewall.period', 'period'));
+      const policy = policyFor?.(request.publicationVersion).firewallPolicy ?? {
+        reviewMonths: 12,
+        reviewNoticeDays: 30,
+      };
+      const review = new Date(range.start + 'T12:00:00Z');
+      const day = review.getUTCDate();
+      review.setUTCDate(1);
+      review.setUTCMonth(review.getUTCMonth() + policy.reviewMonths);
+      const last = new Date(
+        Date.UTC(review.getUTCFullYear(), review.getUTCMonth() + 1, 0),
+      ).getUTCDate();
+      review.setUTCDate(Math.min(day, last));
       const ports = value('firewall.port', 'port')
         .split(',')
         .map((p) => p.trim())
@@ -56,9 +69,11 @@ export class MockPolicies {
           port,
           startDate: range.start,
           endDate: range.end,
-          reviewDate: range.end
-            ? null
-            : `${Number(range.start.slice(0, 4)) + 1}${range.start.slice(4)}`,
+          reviewDate: range.end ? null : review.toISOString().slice(0, 10),
+          reviewMonths: policy.reviewMonths,
+          reviewNoticeDays: policy.reviewNoticeDays,
+          reviewHistory: [],
+          reviewStatus: 'NOT_REQUIRED',
           status: 'PENDING_APPLY',
           effectiveStatus: 'PENDING_APPLY',
           appliedBy: null,
@@ -73,6 +88,9 @@ export class MockPolicies {
   }
   private view(rule: FirewallRule, now: number) {
     const today = new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const reviewSoon = new Date(now + 9 * 60 * 60 * 1000 + (rule.reviewNoticeDays ?? 30) * 86400000)
+      .toISOString()
+      .slice(0, 10);
     const soon = new Date(now + 9 * 60 * 60 * 1000 + 30 * 86400000).toISOString().slice(0, 10);
     const effective =
       rule.status === 'APPLIED' && rule.endDate
@@ -84,6 +102,18 @@ export class MockPolicies {
         : rule.status;
     return {
       ...rule,
+      reviewStatus:
+        rule.status !== 'APPLIED' || rule.endDate
+          ? 'NOT_REQUIRED'
+          : ['CHANGE_REQUIRED', 'REVOKE_REQUIRED'].includes(
+                rule.reviewHistory?.at(-1)?.decision ?? '',
+              )
+            ? rule.reviewHistory!.at(-1)!.decision
+            : rule.reviewDate! < today
+              ? 'OVERDUE'
+              : rule.reviewDate! <= reviewSoon
+                ? 'DUE'
+                : 'SCHEDULED',
       effectiveStatus: effective,
       statusLabel: ruleStatusLabels[rule.status],
       effectiveStatusLabel: ruleStatusLabels[effective],
@@ -98,8 +128,9 @@ export class MockPolicies {
     method: string,
     body: unknown,
     now: number,
+    policyFor?: (version: number) => Settings,
   ): Response {
-    this.sync(state, wire);
+    this.sync(state, wire, policyFor);
     const parts = url.pathname.split('/');
     const forRequest = parts[2] === 'security-requests';
     const id = Number(parts[3]);
@@ -196,6 +227,51 @@ export class MockPolicies {
       );
     }
     if (actor.role !== 'INFRA') fail(403, 'ICT인프라 담당자만 처리 결과를 기록할 수 있습니다.');
+    if (sub === 'periodic-reviews' && method === 'POST') {
+      if (
+        !original.assignments.some(
+          (a) => a.active && a.field === 'INFRA' && a.assigneeId === actor.id,
+        )
+      )
+        fail(404, '규칙을 찾을 수 없습니다.');
+      const command = z
+        .object({
+          expectedRevision: z.number().int().nonnegative(),
+          decision: z.enum(['KEEP', 'CHANGE_REQUIRED', 'REVOKE_REQUIRED']),
+          reason: z.string().trim().min(1).max(2000),
+        })
+        .parse(body);
+      if (command.expectedRevision !== rule.revision)
+        fail(409, '규칙이 변경되었습니다. 최신 상태를 확인해 주세요.');
+      if (rule.status !== 'APPLIED' || rule.endDate)
+        fail(422, '적용 중인 상시 규칙만 재검토할 수 있습니다.');
+      const previous = rule.reviewDate!;
+      if (command.decision === 'KEEP') {
+        const date = new Date(now + 9 * 3600000);
+        const day = date.getUTCDate();
+        date.setUTCDate(1);
+        date.setUTCMonth(date.getUTCMonth() + (rule.reviewMonths ?? 12));
+        const last = new Date(
+          Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+        ).getUTCDate();
+        date.setUTCDate(Math.min(day, last));
+        rule.reviewDate = date.toISOString().slice(0, 10);
+      }
+      rule.reviewHistory = [
+        ...(rule.reviewHistory ?? []),
+        {
+          decision: command.decision,
+          reason: command.reason,
+          reviewedBy: actor.username,
+          reviewedAt: at,
+          previousReviewDate: previous,
+          nextReviewDate: rule.reviewDate!,
+        },
+      ];
+      rule.revision++;
+      audit('FIREWALL_RULE_REVIEWED', command.reason);
+      return Response.json(this.view(rule, now), { status: 201 });
+    }
     if (method !== 'PUT' || !['application', 'revocation'].includes(sub))
       fail(404, '처리 경로를 찾을 수 없습니다.');
     const command = z

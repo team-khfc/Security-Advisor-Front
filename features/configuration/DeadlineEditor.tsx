@@ -13,6 +13,7 @@ export function DeadlineEditor({
   const [holiday, setHoliday] = useState('');
   const [error, setError] = useState('');
   const policy = draft.deadlinePolicy;
+  const firewall = draft.firewallPolicy ?? { reviewMonths: 12, reviewNoticeDays: 30 };
   const update = (next: Partial<Settings['deadlinePolicy']>) =>
     onChange({ ...draft, deadlinePolicy: { ...policy, ...next } });
   const labels = {
@@ -40,6 +41,47 @@ export function DeadlineEditor({
             />
           </Field>
         ))}
+      </div>
+      <h3 className="h-sub">상시 방화벽 규칙 정기 재검토</h3>
+      <p className="help">
+        규칙 생성 시 사업의 게시본 정책을 고정합니다. 기존 규칙의 재검토일과 주기는 바뀌지 않습니다.
+        알림은 영업일이 아닌 달력일 기준이며 담당자가 유지·변경 필요·회수 필요를 기록합니다.
+      </p>
+      <div className="configuration-deadlines">
+        <Field label="재검토 주기 (개월)" htmlFor="firewall-review-months">
+          <input
+            className="input"
+            id="firewall-review-months"
+            type="number"
+            min={1}
+            max={60}
+            step={1}
+            value={firewall.reviewMonths || ''}
+            onChange={(e) =>
+              onChange({
+                ...draft,
+                firewallPolicy: { ...firewall, reviewMonths: Number(e.target.value) },
+              })
+            }
+          />
+        </Field>
+        <Field label="재검토 알림 (달력일 전)" htmlFor="firewall-review-notice">
+          <input
+            className="input"
+            id="firewall-review-notice"
+            type="number"
+            min={1}
+            max={90}
+            step={1}
+            value={firewall.reviewNoticeDays || ''}
+            onChange={(e) =>
+              onChange({
+                ...draft,
+                firewallPolicy: { ...firewall, reviewNoticeDays: Number(e.target.value) },
+              })
+            }
+          />
+        </Field>
       </div>
       <Field label="기관 공휴일 추가" htmlFor="configuration-holiday" error={error}>
         <div className="btn-row">
