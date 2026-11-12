@@ -235,3 +235,53 @@ test('진행 중 연장이 있으면 새 신청 대신 기존 신청 링크를 �
   );
   expect(dialog.queryByRole('button', { name: '연장 신청' })).toBeNull();
 });
+
+test.each(['KEEP', 'CHANGE_REQUIRED', 'REVOKE_REQUIRED'] as const)(
+  '정기 재검토 %s는 사유·확인 후 별도 이력으로 저장한다',
+  async (decision) => {
+    rule = {
+      ...rule,
+      status: 'APPLIED',
+      effectiveStatus: 'APPLIED',
+      endDate: null,
+      reviewDate: '2026-01-01',
+      reviewStatus: 'OVERDUE',
+      reviewMonths: 6,
+      reviewNoticeDays: 14,
+      reviewHistory: [],
+    };
+    const user = mount();
+    const dialog = await open(user);
+    const labels = {
+      KEEP: '재검토 · 계속 유지',
+      CHANGE_REQUIRED: '재검토 · 변경 필요',
+      REVOKE_REQUIRED: '재검토 · 회수 필요',
+    };
+    await user.click(dialog.getByRole('button', { name: labels[decision] }));
+    await user.click(dialog.getByRole('checkbox'));
+    await user.type(dialog.getByRole('textbox'), '합성 정기 검토 사유');
+    await user.click(dialog.getByRole('button', { name: '기록 저장' }));
+    await waitFor(() =>
+      expect(api).toHaveBeenCalledWith('/api/firewall-rules/1/periodic-reviews', {
+        method: 'POST',
+        body: { decision, reason: '합성 정기 검토 사유', expectedRevision: 0 },
+      }),
+    );
+  },
+);
+
+test.each(['SECURITY', 'APPLICANT', 'ADMIN'])(
+  '%s는 상시 규칙의 재검토 판단 버튼이 없다',
+  async (role) => {
+    context.role = role;
+    rule = {
+      ...rule,
+      status: 'APPLIED',
+      effectiveStatus: 'APPLIED',
+      endDate: null,
+      reviewDate: '2026-01-01',
+    };
+    const dialog = await open(mount());
+    expect(dialog.queryByRole('button', { name: '재검토 · 계속 유지' })).toBeNull();
+  },
+);

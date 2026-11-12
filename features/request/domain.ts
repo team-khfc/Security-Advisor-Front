@@ -401,6 +401,8 @@ export function submissionBlockers(request: SecurityRequest): string[] {
 
 function allowedActions(request: SecurityRequest, actor: Actor): string[] {
   const actions = ['DOWNLOAD'];
+  if (request.status === 'FINALIZED' && request.docType === 'FIREWALL' && actor.role === 'ADMIN')
+    return [...actions, 'REASSIGN'];
   if (isTerminal(request)) return actions;
   if (isOwner(request, actor)) {
     actions.push('WITHDRAW');
@@ -506,7 +508,11 @@ function authorizeCommand(request: SecurityRequest, actor: Actor, input: Command
     requirePermission(input.field === actor.role, '다른 분야의 검토를 수행할 수 없습니다.');
   }
   requireRule(
-    !isTerminal(request),
+    !isTerminal(request) ||
+      (request.status === 'FINALIZED' &&
+        request.docType === 'FIREWALL' &&
+        input.action === 'REASSIGN' &&
+        input.field === 'INFRA'),
     'TERMINAL_REQUEST',
     '확정·종결·철회된 신청은 변경할 수 없습니다.',
   );

@@ -8,6 +8,7 @@ import {
   canRecord,
   policyActionLabels,
   ruleStatusLabels,
+  reviewStatusLabels,
   type FirewallRule,
   type PolicyAction,
 } from './types';
@@ -45,7 +46,7 @@ export function RuleDialog({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!action || !allowed || mutation.isPending || !checked || conflict) return;
-    if ((action === 'REVOKED' || action === 'NOT_APPLICABLE') && !text.trim()) {
+    if (!['APPLIED', 'RENEW'].includes(action) && !text.trim()) {
       setLocalError('사유를 입력해 주세요.');
       return;
     }
@@ -91,10 +92,36 @@ export function RuleDialog({
           {rule.reviewDate && (
             <>
               <dt>정기 재검토일</dt>
-              <dd>{rule.reviewDate}</dd>
+              <dd>
+                {rule.reviewDate} · {reviewStatusLabels[rule.reviewStatus ?? 'SCHEDULED']} ·{' '}
+                {rule.reviewMonths ?? 12}개월 주기
+              </dd>
             </>
           )}
         </dl>
+        {rule.reviewDate && (
+          <section aria-label="정기 재검토 이력">
+            <h3 className="h-sub">정기 재검토 이력</h3>
+            <p className="help">
+              계속 유지하면 오늘부터 다음 주기를 계산합니다. 변경 필요는 새 신청·협의 후 기존 규칙을
+              회수하거나 재검토로 해소하고, 회수 필요는 실제 조치 후 회수 결과를 기록해 주세요.
+              제출본과 장비는 자동 변경되지 않습니다.
+            </p>
+            {!rule.reviewHistory?.length && <p>아직 정기 재검토 기록이 없습니다.</p>}
+            <ul className="doclist">
+              {rule.reviewHistory?.map((entry, index) => (
+                <li key={index}>
+                  <strong>{policyActionLabels[entry.decision]}</strong> · {entry.reviewedBy} ·{' '}
+                  {new Date(entry.reviewedAt).toLocaleString('ko-KR')}
+                  <p>{entry.reason}</p>
+                  <p>
+                    검토일: {entry.previousReviewDate} → 다음 검토일: {entry.nextReviewDate}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <section aria-label="저장된 처리 기록">
           <h3 className="h-sub">저장된 처리 기록</h3>
           {rule.appliedAt ? (
@@ -209,7 +236,7 @@ export function RuleDialog({
                 className="input"
                 rows={3}
                 maxLength={action === 'RENEW' ? 1000 : 2000}
-                required={action === 'REVOKED' || action === 'NOT_APPLICABLE'}
+                required={!['APPLIED', 'RENEW'].includes(action)}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
               />

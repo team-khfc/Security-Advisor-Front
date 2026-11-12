@@ -1517,6 +1517,7 @@ async function dispatchContract(
       method,
       method === 'GET' ? undefined : await bodyJson(request),
       now,
+      (version) => runtime.configurations.publication(version).fieldSchema,
     );
   }
   if (resource === 'inquiries' || (resource === 'security-requests' && sub === 'inquiries')) {

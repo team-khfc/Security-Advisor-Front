@@ -1,9 +1,9 @@
 # Back API 계약 동기화
 
-기준일: 2026-11-12
+기준일: 2026-11-13
 
-- Back 커밋: `fa594aecbe59055b777ac49b3f12618c499a950a` (모순 처리·재협의·DOCX·스캔 및 기관 출력 정책 확장, 백엔드 선행 배포 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/fa594aecbe59055b777ac49b3f12618c499a950a/docs/api/openapi.yaml
+- Back 커밋: `2f38a75d1d82bd126b07713173cc9ca6b48ee020` (기한 정책 일치·방화벽 정기 재검토·업무 인계, 백엔드 선행 배포 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/2f38a75d1d82bd126b07713173cc9ca6b48ee020/docs/api/openapi.yaml
 - 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24

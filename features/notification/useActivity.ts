@@ -29,7 +29,7 @@ const todoSchema = z.object({
     })
     .nullish(),
   title: z.string(),
-  link,
+  link: z.string().regex(/^(?:\/requests\/\d+(?:#preparation-materials)?|\/policies)$/),
 });
 const pageSchema = <T extends z.ZodType>(item: T) =>
   z.object({

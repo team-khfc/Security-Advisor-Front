@@ -91,6 +91,7 @@ const actionLabels: Record<string, string> = {
   FINAL_CONFIRMED: '제출본 최종 확인',
   FINAL_CONFIRMATION_CREATED: '제출본 최종 확인',
   FINALIZED: '서류 확정',
+  FIREWALL_RULE_REVIEWED: '방화벽 정기 재검토',
   FIREWALL_RULES_CREATED: '확정 방화벽 규칙 생성',
   FIREWALL_RULE_APPLIED: '방화벽 규칙 적용 완료 기록',
   FIREWALL_RULE_NOT_APPLICABLE: '방화벽 규칙 적용 불가 기록',

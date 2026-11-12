@@ -1210,6 +1210,7 @@ function CommandForm({
           }}
           onAssignee={setAssigneeId}
           ownerId={request.ownerId}
+          infraOnly={request.status === 'FINALIZED'}
         />
       )}
       {reasonRequired && (
@@ -1247,6 +1248,7 @@ function CommandForm({
 }
 
 function AssigneeSelector({
+  infraOnly = false,
   field,
   assigneeId,
   onField,
@@ -1258,6 +1260,7 @@ function AssigneeSelector({
   onField: (value: ReviewField) => void;
   onAssignee: (value: string) => void;
   ownerId: string;
+  infraOnly?: boolean;
 }) {
   const query = useMembers();
   const pools = useReviewerPools();
@@ -1278,7 +1281,7 @@ function AssigneeSelector({
           }}
         >
           <option value="INFRA">ICT인프라</option>
-          <option value="SECURITY">정보보안</option>
+          {!infraOnly && <option value="SECURITY">정보보안</option>}
         </select>
       </div>
       <div className="field">
@@ -1314,6 +1317,12 @@ function AssigneeSelector({
             void pools.refetch();
           }}
         />
+      )}
+      {infraOnly && (
+        <p className="help">
+          확정 이후에는 운영 중인 방화벽 규칙의 ICT인프라 담당자만 인계할 수 있습니다. 기존 제출본과
+          검토 이력은 유지됩니다.
+        </p>
       )}
       <p className="help">
         해당 분야에 등록된 활성 담당자만 선택할 수 있습니다.{' '}

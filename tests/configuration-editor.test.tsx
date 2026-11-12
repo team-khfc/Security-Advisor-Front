@@ -166,3 +166,28 @@ test('새 질문에 중복 키를 입력해도 키 입력이 잠기지 않고 �
   await screen.findByText(/설정 초안을 저장했습니다/);
   expect(api.current(admin).draft.fields.at(-1)?.key).toBe('custom.qa_note');
 });
+
+test('상시 규칙 주기를 편집·비교·게시하며 기존 게시본을 유지한다', async () => {
+  const user = userEvent.setup();
+  render(<ConfigurationPage />);
+  await screen.findByLabelText('질문 문구');
+  await user.click(screen.getByRole('tab', { name: '처리 기한·공휴일' }));
+  const months = screen.getByLabelText('재검토 주기 (개월)'),
+    days = screen.getByLabelText('재검토 알림 (달력일 전)');
+  await user.clear(months);
+  await user.type(months, '6');
+  await user.clear(days);
+  await user.type(days, '14');
+  await user.click(screen.getByRole('button', { name: '설정 초안 저장' }));
+  await screen.findByText(/설정 초안을 저장했습니다/);
+  await user.click(screen.getByRole('button', { name: '변경 검토·게시' }));
+  const dialog = await screen.findByRole('dialog', { name: '변경 검토·게시' });
+  expect(within(dialog).getByText('상시 방화벽 재검토 주기(개월)')).toBeTruthy();
+  await user.click(within(dialog).getByRole('button', { name: 'v2 게시' }));
+  await screen.findByText(/게시본 v2을 게시했습니다/);
+  expect(api.publication(2).fieldSchema.firewallPolicy).toEqual({
+    reviewMonths: 6,
+    reviewNoticeDays: 14,
+  });
+  expect(api.publication(1).fieldSchema.firewallPolicy).toBeUndefined();
+});

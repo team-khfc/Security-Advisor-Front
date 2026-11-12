@@ -279,6 +279,16 @@ function compareSchemas(before: Settings, after: Settings): Comparison['changes'
       before.deadlinePolicy[key],
       after.deadlinePolicy[key],
     );
+  for (const [key, label] of [
+    ['reviewMonths', '상시 방화벽 재검토 주기(개월)'],
+    ['reviewNoticeDays', '방화벽 재검토 알림(달력일 전)'],
+  ] as const)
+    add(
+      `firewallPolicy.${key}`,
+      label,
+      before.firewallPolicy?.[key] ?? (key === 'reviewMonths' ? 12 : 30),
+      after.firewallPolicy?.[key] ?? (key === 'reviewMonths' ? 12 : 30),
+    );
   for (const field of before.fields)
     if (!after.fields.some((value) => value.key === field.key))
       add(`fields.${field.key}`, '질문 삭제', field.label, null, true);
