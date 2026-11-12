@@ -8,6 +8,7 @@ import {
 import { networkValueValid } from '@/features/request/networkAnswerFormat';
 import { mockRequestListing, mockAuditListing } from './listing';
 import { ContractMapper } from './contractMapper';
+import { MockPreparation } from './preparation';
 import { MockPolicies } from './policies';
 import { MockInquiries } from './inquiries';
 import { MockReviewerPools } from './reviewerPools';
@@ -83,6 +84,7 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 interface MockRuntime {
+  preparation: MockPreparation;
   llmConfigurations: MockLlmConfigurations;
   knowledge: MockKnowledge;
   configurations: MockConfigurations;
@@ -224,6 +226,7 @@ async function initialize(options: MockApiOptions): Promise<MockRuntime> {
   const configurations = new MockConfigurations(state);
   return {
     state,
+    preparation: new MockPreparation(),
     configurations,
     llmConfigurations: new MockLlmConfigurations(state),
     knowledge: new MockKnowledge(state, () =>
@@ -1226,6 +1229,40 @@ async function dispatchContract(
     (resource === 'members' && method === 'POST' && !numericId)
       ? undefined
       : sessionMember(runtime, request, now);
+  if (resource === 'business-cases' && sub === 'uploaded-files' && method === 'GET') {
+    getCase(runtime, id, actor!);
+    return json(
+      [...uploads.entries()]
+        .filter(([, u]) => u.caseId === id)
+        .map(([fileId, u]) => ({ uploadedFileId: Number(fileId), originalName: u.file.name })),
+    );
+  }
+  if (resource === 'security-requests' && sub === 'preparation-materials') {
+    const visible = getRequest(runtime, id, actor!);
+    if (fieldKey === 'files' && method === 'POST') {
+      const current = runtime.preparation.get(visible, actor!);
+      if (!current.items.some((i) => i.canAttach))
+        fail(403, 'FORBIDDEN', '업로드 권한이 없습니다.');
+      const form = await request.formData(),
+        file = form.get('file');
+      if (!(file instanceof File)) fail(400, 'FILE_REQUIRED', '파일을 선택해 주세요.');
+      await validateFile(file);
+      const fileId = String(wire.id(crypto.randomUUID()));
+      uploads.set(fileId, { caseId: visible.caseId, file });
+      return json({ uploadedFileId: Number(fileId), originalName: file.name }, 201);
+    }
+    if (method === 'GET') return json(runtime.preparation.get(visible, actor!));
+    if (method === 'PUT')
+      return json(
+        runtime.preparation.update(
+          visible,
+          actor!,
+          await bodyJson(request),
+          (fileId) => uploads.get(String(fileId))?.caseId === visible.caseId,
+          new Date(now).toISOString(),
+        ),
+      );
+  }
   if (resource === 'security-requests' && sub === 'consultation-comparison' && method === 'GET') {
     const visible = getRequest(runtime, id, actor!);
     const current = Object.fromEntries(
