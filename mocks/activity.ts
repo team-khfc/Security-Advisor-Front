@@ -5,6 +5,7 @@ import { finalReviewReadiness } from '@/features/request/readiness';
 import { handoffFields } from '@/features/request/turns';
 import { DomainError } from '@/lib/problem';
 import type { ContractMapper } from './contractMapper';
+import type { MockPreparation } from './preparation';
 
 /** 모의 모드에서도 읽음 이력과 현재 역할·배정의 업무 목록을 분리한다. */
 export class MockActivity {
@@ -21,6 +22,41 @@ export class MockActivity {
   }[] = [];
   private events = new Set<string>();
   private nextId = 1;
+
+  preparationChanged(
+    request: SecurityRequest,
+    members: Actor[],
+    wire: ContractMapper,
+    result: ReturnType<MockPreparation['get']>,
+    action: { action: string; status?: string; key?: string },
+    at: string,
+  ) {
+    const supplement = action.action === 'REVIEW' && action.status === 'NEEDS_SUPPLEMENT';
+    if (!supplement && !['ATTACH', 'CONDITIONS'].includes(action.action)) return;
+    const fields = result.items
+      .filter(
+        (i) =>
+          i.fileIds.length &&
+          i.applicability !== 'NOT_APPLICABLE' &&
+          (action.action === 'CONDITIONS' || i.key === action.key),
+      )
+      .map((i) => i.reviewer);
+    for (const member of members) {
+      if (!this.allowed(member, request)) continue;
+      if (supplement ? member.role !== 'APPLICANT' : !fields.includes(member.role)) continue;
+      this.notices.push({
+        notificationId: this.nextId++,
+        recipient: member.id,
+        role: member.role,
+        requestId: request.id,
+        kind: supplement ? 'PREPARATION_SUPPLEMENT' : 'PREPARATION_REVIEW',
+        title: `신청 #${wire.id(request.id)} 준비자료 ${supplement ? '보완' : '검토'}가 필요합니다`,
+        link: `/requests/${wire.id(request.id)}`,
+        createdAt: at,
+        readAt: null,
+      });
+    }
+  }
 
   sync(state: MockState, members: Actor[], wire: ContractMapper) {
     for (const event of state.auditEvents) {
@@ -93,7 +129,7 @@ export class MockActivity {
     return n;
   }
 
-  todos(actor: Actor, state: MockState, wire: ContractMapper) {
+  todos(actor: Actor, state: MockState, wire: ContractMapper, preparation?: MockPreparation) {
     const items: {
       key: string;
       kind: string;
@@ -128,6 +164,20 @@ export class MockActivity {
     for (const r of state.requests) {
       if (!this.allowed(actor, r) || ['FINALIZED', 'CLOSED', 'WITHDRAWN'].includes(r.status))
         continue;
+      if (r.stage >= 2 && r.stage < 4 && actor.role !== 'ADMIN' && preparation) {
+        for (const item of preparation.get(r, actor).items) {
+          if (item.applicability === 'NOT_APPLICABLE') continue;
+          if (actor.role === 'APPLICANT' && item.status === 'NEEDS_SUPPLEMENT')
+            add(
+              r,
+              'PREPARATION_SUPPLEMENT',
+              `${item.label} · 준비자료 보완`,
+              `${r.id}:${item.key}`,
+            );
+          else if (item.canReview && item.status === 'IN_REVIEW' && item.fileIds.length)
+            add(r, 'PREPARATION_REVIEW', `${item.label} · 준비자료 검토`, `${r.id}:${item.key}`);
+        }
+      }
       if (actor.role === 'ADMIN') {
         if (handoffFields(r).length) add(r, 'REASSIGNMENT', '담당자 재배정');
       } else if (actor.role === 'APPLICANT') {

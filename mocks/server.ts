@@ -1239,6 +1239,16 @@ async function dispatchContract(
   }
   if (resource === 'security-requests' && sub === 'preparation-materials') {
     const visible = getRequest(runtime, id, actor!);
+    if (fieldKey === 'final-review' && method === 'GET') {
+      return json(
+        runtime.preparation.finalReview(
+          visible,
+          actor!,
+          (fileId) => uploads.get(String(fileId))?.file.name ?? '모의 첨부 자료',
+          new Date(now).toISOString(),
+        ),
+      );
+    }
     if (fieldKey === 'files' && method === 'POST') {
       const current = runtime.preparation.get(visible, actor!);
       if (!current.items.some((i) => i.canAttach))
@@ -1252,16 +1262,27 @@ async function dispatchContract(
       return json({ uploadedFileId: Number(fileId), originalName: file.name }, 201);
     }
     if (method === 'GET') return json(runtime.preparation.get(visible, actor!));
-    if (method === 'PUT')
-      return json(
-        runtime.preparation.update(
-          visible,
-          actor!,
-          await bodyJson(request),
-          (fileId) => uploads.get(String(fileId))?.caseId === visible.caseId,
-          new Date(now).toISOString(),
-        ),
+    if (method === 'PUT') {
+      const raw = await bodyJson(request);
+      const result = runtime.preparation.update(
+        visible,
+        actor!,
+        raw,
+        (fileId) => uploads.get(String(fileId))?.caseId === visible.caseId,
+        new Date(now).toISOString(),
       );
+      runtime.activity.preparationChanged(
+        visible,
+        runtime.members.map((m) => m.actor),
+        wire,
+        result,
+        z
+          .object({ action: z.string(), status: z.string().optional(), key: z.string().optional() })
+          .parse(raw),
+        new Date(now).toISOString(),
+      );
+      return json(result);
+    }
   }
   if (resource === 'security-requests' && sub === 'consultation-comparison' && method === 'GET') {
     const visible = getRequest(runtime, id, actor!);
@@ -1445,7 +1466,7 @@ async function dispatchContract(
       method === 'POST' ? 201 : 200,
     );
   if (resource === 'todo-summary' && method === 'GET') {
-    const items = runtime.activity.todos(actor!, runtime.state, wire);
+    const items = runtime.activity.todos(actor!, runtime.state, wire, runtime.preparation);
     const count = (kind: string) => items.filter((i) => i.kind === kind).length;
     return json({
       role: actor!.role,
@@ -1456,10 +1477,14 @@ async function dispatchContract(
       openSupplements: count('SUPPLEMENT_OPEN'),
       finalReviews: count('FINAL_REVIEW'),
       unassignedRequests: count('REASSIGNMENT'),
+      preparationReviews: count('PREPARATION_REVIEW'),
+      preparationSupplements: count('PREPARATION_SUPPLEMENT'),
     });
   }
   if (resource === 'todos' && method === 'GET')
-    return json(pageOf(runtime.activity.todos(actor!, runtime.state, wire), url));
+    return json(
+      pageOf(runtime.activity.todos(actor!, runtime.state, wire, runtime.preparation), url),
+    );
   if (resource === 'notifications') {
     const items = runtime.activity.notifications(actor!, runtime.state);
     if (method === 'GET' && numericId === 'unread-count')
@@ -1606,6 +1631,14 @@ async function dispatchContract(
         generatedBy: actor!.username,
         generatedAt: new Date(now).toISOString(),
       },
+      submission
+        ? undefined
+        : runtime.preparation.finalReview(
+            r,
+            actor!,
+            (fileId) => uploads.get(String(fileId))?.file.name ?? '모의 첨부 자료',
+            new Date(now).toISOString(),
+          ),
     );
     runtime.generatedDocuments.set(doc.generatedDocumentId, doc);
     return json(doc, 201);
@@ -2064,8 +2097,16 @@ async function dispatchContract(
     const r = runtime.state.requests.find((item) => item.id === id)!;
     const submission = r.submissions.find((item) => item.id === r.currentSubmissionId);
     const stored = runtime.finalDrafts.get(id);
-    if (submission && stored && !submission.snapshot)
-      submission.snapshot = { finalDraft: structuredClone(stored.draft) };
+    if (submission && !submission.snapshot)
+      submission.snapshot = {
+        ...(stored ? { finalDraft: structuredClone(stored.draft) } : {}),
+        preparationReview: runtime.preparation.finalReview(
+          r,
+          actor!,
+          (fileId) => uploads.get(String(fileId))?.file.name ?? '모의 첨부 자료',
+          new Date(now).toISOString(),
+        ),
+      };
   }
   const value: unknown = await response.json();
   let output: unknown = value;

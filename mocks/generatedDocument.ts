@@ -24,6 +24,7 @@ export function mockGeneratedDocument(
     | 'generatedBy'
     | 'generatedAt'
   >,
+  currentPreparation?: unknown,
 ): GeneratedDocument {
   const snapshot = submission?.snapshot as { caseTitle?: string; finalDraft?: unknown } | undefined;
   const frozenDraft = snapshotDraftSchema.safeParse(snapshot?.finalDraft);
@@ -74,6 +75,59 @@ export function mockGeneratedDocument(
     : request.status === 'FINALIZED' && submission.id === request.currentSubmissionId
       ? 'CONFIRMED'
       : 'SUBMITTED';
+  const prepared = z
+    .object({
+      items: z.array(
+        z.object({
+          key: z.string(),
+          label: z.string(),
+          status: z.string(),
+          applicability: z.string(),
+          stale: z.boolean(),
+          note: z.string(),
+          actor: z.string().nullable(),
+          files: z.array(z.object({ fileId: z.number(), name: z.string() })),
+        }),
+      ),
+    })
+    .safeParse(
+      submission
+        ? (submission.snapshot as { preparationReview?: unknown } | undefined)?.preparationReview
+        : currentPreparation,
+    );
+  const statuses: Record<string, string> = {
+    MISSING: '미첨부',
+    IN_REVIEW: '검토 중',
+    NEEDS_SUPPLEMENT: '보완 필요',
+    CONFIRMED: '확인 완료',
+  };
+  const records = prepared.success
+    ? prepared.data.items.map((i) => ({
+        key: i.key,
+        label: i.label,
+        text: `${i.applicability === 'NOT_APPLICABLE' ? '현재 조건 미해당' : i.applicability === 'UNKNOWN' ? '사업 조건 확인 필요' : statuses[i.status]}${i.stale ? ' · 조건 변경 후 재검토 필요' : ''}\n첨부: ${i.files.map((f) => `${f.name} (#${f.fileId})`).join(', ') || '없음'}\n최근 기록: ${i.actor ?? '없음'}\n사유: ${i.note}`,
+      }))
+    : [
+        {
+          key: 'legacy',
+          label: '기록 범위',
+          text: '이 제출본에는 준비자료 검토 기록이 없습니다. 현재 자료로 과거 기록을 추정하지 않습니다.',
+        },
+      ];
+  sections.push({
+    title: '준비자료 및 검토 결과',
+    values: records.map((i) => ({
+      fieldKey: `preparation.${i.key}`,
+      label: i.label,
+      scope: 'REQUEST',
+      value: i.text,
+      display: i.text,
+      valueSource: null,
+      confirmed: true,
+      needsReview: false,
+      status: '자료 현황 기록 · 승인 아님',
+    })),
+  });
   return {
     ...metadata,
     kind,

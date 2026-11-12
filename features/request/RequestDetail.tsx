@@ -23,6 +23,7 @@ import type { Actor } from '@/lib/types';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
 import { SourceDocuments, EvidenceSourceLink } from './SourceDocuments';
 import { PreparationMaterials } from './PreparationMaterials';
+import { PreparationReview } from './PreparationReview';
 import { FinalDraftPanel } from './FinalDraftPanel';
 import { ConsultationReview } from './ConsultationReview';
 import { useFinalDraft } from './useFinalDraft';
@@ -378,6 +379,16 @@ function RequestWorkspace({
       <div className="detail detail-layout">
         <div className="detail-content">
           <PreparationMaterials requestId={request.id} caseId={request.caseId} />
+          {request.stage >= 3 && (
+            <PreparationReview
+              requestId={request.id}
+              caseId={request.caseId}
+              submitted={request.stage === 4}
+              snapshot={
+                request.submissions.find((s) => s.id === request.currentSubmissionId)?.snapshot
+              }
+            />
+          )}
           <SourceDocuments caseId={request.caseId} />
           <section className="card" aria-labelledby="d-info">
             <h2 className="h-panel" id="d-info">
