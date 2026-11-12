@@ -56,6 +56,12 @@ export function SourceDocumentButton({ caseId, fileId }: { caseId: string; fileI
         </a>
         {source.data && (
           <>
+            {source.data.text.includes('[OCR 인식문') && (
+              <Notice tone="warning">
+                스캔 문서의 OCR 인식문입니다. 글자·숫자 오인식이 있을 수 있으므로 원본과 대조해
+                주세요. 인식 결과는 확인된 사실이 아닙니다.
+              </Notice>
+            )}
             <p className="help">
               첨부 시각: {new Date(source.data.uploadedAt).toLocaleString('ko-KR')}
             </p>

@@ -39,7 +39,7 @@ export const settingsSchema = z.object({
       generatesFirewallRules: z.boolean(),
       reviewFields: z.array(z.enum(['INFRA', 'SECURITY'])),
       sortOrder: z.number(),
-      exportFormats: z.array(z.enum(['MARKDOWN', 'PDF'])),
+      exportFormats: z.array(z.enum(['MARKDOWN', 'PDF', 'DOCX'])),
     }),
   ),
   fields: z.array(questionSchema),
@@ -115,6 +115,21 @@ export function validateSettings(
   existingKeys: string[] = [],
 ): string[] {
   const errors: string[] = [];
+  if (!draft.docTypes.some((d) => d.active)) errors.push('활성 서류 유형이 하나 이상 필요합니다.');
+  for (const doc of draft.docTypes) {
+    if (!doc.name.trim() || doc.name.length > 200 || (doc.description?.length ?? 0) > 2000)
+      errors.push('서류 이름은 1~200자, 설명은 2000자 이하로 입력해 주세요.');
+    if (!doc.reviewFields.length || !doc.exportFormats.length)
+      errors.push('검토 분야와 출력 형식을 하나 이상 선택해 주세요.');
+    if (!Number.isInteger(doc.sortOrder) || doc.sortOrder < 0 || doc.sortOrder > 1000)
+      errors.push('서류 표시 순서는 0~1000 정수입니다.');
+  }
+  if (
+    !Number.isInteger(draft.deadlinePolicy.imminentBusinessDays) ||
+    draft.deadlinePolicy.imminentBusinessDays < 1 ||
+    draft.deadlinePolicy.imminentBusinessDays > 30
+  )
+    errors.push('기한 임박 알림은 1~30영업일 전으로 설정해 주세요.');
   const keys = new Set<string>();
   if (draft.fields.length > 200) errors.push('질문은 최대 200개입니다.');
   for (const [index, field] of draft.fields.entries()) {

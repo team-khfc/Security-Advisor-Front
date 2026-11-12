@@ -25,6 +25,8 @@ test('AI를 호출하는 POST만 모델 상한과 순차 호출을 수용한다'
   }
   expect(upstreamTimeoutMs('POST', '/api/analysis-jobs/1/applications')).toBe(1_320_000);
   expect(upstreamTimeoutMs('POST', '/api/llm-connection-tests')).toBe(45_000);
+  expect(upstreamTimeoutMs('GET', '/api/business-cases/1/source-documents/2')).toBe(120_000);
+  expect(upstreamTimeoutMs('GET', '/api/business-cases/1/uploaded-files/2')).toBe(30_000);
   for (const path of [
     '/api/business-cases/1/analysis-jobs',
     '/api/business-cases/1/interview-turns/1/applications',

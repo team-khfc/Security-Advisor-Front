@@ -4,6 +4,7 @@ import { useId, type ReactNode } from 'react';
 import { Badge } from '@/components/ui';
 import { SourceBadge } from './AnswerEditor';
 import { ConsistencyCheck } from './ConsistencyCheck';
+import { ConsistencyHistory } from './ConsistencyHistory';
 import { getRequestDetailData, type DetailRule } from './requestDetailData';
 import type { Answer, SecurityRequest } from './types';
 import type { InfrastructurePlan } from './infrastructurePlan';
@@ -287,11 +288,22 @@ export function RequestTechnicalDetails({
             </span>
           </li>
         </ul>
-        <ConsistencyCheck
-          key={JSON.stringify([request.id, request.commonAnswers, request.answers])}
-          requestId={request.id}
-          caseId={request.caseId}
-        />
+        {request.stage === 4 ? (
+          <ConsistencyHistory
+            requestId={request.id}
+            caseId={request.caseId}
+            submitted
+            snapshot={
+              request.submissions.find((s) => s.id === request.currentSubmissionId)?.snapshot
+            }
+          />
+        ) : (
+          <ConsistencyCheck
+            key={JSON.stringify([request.id, request.commonAnswers, request.answers])}
+            requestId={request.id}
+            caseId={request.caseId}
+          />
+        )}
       </section>
     </>
   );

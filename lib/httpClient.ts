@@ -136,9 +136,20 @@ export async function requestBlob(path: string): Promise<Blob> {
 
 /** 서버 한글 파일명을 보존하되 경로·제어 문자와 다른 확장자는 쓰지 않는다. */
 export async function requestPdf(path: string): Promise<{ blob: Blob; fileName?: string }> {
-  const response = await requestResponse(path, { headers: { Accept: 'application/pdf' } });
-  if (!response.headers.get('content-type')?.startsWith('application/pdf'))
-    throw new Error('PDF 응답을 받지 못했습니다. 다시 시도해 주세요.');
+  return requestDocumentFile(path, 'PDF');
+}
+
+export async function requestDocumentFile(
+  path: string,
+  format: 'PDF' | 'DOCX',
+): Promise<{ blob: Blob; fileName?: string }> {
+  const media =
+    format === 'PDF'
+      ? 'application/pdf'
+      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const response = await requestResponse(path, { headers: { Accept: media } });
+  if (!response.headers.get('content-type')?.startsWith(media))
+    throw new Error(`${format} 응답을 받지 못했습니다. 다시 시도해 주세요.`);
   const disposition = response.headers.get('content-disposition') ?? '';
   let fileName: string | undefined;
   const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
@@ -146,7 +157,12 @@ export async function requestPdf(path: string): Promise<{ blob: Blob; fileName?:
     const candidate = encoded
       ? decodeURIComponent(encoded.trim())
       : /filename="([^"]+)"/i.exec(disposition)?.[1];
-    if (candidate && /^[^\\/\x00-\x1f\x7f]+\.pdf$/i.test(candidate)) fileName = candidate;
+    if (
+      candidate &&
+      !/[\\/\x00-\x1f\x7f]/.test(candidate) &&
+      candidate.toLowerCase().endsWith(`.${format.toLowerCase()}`)
+    )
+      fileName = candidate;
   } catch {
     /* 잘못된 파일명은 문서 번호를 이용한 기본 이름으로 대체한다. */
   }

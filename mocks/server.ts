@@ -1310,6 +1310,10 @@ async function dispatchContract(
       summary: null,
     });
   }
+  if (resource === 'security-requests' && sub === 'consistency-checks' && method === 'GET') {
+    getRequest(runtime, id, actor!);
+    return json([]);
+  }
   if (resource === 'security-requests' && sub === 'consistency-checks' && method === 'POST') {
     getRequest(runtime, id, actor!);
     fail(

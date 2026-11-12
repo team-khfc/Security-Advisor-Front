@@ -107,6 +107,7 @@ function DocumentActionsContent({
           {previewLabel}
         </button>
         <PdfDownloadButton getDocument={prepare} disabled={disabled} />
+        <PdfDownloadButton getDocument={prepare} disabled={disabled} format="DOCX" />
       </div>
       <Modal open={open} onClose={() => setOpen(false)} title="문서 미리보기">
         {preview.isPending && <LoadingState />}

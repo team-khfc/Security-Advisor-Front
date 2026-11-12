@@ -18,7 +18,7 @@ const base = {
   sources: [{ fileId: 2, name: '합성 기획서.txt', truncated: false, empty: false }],
 };
 test('명시적으로 검사한 뒤 답변·실제 인용·원문 연결과 후보 안내를 표시한다', async () => {
-  const request = vi.spyOn(http, 'requestJson').mockResolvedValue({
+  const result = {
     ...base,
     findings: [
       {
@@ -31,18 +31,30 @@ test('명시적으로 검사한 뒤 답변·실제 인용·원문 연결과 후�
         explanation: '처리 여부를 확인해 주세요.',
       },
     ],
+  };
+  const request = vi.spyOn(http, 'requestJson').mockImplementation(async (path, options) => {
+    if (String(path).includes('uploaded-files'))
+      return [{ uploadedFileId: 2, originalName: '합성 기획서.txt' }];
+    return options?.method === 'POST' ? result : [];
   });
   render(<ConsistencyCheck requestId="17" caseId="16" />);
-  expect(request).not.toHaveBeenCalled();
+  expect(request.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
+  await screen.findByText('합성 기획서.txt');
   await userEvent.click(screen.getByRole('button', { name: 'AI 모순 확인' }));
   expect(await screen.findByText('확인 필요 후보 1건')).toBeTruthy();
   expect(screen.getByText('성명을 수집합니다.')).toBeTruthy();
   expect(screen.getByRole('button', { name: '원문 근거 확인' })).toBeTruthy();
-  expect(request).toHaveBeenCalledTimes(1);
+  expect(request.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
 });
 test('실패를 모순 없음으로 표시하지 않고 재검사를 허용한다', async () => {
-  vi.spyOn(http, 'requestJson').mockRejectedValue(new Error('원문 검증 실패'));
+  vi.spyOn(http, 'requestJson').mockImplementation(async (path, options) => {
+    if (String(path).includes('uploaded-files'))
+      return [{ uploadedFileId: 2, originalName: '합성 기획서.txt' }];
+    if (options?.method === 'POST') throw new Error('원문 검증 실패');
+    return [];
+  });
   render(<ConsistencyCheck requestId="17" caseId="16" />);
+  await screen.findByText('합성 기획서.txt');
   await userEvent.click(screen.getByRole('button', { name: 'AI 모순 확인' }));
   expect(await screen.findByText('원문 검증 실패')).toBeTruthy();
   expect(screen.queryByText(/모순 후보를 찾지 못했습니다/)).toBeNull();

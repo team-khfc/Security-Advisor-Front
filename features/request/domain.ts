@@ -252,6 +252,39 @@ function targetFields(request: SecurityRequest, input: CommandInput): string[] {
   return keys;
 }
 
+function reopenImportantReview(
+  state: MockState,
+  request: SecurityRequest,
+  actor: Actor,
+  keys: string[],
+  at: string,
+) {
+  if (request.stage !== 3) return;
+  const important = [...request.commonAnswers, ...request.answers].some(
+    (a) =>
+      keys.includes(a.key) &&
+      (a.required ||
+        a.ownerRole !== 'APPLICANT' ||
+        ['BOOLEAN', 'DATE_RANGE', 'IP_ADDRESS', 'PORT', 'PROTOCOL'].includes(a.inputType ?? '')),
+  );
+  if (!important && !keys.includes('infrastructure.plan')) return;
+  const message = '최종 검토 중 중요 정보 변경으로 담당자 재협의 필요';
+  request.returns.push({
+    id: id(state, 'stage-return'),
+    fromStage: 3,
+    targetStage: 2,
+    fieldKeys: keys,
+    reason: message,
+    actorName: actor.displayName,
+    createdAt: at,
+  });
+  request.stage = 2;
+  if (request.status !== 'SUPPLEMENT_REQUESTED') request.status = 'CONSULTING';
+  closeDeadlines(request, at);
+  for (const field of REVIEW_FIELDS) addDeadline(state, request, 'CONSULTATION', field, at);
+  addAudit(state, actor, request, 'RETURN', at, message, keys);
+}
+
 function markReviewsForRecheck(request: SecurityRequest, fieldKeys: string[]) {
   if (!fieldKeys.length) return;
   const changed = [...request.commonAnswers, ...request.answers].filter((answer) =>
@@ -769,6 +802,7 @@ export function executeCommand(
       break;
     case 'SAVE_ANSWERS': {
       const result = updateAnswers(request.answers, actor, input.answers ?? [], at);
+      reopenImportantReview(next, request, actor, result.changed, at);
       markReviewsForRecheck(request, result.changed);
       request.highlightedFields = request.highlightedFields.filter(
         (key) => !result.confirmed.includes(key),
@@ -940,6 +974,7 @@ function assertCaseWrite(state: MockState, businessCase: BusinessCase, actor: Ac
 
 function propagateCommonAnswers(
   state: MockState,
+  actor: Actor,
   businessCase: BusinessCase,
   changed: string[],
   confirmed: string[],
@@ -954,6 +989,7 @@ function propagateCommonAnswers(
     request.updatedAt = at;
     request.changedCommonFields = [...new Set([...request.changedCommonFields, ...changed])];
     request.highlightedFields = request.highlightedFields.filter((key) => !confirmed.includes(key));
+    reopenImportantReview(state, request, actor, changed, at);
     markReviewsForRecheck(request, changed);
   }
 }
@@ -975,7 +1011,7 @@ export function saveCaseAnswers(
   const result = updateAnswers(businessCase.answers, actor, answers, at);
   businessCase.revision += 1;
   businessCase.updatedAt = at;
-  propagateCommonAnswers(next, businessCase, result.changed, result.confirmed, at);
+  propagateCommonAnswers(next, actor, businessCase, result.changed, result.confirmed, at);
   addAudit(
     next,
     actor,
@@ -1040,7 +1076,7 @@ export function applyAnalysis(
   }
   businessCase.revision += 1;
   businessCase.updatedAt = at;
-  propagateCommonAnswers(next, businessCase, changed, [], at);
+  propagateCommonAnswers(next, actor, businessCase, changed, [], at);
   addAudit(
     next,
     actor,
