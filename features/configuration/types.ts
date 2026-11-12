@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { fieldConditionSchema } from '@/lib/fieldCondition';
 
 export const questionSchema = z.object({
+  condition: fieldConditionSchema.nullish(),
   key: z.string(),
   label: z.string(),
   scope: z.enum(['CASE', 'REQUEST']),
@@ -117,6 +119,28 @@ export function validateSettings(
   if (draft.fields.length > 200) errors.push('질문은 최대 200개입니다.');
   for (const [index, field] of draft.fields.entries()) {
     const name = `질문 ${index + 1}`;
+    if (field.condition) {
+      const parent = draft.fields.find((item) => item.key === field.condition?.fieldKey);
+      if (
+        !parent ||
+        parent.key === field.key ||
+        parent.scope !== 'CASE' ||
+        parent.type !== 'BOOLEAN' ||
+        !parent.required ||
+        parent.askRole !== 'APPLICANT' ||
+        parent.condition ||
+        draft.docTypes.some(
+          (d) =>
+            (!field.docTypes.length || field.docTypes.includes(d.code)) &&
+            parent.docTypes.length &&
+            !parent.docTypes.includes(d.code),
+        )
+      ) {
+        errors.push(
+          `${name}: 사업 조건은 같은 서류에 적용되는 신청자 필수 사업 질문(예·아니요)을 선택해 주세요.`,
+        );
+      }
+    }
     if (
       (!existingKeys.includes(field.key) &&
         !/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(field.key)) ||

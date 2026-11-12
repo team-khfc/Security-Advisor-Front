@@ -1,9 +1,9 @@
 # Back API 계약 동기화
 
-기준일: 2026-11-11
+기준일: 2026-11-12
 
-- Back 커밋: `c8678469a728a535f037b638b275b8ae1715f63a` (협의 비교·AI 요약 확장, 백엔드 동반 배포 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/c8678469a728a535f037b638b275b8ae1715f63a/docs/api/openapi.yaml
+- Back 커밋: `ddc7b3851e17256e2918b26f61593e2edefeba03` (조건별 보안성검토·첨부 원문 조회, 백엔드 동반 배포 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/ddc7b3851e17256e2918b26f61593e2edefeba03/docs/api/openapi.yaml
 - 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
@@ -19,6 +19,8 @@
 - `openapi.yaml`은 Back 원본의 사본이며 Front에서 계약을 임의 개정하지 않는다.
 
 ## 응답과 화면의 경계
+
+보안성검토 질문의 선택 속성 `condition`을 보존하고 사업의 공통 답변으로 적용 여부를 표시합니다. 원문은 `GET /api/business-cases/{id}/source-documents/{fileId}`, 다운로드는 `GET /api/business-cases/{id}/uploaded-files/{fileId}`를 사용합니다. 근거에 명시된 파일 ID만 연결하며 과거 순번 근거의 파일을 추정하지 않습니다. [적용 방법·검증 기록](../docs/SECURITY_REVIEW_EVIDENCE.md).
 
 서버·운영 검토 확장 계약: 서버 목록·통신 구간의 서버 ID 연결·운영 사항·구성 체크리스트·임시 저장 상태를 추가했습니다. `infrastructure-proposals`의 `target: SERVERS`는 필드별 근거를 포함한 서버 사양 제안을 반환합니다. 기존 제출본은 이전 계약 그대로 표시하며 이번 백엔드와 함께 배포해야 합니다.
 

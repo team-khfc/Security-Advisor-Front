@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { EvidenceSourceLink } from './SourceDocuments';
 import { Badge, Icon, Notice } from '@/components/ui';
 import { DateRangeAnswer } from './DateRangeAnswer';
 import { networkFormatHelp } from './networkAnswerFormat';
@@ -41,10 +42,12 @@ export function SourceBadge({ answer }: { answer: Answer }) {
 
 /** 원문을 HTML로 해석하지 않고 값·근거·재검토 대상만 안전하게 표시한다. */
 export function AnswerView({
+  caseId,
   answers,
   highlighted = [],
   evidenceDisplay = 'disclosure',
 }: {
+  caseId?: string;
   answers: Answer[];
   highlighted?: string[];
   evidenceDisplay?: 'disclosure' | 'inline';
@@ -68,7 +71,15 @@ export function AnswerView({
           <dd>
             {/* 값도 출처도 없으면 출처 배지가 같은 '담당자 확인 필요'를 알리므로 글자를 반복하지 않는다. */}
             {(answer.notApplicable || answer.value || answer.source) && (
-              <p>{answer.notApplicable ? '미해당' : answer.value || '담당자 확인 필요'}</p>
+              <p>
+                {answer.notApplicable
+                  ? '미해당'
+                  : answer.inputType === 'BOOLEAN' && answer.value === 'true'
+                    ? '예'
+                    : answer.inputType === 'BOOLEAN' && answer.value === 'false'
+                      ? '아니요'
+                      : answer.value || '담당자 확인 필요'}
+              </p>
             )}
             <SourceBadge answer={answer} />
             {answer.evidence && evidenceDisplay === 'inline' ? (
@@ -79,6 +90,9 @@ export function AnswerView({
                 <p>{answer.evidence}</p>
               </details>
             ) : null}
+            {caseId && answer.evidence && (
+              <EvidenceSourceLink caseId={caseId} reference={answer.evidence} />
+            )}
           </dd>
         </div>
       ))}

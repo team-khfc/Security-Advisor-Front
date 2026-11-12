@@ -1,23 +1,40 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ErrorState, LoadingState, Notice } from '@/components/ui';
 import { clearInputDraft, setInputDraft, useInputDraft } from '@/lib/inputDrafts';
 import type { Actor } from '@/lib/types';
 import { useInquiries } from './useInquiries';
 
 /** 검토의 참고 대화만 제공한다. 신청 답변·검토 의견·확정값을 변경하는 동작은 없다. */
-export function StaffInquiryPanel({ requestId, actor }: { requestId: string; actor: Actor }) {
+export function StaffInquiryPanel({
+  requestId,
+  actor,
+  renderEvidence,
+}: {
+  requestId: string;
+  actor: Actor;
+  renderEvidence?: (reference: string) => ReactNode;
+}) {
   return (
     <InquiryWorkspace
       key={requestId + ':' + actor.id + ':' + actor.role}
       requestId={requestId}
       actor={actor}
+      renderEvidence={renderEvidence}
     />
   );
 }
 
-function InquiryWorkspace({ requestId, actor }: { requestId: string; actor: Actor }) {
+function InquiryWorkspace({
+  requestId,
+  actor,
+  renderEvidence,
+}: {
+  requestId: string;
+  actor: Actor;
+  renderEvidence?: (reference: string) => ReactNode;
+}) {
   const [selection, setSelection] = useState<number | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -201,6 +218,7 @@ function InquiryWorkspace({ requestId, actor }: { requestId: string; actor: Acto
                           <li key={e.tag}>
                             <strong>[{e.tag}]</strong>{' '}
                             {e.label ?? '이전 대화에 근거 설명이 저장되지 않았습니다.'}
+                            {e.label && renderEvidence?.(e.label)}
                           </li>
                         ))}
                       </ul>

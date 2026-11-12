@@ -102,6 +102,15 @@ export function PublicationHistory({ currentVersion }: { currentVersion: number 
                       <b>{field.label}</b> · {roleLabels[field.askRole]} ·{' '}
                       {field.required ? '필수' : '선택'}
                       <p className="help">{field.hint}</p>
+                      {field.condition && (
+                        <p className="help">
+                          적용 조건:{' '}
+                          {publication.data?.fieldSchema.fields.find(
+                            (item) => item.key === field.condition?.fieldKey,
+                          )?.label ?? field.condition.fieldKey}{' '}
+                          = {field.condition.expectedValue ? '예' : '아니요'}
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ol>

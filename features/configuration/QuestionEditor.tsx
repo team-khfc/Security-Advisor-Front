@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { securityReviewQuestions } from './securityReviewQuestions';
 import { Field } from '@/components/ui';
 import { roleLabels, typeLabels, type Question, type Settings } from './types';
 
@@ -94,6 +95,29 @@ export function QuestionEditor({
         >
           질문 추가
         </button>
+        <button
+          type="button"
+          className="btn btn-block"
+          onClick={() => {
+            const additions = securityReviewQuestions.filter(
+              (question) => !draft.fields.some((item) => item.key === question.key),
+            );
+            onChange({ ...draft, fields: [...draft.fields, ...additions] });
+            setSelected(draft.fields.length);
+            setSearch('');
+          }}
+          disabled={
+            draft.fields.length +
+              securityReviewQuestions.filter((q) => !draft.fields.some((f) => f.key === q.key))
+                .length >
+              200 || securityReviewQuestions.every((q) => draft.fields.some((f) => f.key === q.key))
+          }
+        >
+          보안성검토 전용 질문 추가
+        </button>
+        <p className="help">
+          초안 저장·변경 비교·게시 후 새 사업에 적용됩니다. 기존 신청은 유지됩니다.
+        </p>
       </div>
       {field && (
         <div className="card configuration-question-editor">
@@ -180,6 +204,59 @@ export function QuestionEditor({
               <option value="REQUEST">서류별 정보</option>
             </select>
           </Field>
+          <Field label="사업 조건" htmlFor="question-condition">
+            <select
+              id="question-condition"
+              className="input"
+              disabled={!!builtin}
+              value={field.condition?.fieldKey ?? ''}
+              onChange={(event) =>
+                update({
+                  condition: event.target.value
+                    ? { fieldKey: event.target.value, expectedValue: true }
+                    : null,
+                })
+              }
+            >
+              <option value="">항상 질문</option>
+              {draft.fields
+                .filter(
+                  (item) =>
+                    item.scope === 'CASE' &&
+                    item.type === 'BOOLEAN' &&
+                    item.required &&
+                    item.askRole === 'APPLICANT' &&
+                    !item.condition &&
+                    item.key !== field.key,
+                )
+                .map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          {field.condition && (
+            <Field label="조건 답변" htmlFor="question-condition-value">
+              <select
+                id="question-condition-value"
+                className="input"
+                disabled={!!builtin}
+                value={String(field.condition.expectedValue)}
+                onChange={(event) =>
+                  update({
+                    condition: {
+                      fieldKey: field.condition!.fieldKey,
+                      expectedValue: event.target.value === 'true',
+                    },
+                  })
+                }
+              >
+                <option value="true">예일 때 질문</option>
+                <option value="false">아니요일 때 질문</option>
+              </select>
+            </Field>
+          )}
           <fieldset disabled={!!builtin}>
             <legend>적용 서류</legend>
             <p className="help">

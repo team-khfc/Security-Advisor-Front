@@ -1,4 +1,5 @@
 'use client';
+import { SourceDocuments } from './SourceDocuments';
 
 import { answerValueError } from './answerFieldPolicy';
 import { networkFormatHelp } from './networkAnswerFormat';
@@ -697,6 +698,7 @@ function InterviewWorkspace({
           </Link>
         ))}
       </div>
+      <SourceDocuments caseId={businessCase.id} />
       {initialAnalysis && (
         <Notice tone={initialAnalysis.failures.length ? 'warning' : 'info'}>
           작성 시작 시 첨부 문서 {initialAnalysis.total}개 중{' '}

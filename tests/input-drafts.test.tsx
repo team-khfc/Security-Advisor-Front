@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, beforeEach, afterEach, expect, test, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from './queryRender';
 import userEvent from '@testing-library/user-event';
 import { NewRequest } from '@/features/request/NewRequest';
 import { AnalysisPanel, CaseInterview } from '@/features/request/CaseInterview';

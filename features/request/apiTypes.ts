@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { fieldConditionSchema } from '@/lib/fieldCondition';
 import { reassignmentReasonSchema } from '@/lib/assignmentStatus';
 
 const id = z.number().int().nonnegative();
@@ -58,6 +59,7 @@ export const publicationDto = z.object({
         docTypes: z.array(z.string()),
         required: z.boolean(),
         askRole: roleDto,
+        condition: fieldConditionSchema.nullish(),
       }),
     ),
   }),
@@ -99,6 +101,7 @@ export const requestListDto = requestDto.omit({ answers: true, createdAt: true }
     .nullish(),
 });
 export const caseDto = z.object({
+  requests: z.array(z.object({ docType: z.string() })).optional(),
   businessCaseId: id,
   applicantUsername: z.string(),
   title: z.string(),
