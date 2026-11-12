@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Notice } from '@/components/ui';
@@ -52,6 +52,7 @@ const labels = {
 export function PreparationMaterials({ requestId, caseId }: { requestId: string; caseId: string }) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File>();
+  const fileInput = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
   const queryClient = useQueryClient();
   const path = `/api/security-requests/${encodeURIComponent(requestId)}/preparation-materials`;
@@ -97,6 +98,8 @@ export function PreparationMaterials({ requestId, caseId }: { requestId: string;
     },
     onSuccess: () => {
       setFile(undefined);
+      // 실제 파일 입력도 비워야 같은 경로의 보완본을 다시 선택할 수 있다.
+      if (fileInput.current) fileInput.current.value = '';
       setMessage('업로드했습니다. 아래 준비자료에서 파일을 선택해 연결해 주세요.');
       void files.refetch();
     },
@@ -178,7 +181,12 @@ export function PreparationMaterials({ requestId, caseId }: { requestId: string;
             <section className="sub-block" aria-label="준비자료 업로드">
               <label className="field">
                 새 준비자료 파일
-                <input type="file" onChange={(e) => setFile(e.target.files?.[0])} />
+                <input
+                  ref={fileInput}
+                  type="file"
+                  disabled={upload.isPending}
+                  onChange={(e) => setFile(e.target.files?.[0])}
+                />
               </label>
               <p className="help">
                 선택만으로 전송되지 않습니다. 업로드 후 해당 항목에 연결해 주세요. 기존 첨부 파일도
