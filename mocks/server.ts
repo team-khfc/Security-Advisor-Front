@@ -1252,6 +1252,14 @@ async function dispatchContract(
       summary: null,
     });
   }
+  if (resource === 'security-requests' && sub === 'consistency-checks' && method === 'POST') {
+    getRequest(runtime, id, actor!);
+    fail(
+      503,
+      'MOCK_AI_UNAVAILABLE',
+      '모의 화면에서는 실제 모순 검사를 수행하지 않습니다. 원문을 직접 대조하거나 업무 서버에서 이용해 주세요.',
+    );
+  }
   if (resource === 'security-requests' && sub === 'consultation-summaries' && method === 'POST') {
     getRequest(runtime, id, actor!);
     fail(
