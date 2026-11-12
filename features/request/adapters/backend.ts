@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { matchesFieldCondition } from '@/lib/fieldCondition';
 import type { Role } from '@/lib/types';
 import {
   answerDto,
@@ -41,11 +42,16 @@ export function adaptAnswers(
   publication: Publication,
   scope: 'CASE' | 'REQUEST',
   docType?: string,
+  commonValues: { key: string; value: string }[] = values.map((v) => ({
+    key: v.fieldKey,
+    value: v.value ?? '',
+  })),
 ): Answer[] {
   return publication.fieldSchema.fields
     .filter(
       (f) => f.scope === scope && (!docType || !f.docTypes.length || f.docTypes.includes(docType)),
     )
+    .filter((f) => matchesFieldCondition(f.condition, commonValues))
     .map((f) => {
       const a = values.find((v) => v.fieldKey === f.key);
       return {
@@ -84,7 +90,14 @@ export function adaptCase(value: z.infer<typeof caseDto>, publication: Publicati
     publicationVersion: publication.version,
     publicationId: publication.publicationId,
     knowledgePublicationId: value.knowledgePublicationId,
-    answers: adaptAnswers(value.caseAnswers, publication, 'CASE'),
+    answers: adaptAnswers(value.caseAnswers, publication, 'CASE').filter((answer) => {
+      const definition = publication.fieldSchema.fields.find((field) => field.key === answer.key);
+      return (
+        !value.requests ||
+        !definition?.docTypes.length ||
+        value.requests.some((request) => definition.docTypes.includes(request.docType))
+      );
+    }),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };
@@ -225,7 +238,13 @@ export function adaptRequest(
     caseRevision: businessCase.revision,
     publicationVersion: publication.version,
     commonAnswers: businessCase.answers.filter((answer) => applicableKeys.has(answer.key)),
-    answers: adaptAnswers(value.answers, publication, 'REQUEST', value.docType),
+    answers: adaptAnswers(
+      value.answers,
+      publication,
+      'REQUEST',
+      value.docType,
+      businessCase.answers,
+    ),
     reviews,
     requiredReviewFields: [...requiredReviewFields],
     allowedActions: base.allowedActions.filter(
@@ -287,20 +306,22 @@ export function adaptRequest(
       const snapshot = z
         .object({
           answers: z.array(
-            answerDto.omit({
-              answerId: true,
-              evidence: true,
-              confirmed: true,
-              needsReview: true,
-              revision: true,
-            }),
+            answerDto
+              .omit({
+                answerId: true,
+                evidence: true,
+                confirmed: true,
+                needsReview: true,
+                revision: true,
+              })
+              .extend({ evidence: z.string().nullish() }),
           ),
         })
         .parse(v.snapshot);
       const values = snapshot.answers.map((a, index) => ({
         ...a,
         answerId: index,
-        evidence: null,
+        evidence: a.evidence ?? null,
         confirmed: a.valueSource === 'USER_ANSWER' || !!a.confirmedBy,
         needsReview: false,
         revision: 0,

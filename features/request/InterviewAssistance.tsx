@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState, type ReactNode } from 'react';
+import { EvidenceSourceLink } from './SourceDocuments';
 import { Badge, Icon, Notice } from '@/components/ui';
 import type { Answer } from './types';
 import type { InterviewTurn } from './useInterview';
@@ -231,7 +232,13 @@ export function InterviewTurnMessage({
                 <summary>참고한 근거 {turn.evidence.length}개</summary>
                 <ul className="help" aria-label="AI 답변 근거">
                   {turn.evidence.map((e) => (
-                    <li key={e.tag}>{e.label}</li>
+                    <li key={e.tag}>
+                      {e.label}{' '}
+                      <EvidenceSourceLink
+                        caseId={String(turn.businessCaseId)}
+                        reference={e.label}
+                      />
+                    </li>
                   ))}
                 </ul>
               </details>

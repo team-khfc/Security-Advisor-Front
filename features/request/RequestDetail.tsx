@@ -21,6 +21,7 @@ import { RequestDocument } from '@/features/document/RequestDocument';
 import { useAudit } from '@/lib/queries';
 import type { Actor } from '@/lib/types';
 import { AnswerEditor, AnswerView } from './AnswerEditor';
+import { SourceDocuments, EvidenceSourceLink } from './SourceDocuments';
 import { FinalDraftPanel } from './FinalDraftPanel';
 import { ConsultationReview } from './ConsultationReview';
 import { useFinalDraft } from './useFinalDraft';
@@ -375,6 +376,7 @@ function RequestWorkspace({
       {failure && !dialogAction && <Notice tone="danger">{failure}</Notice>}
       <div className="detail detail-layout">
         <div className="detail-content">
+          <SourceDocuments caseId={request.caseId} />
           <section className="card" aria-labelledby="d-info">
             <h2 className="h-panel" id="d-info">
               사업 정보
@@ -384,6 +386,7 @@ function RequestWorkspace({
               AI 추론은 사람이 확인하기 전까지 확정값이 아닙니다.
             </p>
             <AnswerView
+              caseId={request.caseId}
               answers={detail.businessAnswers}
               highlighted={request.highlightedFields}
               evidenceDisplay="inline"
@@ -567,9 +570,20 @@ function RequestWorkspace({
             }
           >
             {detail.additionalAnswers.length > 0 && (
-              <details className="sub-block">
-                <summary>신청 추가 정보</summary>
+              <details className="sub-block" open={request.docType === 'SECURITY_REVIEW'}>
+                <summary>
+                  {request.docType === 'SECURITY_REVIEW'
+                    ? '보안성검토 전용 항목 · 사업 조건별 검토 결과'
+                    : '신청 추가 정보'}
+                </summary>
+                {request.docType === 'SECURITY_REVIEW' && (
+                  <p className="help">
+                    이 사업의 개인정보 처리·외부 전송·대외 서비스·외부 업체 참여 답변에 따라
+                    적용되는 질문입니다. 담당자 입력 내용과 사업 조건을 함께 확인해 주세요.
+                  </p>
+                )}
                 <AnswerView
+                  caseId={request.caseId}
                   answers={detail.additionalAnswers}
                   highlighted={request.highlightedFields}
                   evidenceDisplay="inline"
@@ -604,7 +618,15 @@ function RequestWorkspace({
               </details>
             )}
           </InfrastructureWorkspace>
-          {canInquire && <StaffInquiryPanel requestId={request.id} actor={actor} />}
+          {canInquire && (
+            <StaffInquiryPanel
+              requestId={request.id}
+              actor={actor}
+              renderEvidence={(reference) => (
+                <EvidenceSourceLink caseId={request.caseId} reference={reference} />
+              )}
+            />
+          )}
           <RequestHistory requestId={request.id} />
         </div>
         <aside className="review" aria-labelledby="review-heading">

@@ -640,3 +640,16 @@ main:has(.request-detail-page) {
   align-items: center;
   gap: 0.6rem;
 }
+.source-document-text {
+  max-height: 50vh;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  border: 1px solid var(--sf-border);
+  padding: 1rem;
+  margin-block: 1rem;
+}
+
+.source-document-text p {
+  margin: 0;
+}
