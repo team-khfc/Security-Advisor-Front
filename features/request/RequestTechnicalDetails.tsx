@@ -3,6 +3,7 @@
 import { useId, type ReactNode } from 'react';
 import { Badge } from '@/components/ui';
 import { SourceBadge } from './AnswerEditor';
+import { ConsistencyCheck } from './ConsistencyCheck';
 import { getRequestDetailData, type DetailRule } from './requestDetailData';
 import type { Answer, SecurityRequest } from './types';
 import type { InfrastructurePlan } from './infrastructurePlan';
@@ -286,6 +287,11 @@ export function RequestTechnicalDetails({
             </span>
           </li>
         </ul>
+        <ConsistencyCheck
+          key={JSON.stringify([request.id, request.commonAnswers, request.answers])}
+          requestId={request.id}
+          caseId={request.caseId}
+        />
       </section>
     </>
   );

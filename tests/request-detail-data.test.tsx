@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { render } from './queryRender';
 import { describe, expect, test } from 'vitest';
 import { RequestTechnicalDetails } from '@/features/request/RequestTechnicalDetails';
 import { getRequestDetailData } from '@/features/request/requestDetailData';

@@ -13,6 +13,7 @@ test('AI를 호출하는 POST만 모델 상한과 순차 호출을 수용한다'
   for (const path of [
     '/api/business-cases/1/interview-turns',
     '/api/security-requests/1/ai-proposals',
+    '/api/security-requests/1/consistency-checks',
     '/api/security-requests/1/final-draft-generations',
     '/api/security-requests/1/draft-generations',
     '/api/security-requests/1/inquiries',
