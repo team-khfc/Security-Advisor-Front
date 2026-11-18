@@ -33,6 +33,7 @@ test('명시적으로 검사한 뒤 답변·실제 인용·원문 연결과 후�
     ],
   };
   const request = vi.spyOn(http, 'requestJson').mockImplementation(async (path, options) => {
+    if (String(path).includes('source-documents')) return { text: '성명을 수집합니다.' };
     if (String(path).includes('uploaded-files'))
       return [{ uploadedFileId: 2, originalName: '합성 기획서.txt' }];
     return options?.method === 'POST' ? result : [];
@@ -48,6 +49,7 @@ test('명시적으로 검사한 뒤 답변·실제 인용·원문 연결과 후�
 });
 test('실패를 모순 없음으로 표시하지 않고 재검사를 허용한다', async () => {
   vi.spyOn(http, 'requestJson').mockImplementation(async (path, options) => {
+    if (String(path).includes('source-documents')) return { text: '성명을 수집합니다.' };
     if (String(path).includes('uploaded-files'))
       return [{ uploadedFileId: 2, originalName: '합성 기획서.txt' }];
     if (options?.method === 'POST') throw new Error('원문 검증 실패');

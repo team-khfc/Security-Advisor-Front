@@ -1,9 +1,9 @@
 # Back API 계약 동기화
 
-기준일: 2026-11-13
+기준일: 2026-11-18
 
-- Back 커밋: `2f38a75d1d82bd126b07713173cc9ca6b48ee020` (기한 정책 일치·방화벽 정기 재검토·업무 인계, 백엔드 선행 배포 필요)
-- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/2f38a75d1d82bd126b07713173cc9ca6b48ee020/docs/api/openapi.yaml
+- Back 커밋: `5f015178e065afb3af0e6272ac5e93da949fd94f` (분석 복구·알림 재처리·운영 기록·문서 검사 범위·HWPX, 백엔드 선행 배포 필요)
+- 원본: https://github.com/team-khfc/Security-Advisor-Back/blob/5f015178e065afb3af0e6272ac5e93da949fd94f/docs/api/openapi.yaml
 - 서버·운영 검토 확장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/28
 - ICT인프라 검토·AI 망 구성 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/27
 - 항목별 권한·형식 및 담당자 일괄 저장 API PR: https://github.com/team-khfc/Security-Advisor-Back/pull/24
@@ -72,3 +72,5 @@ PDF 다운로드에 그대로 사용하며, 구현과 실제 화면 검증은 [�
 처리할 일 카드 계약 확장(PR #30): 처리할 일 카드 표시를 위해 TodoItem.context(사업명·담당부서·서류 종류·상태·단계·최근 변경)를 추가했습니다. 백엔드 PR #30과 함께 배포하며 기존 권한·페이지 조회 기준은 유지합니다.
 
 협의 비교 확장: GET consultation-comparison과 POST consultation-summaries를 추가했습니다. 협의 요청 기준본·실제 변경 기록을 사용하고, 기존 신청의 과거 변경은 추정하지 않습니다. AI 요약은 원본 fingerprint와 근거 항목 키를 연결하며 원본 변경 후 이전 요약을 숨깁니다. 검증 기록은 백엔드 docs/CONSULTATION_COMPARISON_20261111.md에 있습니다.
+
+운영 기록·재처리 API는 관리자 전용이다. 모의 모드에서는 빈 기록을 반환하며 실제 운영 수치를 생성하지 않는다. 문서 검사 요청에 fromCharacter를 보내고 응답 source의 검사 시작/종료/추출 길이를 보존한다. 자세한 사용법과 한계는 [후속 안내](../docs/RESILIENCE_DOCUMENTS_20261118.md)를 참고한다.

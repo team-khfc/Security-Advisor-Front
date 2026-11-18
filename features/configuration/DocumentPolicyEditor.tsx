@@ -91,7 +91,7 @@ export function DocumentPolicyEditor({
                 출력은 기존 서버 양식의 항목·검토 기록을 사용합니다. DOCX는 기관 검토용 표 문서이며
                 외부 공식 양식 자동 매핑은 추후 지원합니다.
               </p>
-              {(['PDF', 'DOCX', 'MARKDOWN'] as const).map((format) => (
+              {(['PDF', 'DOCX', 'HWPX', 'MARKDOWN'] as const).map((format) => (
                 <label key={format}>
                   <input
                     type="checkbox"

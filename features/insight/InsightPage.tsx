@@ -1,5 +1,6 @@
 'use client';
 
+import { OperationsPanel } from './OperationsPanel';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useSession } from '@/features/auth';
@@ -78,6 +79,7 @@ function InsightReport() {
   const total = Object.values(data.requestsByDocType).reduce((a, b) => a + b, 0);
   return (
     <>
+      <OperationsPanel />
       <PageHeading
         title="업무 지표"
         description="기관 전체 신청과 감사 이력에서 조회 시점에 계산합니다. 개인별 순위와 성과 비교는 제공하지 않습니다."

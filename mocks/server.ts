@@ -1063,9 +1063,20 @@ async function dispatchContract(
       'knowledge-snippets',
       'private-contexts',
       'insights',
+      'operation-history',
+      'notification-deliveries',
     ].includes(resource)
   ) {
     const actor = sessionMember(runtime, request, now);
+    if (resource === 'operation-history' || resource === 'notification-deliveries') {
+      if (actor.role !== 'ADMIN')
+        fail(403, 'FORBIDDEN', '기관 관리자만 운영 기록을 조회할 수 있습니다.');
+      if (method !== 'GET')
+        fail(422, 'MOCK_UNSUPPORTED', '실제 알림 재처리는 백엔드 연결 환경에서 확인해 주세요.');
+      return json(
+        resource === 'operation-history' ? { retentionDays: 30, samples: [], alerts: [] } : [],
+      );
+    }
     const knowledge = runtime.knowledge;
     knowledge.bindState(runtime.state);
     const page = Number(url.searchParams.get('page') ?? 0),

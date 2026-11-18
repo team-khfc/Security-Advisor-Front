@@ -1,4 +1,5 @@
 'use client';
+import { AnalysisJobs } from './AnalysisJobs';
 import { SourceDocuments } from './SourceDocuments';
 
 import { answerValueError } from './answerFieldPolicy';
@@ -699,6 +700,9 @@ function InterviewWorkspace({
         ))}
       </div>
       <SourceDocuments caseId={businessCase.id} />
+      {actor.role === 'APPLICANT' && (
+        <AnalysisJobs caseId={businessCase.id} revision={businessCase.revision} />
+      )}
       {initialAnalysis && (
         <Notice tone={initialAnalysis.failures.length ? 'warning' : 'info'}>
           작성 시작 시 첨부 문서 {initialAnalysis.total}개 중{' '}
