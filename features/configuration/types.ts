@@ -40,7 +40,7 @@ export const settingsSchema = z.object({
       generatesFirewallRules: z.boolean(),
       reviewFields: z.array(z.enum(['INFRA', 'SECURITY'])),
       sortOrder: z.number(),
-      exportFormats: z.array(z.enum(['MARKDOWN', 'PDF', 'DOCX'])),
+      exportFormats: z.array(z.enum(['MARKDOWN', 'PDF', 'DOCX', 'HWPX'])),
     }),
   ),
   fields: z.array(questionSchema),

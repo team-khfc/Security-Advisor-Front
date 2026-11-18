@@ -13,6 +13,18 @@ const recordSchema = z.object({
   canDecide: z.boolean(),
   allowedFindings: z.array(z.number()).default([]),
   result: z.object({
+    sources: z
+      .array(
+        z.object({
+          fileId: z.number(),
+          name: z.string(),
+          fromCharacter: z.number().default(0),
+          toCharacter: z.number().default(0),
+          extractedCharacters: z.number().default(0),
+          truncated: z.boolean(),
+        }),
+      )
+      .default([]),
     fingerprint: z.string(),
     checkedAt: z.string(),
     findings: z.array(
@@ -125,6 +137,15 @@ function RecordView({
         검사 #{record.id} · {new Date(record.result.checkedAt).toLocaleString('ko-KR')} · 후보{' '}
         {record.result.findings.length}건 {record.stale ? '· 자료 변경, 재검사 필요' : ''}
       </summary>
+      {record.result.sources.map((s) => (
+        <p key={s.fileId}>
+          {s.name}:{' '}
+          {s.extractedCharacters
+            ? `추출문 ${s.fromCharacter}~${s.toCharacter} / ${s.extractedCharacters}자`
+            : '과거 검사: 상세 범위 기록 없음'}
+          {s.truncated ? ' · 추출 한도 초과, 원본 대조 필요' : ''}
+        </p>
+      ))}
       {record.result.findings.length === 0 && (
         <p>검사한 범위에서 모순 후보를 찾지 못했습니다. 모든 사실의 정확성을 보장하지 않습니다.</p>
       )}

@@ -49,14 +49,20 @@ export function ConsistencyCheck({ requestId, caseId }: { requestId: string; cas
       if (!ids.length) throw new Error('검사할 문서를 첨부해 주세요.');
       let result: z.infer<typeof resultSchema> | undefined;
       for (const [index, fileId] of ids.entries()) {
-        setProgress(`${index + 1}/${ids.length} 문서 검사 중`);
-        result = resultSchema.parse(
-          await requestJson(
-            `/api/security-requests/${encodeURIComponent(requestId)}/consistency-checks`,
-            { method: 'POST', body: { fileIds: [fileId] } },
-          ),
-        );
-        await client.invalidateQueries({ queryKey: ['consistency-history', requestId] });
+        const source = z
+          .object({ text: z.string() })
+          .parse(await requestJson(`/api/business-cases/${caseId}/source-documents/${fileId}`));
+        const total = Math.max(1, Math.ceil(source.text.length / 19500));
+        for (let part = 0; part < total; part++) {
+          setProgress(`${index + 1}/${ids.length} 문서 · ${part + 1}/${total} 구간 검사 중`);
+          result = resultSchema.parse(
+            await requestJson(
+              `/api/security-requests/${encodeURIComponent(requestId)}/consistency-checks`,
+              { method: 'POST', body: { fileIds: [fileId], fromCharacter: part * 19500 } },
+            ),
+          );
+          await client.invalidateQueries({ queryKey: ['consistency-history', requestId] });
+        }
       }
       setProgress('선택 문서 검사 완료');
       return result!;
@@ -67,8 +73,8 @@ export function ConsistencyCheck({ requestId, caseId }: { requestId: string; cas
       <h3>문서와 답변 간 모순 확인</h3>
       <p className="help">
         저장 답변·서버 구성표·최종 초안과 선택 문서를 하나씩 비교해 검사 기록을 남깁니다. 선택하지
-        않으면 전체 첨부를 검사합니다. 각 문서의 추출문 최대 20,000자를 비교하며 잘린 범위는 별도
-        표시합니다. 저장하지 않은 입력은 제외됩니다.
+        않으면 전체 첨부를 검사합니다. 각 문서의 추출문 최대 200,000자를 20,000자 구간으로 나눠
+        비교하며 잘린 범위는 별도 표시합니다. 저장하지 않은 입력은 제외됩니다.
       </p>
       <fieldset disabled={check.isPending}>
         <legend>검사할 문서 선택</legend>
